@@ -8,11 +8,12 @@ export const PALETTE = {
   cutEdge: '#fbf3e1',
   ink: '#5a3a28',
 
-  // sea: papertrails' water (render/water.js there: shallow #6fc4b0, deep #1f8f8a, rim #f6e6bc), no ink on it
-  sea: '#3ea79c',
-  seaDeep: '#1f8f8a',
-  seaLight: '#58b8a8',
-  seaShallow: '#6fc4b0',
+  // sea: the world's floor, printed pale (the skill: sea-foam for water, the floor paler and less saturated than the
+  // pieces on it), and authored a step bluer than it lands: the warm grade turns teal ~25 degrees toward green on screen
+  sea: '#7ac0d9',
+  seaDeep: '#58a0c2',
+  seaLight: '#91d4e6',
+  seaShallow: '#a6e6f0',
   foam: '#f6e6bc',
 
   // wood and trims

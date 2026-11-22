@@ -97,6 +97,12 @@ What papertrails does, Paper Seas does the same way (its traveller is as tall as
 - **Paths as printed** (`world/ground-shader.ts`): roads, lanes and squares are drawn into the ground by papertrails'
   road terms (soft edge, halo, fringe, worn middle, pebbles), with grass tufts and flowers; lanes branch from the square
   and from one another like trodden paths. No standing card's blocking foot comes within 0.12 of a path's edge.
+- **The sea** (`sea/sea-surface.ts`, `config/palette.ts`): the world's floor printed pale, as the papercraft skill has it
+  (paler and less saturated than the pieces on it, authored a step bluer than it lands under the warm grade), in
+  mottled depth tones with printed shallows, foam and drifting dashes. Its reflection is papertrails' own real mirror
+  (`render/reflection.ts`), swaying on its broad wave and tinted toward the water as there; the wave keeps the size on
+  screen it has in papertrails at its 10.8 framing, and its finer wave (which split a dark hull over the pale sea into
+  striped rows) is left out. Dolphins and fish leap on arms turning about an axle under the page, a paper mover.
 - **Streams are sea water** (`world/stream-mesh.ts`, `sea/water.ts`): the same colours and fibre as the sea,
   in depth steps, with current dashes flowing down, papertrails' floating leaves (with their shadow and midrib) and
   faint current lines riding the same flow, and a sandy cut bank; each begins and ends in a round pool.

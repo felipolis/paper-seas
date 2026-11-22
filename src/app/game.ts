@@ -295,7 +295,7 @@ export class Game {
     this.distanceMap.update(p.x, p.z);
     this.sea.follow(this.view.focus.x, this.view.focus.z);
     this.sea.setDistanceMap(this.distanceMap);
-    this.sea.update(this.time);
+    this.sea.update(this.time, this.view.distance, this.view.focus.x, this.view.focus.z);
     this.lights.follow(this.view.camera, this.view.focus);
     this.hud.update(dt, {
       sailSetting: ship.sailSetting,

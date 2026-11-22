@@ -25,6 +25,17 @@ const MIRROR_STRENGTH = '0.7';
 const MIRROR_TINT = '0.6';
 const MIRROR_GAIN = '0.88';
 const MIRROR_HOT = '0.62';
+/**
+ * papertrails only ever shows its mirror on foot, the focus 10.8 from its camera; the ripple's wave trains and
+ * displacement are sized for that framing. Seen from further (the ship's 18), the same world sizes would shrink to
+ * ~5 px rows that read as scanlines, so they keep the size on screen they have in papertrails at its framing: they
+ * grow with the camera's distance beyond MIRROR_FRAMING. The wave is laid out from an anchor that moves to the focus
+ * whenever the size changes (keeping the wave where it was there), so a zoom stretches it about the middle of the
+ * picture instead of sliding it by the world's far-off coordinates; at a steady size it stays put in the world.
+ */
+const MIRROR_FRAMING = 10.8;
+/** The wave's frequencies are multiples of 2 pi / MIRROR_WRAP (papertrails' WKF), so its offset wraps there exactly. */
+const MIRROR_WRAP = 256;
 
 const SEA_GLSL = /* glsl */ `
 varying vec3 vSeaPos;
@@ -33,6 +44,8 @@ uniform vec3 uDistInfo;      // origin x, origin z, size
 uniform sampler2D uRefl;
 uniform mat4 uReflMatrix;
 uniform float uReflOn;
+uniform float uReflScale;    // the ripple's size relative to papertrails' (its framing / ours, at least 1)
+uniform vec4 uReflAnchor;    // the wave laid out as (p - xy) / uReflScale + zw
 vec3 gSeaMirror;
 float gSeaMirrorW;
 
@@ -93,15 +106,16 @@ vec3 seaColour(vec2 p) {
   gSeaMirror = vec3(0.0);
   gSeaMirrorW = 0.0;
   if (uReflOn > 0.5) {
-    // papertrails' real mirror (render/water.js there): the image shifts row by row on two fine wave trains (periods
-    // 0.15 and 0.06 units, its WKF(1700) and WKF(4100)), MIRROR_DISTORT units at most, and dims a little in bands
-    float w1 = sin(p.y * 41.72 + T * 1.5 + 1.8 * sin(p.x * 6.381 + T * 0.45));
-    float w2 = sin(p.y * 100.63 - T * 2.2 + 1.2 * sin(p.x * 14.97 - T * 0.7));
-    vec2 shift = vec2(w1 + 0.45 * w2, 0.35 * w2) * ${MIRROR_DISTORT};
-    vec4 rc4 = uReflMatrix * vec4(p.x + shift.x, 0.0, p.y + shift.y, 1.0);
+    // papertrails' real mirror (render/water.js there): the image sways sideways on its broad wave train (period 0.15
+    // units, its WKF(1700)), MIRROR_DISTORT units at most, uReflScale larger so it is the size on screen it is in
+    // papertrails at its framing. Its finer train (WKF(4100), which also dimmed the image in bands) is left out: over a
+    // dark hull on our paler sea it split the image into rows with water showing between them, stripes papertrails'
+    // mid-tone pieces over deep teal never show
+    vec2 rp = (p - uReflAnchor.xy) / uReflScale + uReflAnchor.zw;
+    float w1 = sin(rp.y * 41.72 + T * 1.5 + 1.8 * sin(rp.x * 6.381 + T * 0.45));
+    vec4 rc4 = uReflMatrix * vec4(p.x + w1 * ${MIRROR_DISTORT} * uReflScale, 0.0, p.y, 1.0);
     vec4 m = texture2D(uRefl, rc4.xy / rc4.w);
-    float breakup = 0.82 + 0.18 * smoothstep(-0.75, -0.35, w2);
-    float cover = clamp(m.a, 0.0, 1.0) * breakup * (1.0 - clamp(dash + foam, 0.0, 1.0));
+    float cover = clamp(m.a, 0.0, 1.0) * (1.0 - clamp(dash + foam, 0.0, 1.0));
     // its colour: the image tinted MIRROR_TINT of the way to the water under it and a little darker (MIRROR_GAIN);
     // what is brighter than paper (lit panes, lanterns) stays bright and untinted (MIRROR_HOT), and always shows
     vec3 rcol = m.rgb / max(m.a, 0.05);
@@ -129,6 +143,8 @@ export class SeaSurface {
       uRefl: { value: null },
       uReflMatrix: { value: new THREE.Matrix4() },
       uReflOn: { value: 0 },
+      uReflScale: { value: 1 },
+      uReflAnchor: { value: new THREE.Vector4(0, 0, 0, 0) },
     };
     const uniforms = this.uniforms;
     material.onBeforeCompile = (shader) => {
@@ -145,7 +161,7 @@ diffuseColor.rgb *= 1.0 - gSeaMirrorW;`)
         .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
 totalEmissiveRadiance += gSeaMirror * gSeaMirrorW;`);
     };
-    material.customProgramCacheKey = () => 'sea-v3';
+    material.customProgramCacheKey = () => 'sea-v4';
     this.mesh = new THREE.Mesh(geometry, material);
     this.mesh.receiveShadow = true;
     this.mesh.renderOrder = -1;
@@ -169,7 +185,20 @@ totalEmissiveRadiance += gSeaMirror * gSeaMirrorW;`);
     }
   }
 
-  update(time: number): void {
+  /**
+   * cameraDistance: how far the camera stands from its focus (fx, fz): the mirror's ripple keeps papertrails' size on
+   * screen, re-anchored at the focus when that size changes (see MIRROR_FRAMING).
+   */
+  update(time: number, cameraDistance: number, fx: number, fz: number): void {
     this.uniforms.uTime.value = time;
+    const scale = Math.max(1, cameraDistance / MIRROR_FRAMING);
+    const u = this.uniforms.uReflScale;
+    if (scale !== u.value) {
+      // the wave at the focus stays where it is: (f - a) / old + o, re-laid from the focus
+      const a = this.uniforms.uReflAnchor.value as THREE.Vector4;
+      const wrap = (v: number) => v - MIRROR_WRAP * Math.floor(v / MIRROR_WRAP);
+      a.set(fx, fz, wrap((fx - a.x) / u.value + a.z), wrap((fz - a.y) / u.value + a.w));
+      u.value = scale;
+    }
   }
 }

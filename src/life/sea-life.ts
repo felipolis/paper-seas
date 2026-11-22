@@ -1,7 +1,7 @@
 /**
  * Sea life around the ship. Every few seconds an encounter pops up near the ship, on the side it is heading to:
  *   whale     surfaces (pop-up), swims, blows a spout, dives and waves its tail
- *   dolphins  a small pod leaping alongside (they come up through the sea page, no hinge)
+ *   dolphins  a small pod leaping alongside: each on an arm turning about an axle under the sea page (a paper mover)
  *   turtle    paddles by
  *   shark     a fin circling
  *   kraken    tentacles rise around a point, sway, and sink again
@@ -223,18 +223,26 @@ interface LeaperStyle {
   /** Seconds in the air, seconds under water between jumps. */
   air: number;
   gap: number;
-  /** Peak height of the arc, speed along the ship (units / s), distance from the ship's side. */
-  arc: number;
+  /**
+   * How far (degrees) the arm swings either side of upright: the leap's arc is the circle its tip draws, wide enough to
+   * cover speed x air; then the speed along the ship (units / s) and the distance from the ship's side.
+   */
+  swing: number;
   speed: number;
   side: number;
   spread: number;
 }
 
-const DOLPHINS: LeaperStyle = { sprites: ['dolphin-0', 'dolphin-1'], count: 3, height: 0.75, jumps: 3, air: 1.15, gap: 0.45, arc: 1.25, speed: 1.8, side: 1.9, spread: 0.55 };
-const FISH_SCHOOL: LeaperStyle = { sprites: ['fish-school'], count: 2, height: 0.55, jumps: 3, air: 0.7, gap: 0.5, arc: 0.6, speed: 2.4, side: 1.6, spread: 0.8 };
-const FLYING_FISH: LeaperStyle = { sprites: ['flying-fish'], count: 3, height: 0.42, jumps: 2, air: 1.9, gap: 0.6, arc: 0.55, speed: 3.2, side: 2.2, spread: 0.6 };
+const DOLPHINS: LeaperStyle = { sprites: ['dolphin-0', 'dolphin-1'], count: 3, height: 0.75, jumps: 3, air: 1.15, gap: 0.45, swing: 80, speed: 1.8, side: 1.9, spread: 0.55 };
+const FISH_SCHOOL: LeaperStyle = { sprites: ['fish-school'], count: 2, height: 0.55, jumps: 3, air: 0.7, gap: 0.5, swing: 65, speed: 2.4, side: 1.6, spread: 0.8 };
+const FLYING_FISH: LeaperStyle = { sprites: ['flying-fish'], count: 3, height: 0.42, jumps: 2, air: 1.9, gap: 0.6, swing: 30, speed: 3.2, side: 2.2, spread: 0.6 };
+/** A leaper's card turns on its pin this share of its arm's angle (its nose leads up and down, never past steep). */
+const LEAP_PIN = 0.55;
 
-/** A pod of creatures leaping alongside the ship: they come up through the sea page (no hinge). */
+/**
+ * A pod of creatures leaping alongside the ship, as a paper mover: each rides an arm turning about an axle under the
+ * sea page, so it swings up out of the water, over and back in, only ever turning (the axle steps on between leaps).
+ */
 class Leapers implements Encounter {
   readonly group = new THREE.Group();
   private readonly members: Array<{ node: THREE.Group; right: THREE.Mesh; left: THREE.Mesh; delay: number; side: number }> = [];
@@ -275,11 +283,18 @@ class Leapers implements Encounter {
       const inAir = tl >= 0 && cycle < st.jumps && s <= 1 && water(baseX, baseZ, 0.6);
       d.node.visible = inAir;
       if (!inAir) continue;
-      const lift = st.arc + st.height * 0.45;
-      const y = -st.height * 0.45 + lift * Math.sin(Math.PI * s);
-      const slope = lift * Math.PI * Math.cos(Math.PI * s);
-      d.node.position.set(baseX, y, baseZ);
-      d.node.rotation.z = Math.atan2(slope, st.speed * st.air) * 0.55 * (goingRight ? 1 : -1);
+      // the arm: long enough that its swing covers the leap; its axle below the water, so the creature's middle
+      // leaves and meets the page at the ends of the swing; the axle stays put through the leap (where it is half-way)
+      const swing = st.swing * DEG;
+      const arm = (st.speed * st.air) / (2 * Math.sin(swing));
+      const axleY = -st.height * 0.45 - arm * Math.cos(swing);
+      const angle = swing * (2 * s - 1);
+      const back = (s - 0.5) * st.air * st.speed;
+      const ax = baseX - ship.fx * back;
+      const az = baseZ - ship.fz * back;
+      const reach = arm * Math.sin(angle);
+      d.node.position.set(ax + ship.fx * reach, axleY + arm * Math.cos(angle), az + ship.fz * reach);
+      d.node.rotation.z = -angle * LEAP_PIN * (goingRight ? 1 : -1);
       d.right.visible = goingRight;
       d.left.visible = !goingRight;
       const prevCycle = Math.floor(tl0 / period);
