@@ -3,6 +3,8 @@
 Sail a paper pirate ship across an endless pop-up ocean. Waves, islands and everything on them fold up out of the
 page as you approach and fold flat again behind you.
 
+**Play it at [paper-seas.felipolis.workers.dev](https://paper-seas.felipolis.workers.dev).**
+
 Vite + TypeScript + Three.js, no framework.
 
 ## Run
