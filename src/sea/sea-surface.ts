@@ -15,6 +15,16 @@ import type { DistanceMap } from './distance-map';
 import type { Reflection } from '../render/reflection';
 
 const SIZE = 280;
+/**
+ * papertrails' mirror (config/world.js water.mirror there, render/water.js WATER_DEFAULTS.mirror): its sideways
+ * ripple (world units), its strength, how far its image is tinted toward the water, its gain, and the gain of what is
+ * brighter than paper.
+ */
+const MIRROR_DISTORT = '0.017';
+const MIRROR_STRENGTH = '0.7';
+const MIRROR_TINT = '0.6';
+const MIRROR_GAIN = '0.88';
+const MIRROR_HOT = '0.62';
 
 const SEA_GLSL = /* glsl */ `
 varying vec3 vSeaPos;
@@ -83,14 +93,22 @@ vec3 seaColour(vec2 p) {
   gSeaMirror = vec3(0.0);
   gSeaMirrorW = 0.0;
   if (uReflOn > 0.5) {
-    float w1 = sin(p.y * 7.0 + T * 1.5 + 1.8 * sin(p.x * 1.1 + T * 0.45));
-    float w2 = sin(p.y * 17.0 - T * 2.2 + 1.2 * sin(p.x * 2.4 - T * 0.7));
-    vec4 rc4 = uReflMatrix * vec4(p.x + 0.035 * (w1 + 0.45 * w2), 0.0, p.y, 1.0);
-    vec2 ruv = rc4.xy / rc4.w;
-    vec4 m = texture2D(uRefl, ruv) * 0.5 + texture2D(uRefl, ruv + vec2(0.002, 0.0)) * 0.25 + texture2D(uRefl, ruv - vec2(0.002, 0.0)) * 0.25;
-    float breakup = 0.75 + 0.25 * smoothstep(-0.6, -0.2, w2);
-    gSeaMirrorW = m.a * breakup * (1.0 - clamp(dash + foam, 0.0, 1.0)) * 0.72;
-    gSeaMirror = m.rgb * mix(vec3(1.0), uSeaMid * 1.6, 0.45);
+    // papertrails' real mirror (render/water.js there): the image shifts row by row on two fine wave trains (periods
+    // 0.15 and 0.06 units, its WKF(1700) and WKF(4100)), MIRROR_DISTORT units at most, and dims a little in bands
+    float w1 = sin(p.y * 41.72 + T * 1.5 + 1.8 * sin(p.x * 6.381 + T * 0.45));
+    float w2 = sin(p.y * 100.63 - T * 2.2 + 1.2 * sin(p.x * 14.97 - T * 0.7));
+    vec2 shift = vec2(w1 + 0.45 * w2, 0.35 * w2) * ${MIRROR_DISTORT};
+    vec4 rc4 = uReflMatrix * vec4(p.x + shift.x, 0.0, p.y + shift.y, 1.0);
+    vec4 m = texture2D(uRefl, rc4.xy / rc4.w);
+    float breakup = 0.82 + 0.18 * smoothstep(-0.75, -0.35, w2);
+    float cover = clamp(m.a, 0.0, 1.0) * breakup * (1.0 - clamp(dash + foam, 0.0, 1.0));
+    // its colour: the image tinted MIRROR_TINT of the way to the water under it and a little darker (MIRROR_GAIN);
+    // what is brighter than paper (lit panes, lanterns) stays bright and untinted (MIRROR_HOT), and always shows
+    vec3 rcol = m.rgb / max(m.a, 0.05);
+    vec3 rtint = mix(vec3(1.0), col / max(max(col.r, max(col.g, col.b)), 0.05), ${MIRROR_TINT});
+    float rhot = smoothstep(0.9, 2.2, max(rcol.r, max(rcol.g, rcol.b)));
+    gSeaMirror = rcol * mix(rtint * ${MIRROR_GAIN}, vec3(${MIRROR_HOT}), rhot);
+    gSeaMirrorW = max(cover * ${MIRROR_STRENGTH}, rhot * cover);
   }
   return col;
 }
