@@ -1,0 +1,154 @@
+.menu {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(30, 18, 10, 0.45);
+  backdrop-filter: blur(3px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+  font-family: 'IM Fell English', Georgia, serif;
+  color: var(--ink);
+  z-index: 10;
+}
+
+.menu.on {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.menu-card {
+  width: min(440px, calc(100vw - 32px));
+  padding: 26px 30px 22px;
+  text-align: center;
+  background: var(--paper);
+  border: 4px solid var(--paper-edge);
+  outline: 1.5px solid var(--ink);
+  outline-offset: -8px;
+  border-radius: 10px 16px 11px 14px;
+  box-shadow: 4px 7px 0 rgba(42, 26, 16, 0.35), 0 18px 40px rgba(20, 10, 4, 0.45);
+  transform: translateY(10px) rotate(-0.6deg);
+  transition: transform 0.3s ease;
+}
+
+.menu.on .menu-card {
+  transform: translateY(0) rotate(-0.6deg);
+}
+
+.menu-title {
+  font-family: 'IM Fell English SC', 'IM Fell English', Georgia, serif;
+  font-size: 40px;
+  color: var(--red);
+  line-height: 1;
+}
+
+.menu-sub {
+  margin-top: 6px;
+  font-size: 16px;
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+.menu-log {
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+  margin: 18px 0 16px;
+  padding: 10px 0;
+  border-top: 1px dashed var(--ink-soft);
+  border-bottom: 1px dashed var(--ink-soft);
+  font-size: 15px;
+}
+
+.menu-log b {
+  font-size: 22px;
+  font-weight: normal;
+  color: var(--red);
+}
+
+.menu-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.menu-buttons button {
+  font: inherit;
+  font-size: 19px;
+  padding: 9px 12px;
+  color: var(--ink);
+  background: #f6ead0;
+  border: 1.5px solid var(--ink);
+  border-radius: 6px 9px 7px 8px;
+  box-shadow: 2px 3px 0 rgba(42, 26, 16, 0.3);
+  cursor: pointer;
+  transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.15s ease;
+}
+
+.menu-buttons button:hover {
+  background: #fff4dc;
+}
+
+.menu-buttons button:active {
+  transform: translate(2px, 3px);
+  box-shadow: none;
+}
+
+.menu-buttons button:focus-visible {
+  outline: 2px solid var(--red);
+  outline-offset: 2px;
+}
+
+.menu-buttons button.danger {
+  color: var(--red);
+}
+
+.menu-keys {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 14px;
+  margin-top: 16px;
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+
+.menu-keys b {
+  color: var(--red);
+  font-weight: normal;
+}
+
+.menu-seed {
+  margin-top: 6px;
+  font-size: 15px;
+  color: var(--ink-soft);
+}
+
+.menu-seed b {
+  color: var(--red);
+  font-weight: normal;
+  letter-spacing: 1px;
+}
+
+.menu-new {
+  display: flex;
+  gap: 8px;
+}
+
+.menu-new input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 16px;
+  padding: 6px 10px;
+  color: var(--ink);
+  background: #f6ead0;
+  border: 2px solid var(--paper-edge);
+  border-radius: 6px;
+}
+
+.menu-new button {
+  flex: 0 0 auto;
+}

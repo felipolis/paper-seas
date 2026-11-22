@@ -1,0 +1,73 @@
+{
+  "source": "assets-src/flow",
+  "out": "assets-src/models/faces",
+  "keepPale": [
+    "chapel-front",
+    "chapel-side",
+    "chapel-tower",
+    "lighthouse-wall",
+    "lighthouse-glass"
+  ],
+  "sheets": [
+    {
+      "file": "19-cottage-tavern.png",
+      "names": [
+        "cottage-front",
+        "cottage-side",
+        "cottage-roof",
+        "cottage-chimney",
+        "tavern-front",
+        "tavern-side",
+        "tavern-roof",
+        "tavern-sign"
+      ]
+    },
+    {
+      "file": "20-chapel-warehouse.png",
+      "names": [
+        "chapel-front",
+        "chapel-side",
+        "chapel-roof",
+        "chapel-tower",
+        "warehouse-front",
+        "warehouse-side",
+        "warehouse-roof",
+        "chapel-spire"
+      ],
+      "clean": {
+        "chapel-front": "open",
+        "chapel-side": "open",
+        "chapel-roof": "open",
+        "chapel-tower": "open",
+        "warehouse-front": "open",
+        "warehouse-side": "open",
+        "warehouse-roof": "open",
+        "chapel-spire": "open"
+      }
+    },
+    {
+      "file": "21-fort-lighthouse-hut.png",
+      "names": [
+        "fort-wall",
+        "fort-door",
+        "lighthouse-wall",
+        "lighthouse-glass",
+        "lighthouse-cap",
+        "hut-front",
+        "hut-side",
+        "hut-roof"
+      ],
+      "clean": {
+        "fort-wall": "open",
+        "fort-door": "open",
+        "lighthouse-wall": "open",
+        "lighthouse-glass": "open",
+        "lighthouse-cap": "open",
+        "hut-front": "open",
+        "hut-side": "open",
+        "hut-roof": "open"
+      }
+    }
+  ],
+  "manifest": false
+}

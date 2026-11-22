@@ -1,0 +1,5 @@
+# Text files are stored with LF line endings whatever the platform; binaries are left alone.
+* text=auto eol=lf
+*.png binary
+*.glb binary
+*.blend binary

@@ -1,0 +1,63 @@
+{
+  "source": "assets-src/flow",
+  "out": "public/models/tex",
+  "keepPale": [
+    "gallery",
+    "windows",
+    "cabin-door",
+    "grating",
+    "deck",
+    "figurehead-maiden",
+    "eye"
+  ],
+  "sheets": [
+    {
+      "file": "31-ship-planks.png",
+      "names": [
+        "plank-oak",
+        "plank-black",
+        "plank-navy",
+        "plank-red",
+        "plank-rotten",
+        "deck",
+        "strake-ochre",
+        "strake-crimson"
+      ]
+    },
+    {
+      "file": "32-ship-details.png",
+      "names": [
+        "gallery",
+        "windows",
+        "cabin-door",
+        "gunport",
+        "scroll",
+        "grating",
+        "figurehead",
+        "crest"
+      ]
+    },
+    {
+      "file": "35-ship-figureheads.png",
+      "names": [
+        "figurehead-lion",
+        "figurehead-serpent",
+        "figurehead-maiden",
+        "eye"
+      ]
+    },
+    {
+      "file": "33-terrain-swatches.png",
+      "names": [
+        "rock",
+        "grass",
+        "lava",
+        "canopy",
+        null,
+        "sandstone",
+        "moss"
+      ]
+    }
+  ],
+  "manifest": false
+}

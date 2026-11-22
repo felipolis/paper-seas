@@ -1,0 +1,147 @@
+/**
+ * What every kind of ambient life reads each frame (papertrails' life/life.js update() there): the clock, the focus,
+ * the wind, where the camera and the key light stand, the night, and how much of each kind is out.
+ *
+ * The amounts are papertrails' densities(): each kind's share in the biome (config/life.ts, our biomes mapped to its
+ * rows), cross-faded over the biome borders, times its night factor. As there it is known at the focus and as a gradient across the
+ * weather box (from biome weights sampled GRAD units either side), so each piece takes the mix at its own spot, and
+ * the cross-fade is sharpened so a little of a neighbour biome brings none of its life.
+ */
+import * as THREE from 'three';
+import { AMBIENT, type LifeKind } from '../config/life';
+import { mulberry32 } from '../core/rng';
+import type { Biome } from '../world/land';
+
+/** World units between the biome samples of the gradient. */
+const GRAD = 5;
+/**
+ * papertrails blends its biomes over 1.6 tiles; our biomes are a hard partition, so the weight of a biome at a point
+ * is the share of a 3 x 3 stencil of samples this far apart that lies in it.
+ */
+const BLEND = 1.6;
+const KINDS = Object.keys(AMBIENT.biomes.heartland) as LifeKind[];
+type Row = keyof typeof AMBIENT.biomes;
+
+const smooth = (a: number, b: number, x: number) => {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
+
+/** n seeded random numbers in [0, 1) (papertrails' per-piece table: six per piece). */
+export function randomTable(n: number, seed: number): Float32Array {
+  const rng = mulberry32(seed);
+  const out = new Float32Array(n);
+  for (let i = 0; i < n; i++) out[i] = rng();
+  return out;
+}
+
+export class LifeFrame {
+  /** The clock (s), the focus, the wind's direction (unit). */
+  t = 0;
+  fx = 0;
+  fz = 0;
+  windX = 0.94;
+  windZ = 0.34;
+  /** The camera seen from the focus: its yaw and elevation, and its ground offset per unit of height. */
+  camYaw = 0;
+  camElev = 0.9;
+  camHX = 0;
+  camHZ = 0.8;
+  /** The ground offset of a shadow per unit of height (from the key light). */
+  lightX = 0.4;
+  lightZ = 0.3;
+  /** 0 day .. 1 night. */
+  night = 0;
+  /** Per kind: the share at the focus and its gradient (per world unit). */
+  private readonly c = {} as Record<LifeKind, number>;
+  private readonly gx = {} as Record<LifeKind, number>;
+  private readonly gz = {} as Record<LifeKind, number>;
+  private readonly cam = new THREE.Vector3();
+
+  constructor(private readonly biome: (x: number, z: number) => Biome) {
+    for (const k of KINDS) this.c[k] = this.gx[k] = this.gz[k] = 0;
+  }
+
+  update(dt: number, fx: number, fz: number, windX: number, windZ: number, night: number, camera: THREE.Camera, key: THREE.DirectionalLight): void {
+    this.t += dt;
+    this.fx = fx;
+    this.fz = fz;
+    const wl = Math.hypot(windX, windZ) || 1;
+    this.windX = windX / wl;
+    this.windZ = windZ / wl;
+    this.night = night;
+    const cam = camera.getWorldPosition(this.cam);
+    const cx = cam.x - fx;
+    const cz = cam.z - fz;
+    this.camYaw = Math.atan2(cx, cz);
+    this.camElev = Math.atan2(cam.y, Math.hypot(cx, cz) || 1);
+    if (cam.y > 0.5) {
+      this.camHX = cx / cam.y;
+      this.camHZ = cz / cam.y;
+    }
+    const ly = key.position.y - key.target.position.y;
+    if (ly > 0.01) {
+      this.lightX = (key.position.x - key.target.position.x) / ly;
+      this.lightZ = (key.position.z - key.target.position.z) / ly;
+    }
+    this.densities();
+  }
+
+  /** How much of a kind is out at the focus (0..1 of its pool, night included). */
+  share(kind: LifeKind): number {
+    return this.c[kind];
+  }
+
+  /**
+   * papertrails' gate: the piece of this rank (0..1) at (dx, dz) off the focus shows once the share there reaches its
+   * rank, fading in, and fades out over the outer 14 % of a w x d box.
+   */
+  gate(kind: LifeKind, dx: number, dz: number, rank: number, w: number, d: number): number {
+    let g = (this.c[kind] + this.gx[kind] * dx + this.gz[kind] * dz - rank * 0.88) / 0.12;
+    if (g <= 0) return 0;
+    if (g > 1) g = 1;
+    const e = Math.max(Math.abs(dx) / (w * 0.5), Math.abs(dz) / (d * 0.5));
+    return g * g * (3 - 2 * g) * (e < 0.86 ? 1 : Math.max(0, (1 - e) / 0.14));
+  }
+
+  /** Each kind's share at a point: the rows of the biomes round it, weighted by their (sharpened) shares there. */
+  private mix(x: number, z: number, out: Record<LifeKind, number>): Record<LifeKind, number> {
+    const n: Partial<Record<Row, number>> = {};
+    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+      const row = AMBIENT.rows[this.biome(x + i * BLEND, z + j * BLEND)];
+      n[row] = (n[row] ?? 0) + 1;
+    }
+    let total = 0;
+    for (const k of KINDS) out[k] = 0;
+    for (const [row, count] of Object.entries(n) as Array<[Row, number]>) {
+      const w = smooth(0.2, 0.8, count / 9) + 1e-3;
+      total += w;
+      for (const k of KINDS) out[k] += AMBIENT.biomes[row][k] * w;
+    }
+    for (const k of KINDS) out[k] /= total;
+    return out;
+  }
+
+  private readonly at = { c: {} as Record<LifeKind, number>, xp: {} as Record<LifeKind, number>, xm: {} as Record<LifeKind, number>, zp: {} as Record<LifeKind, number>, zm: {} as Record<LifeKind, number> };
+
+  private densities(): void {
+    const { fx, fz, night, at } = this;
+    const c = this.mix(fx, fz, at.c);
+    const xp = this.mix(fx + GRAD, fz, at.xp);
+    const xm = this.mix(fx - GRAD, fz, at.xm);
+    const zp = this.mix(fx, fz + GRAD, at.zp);
+    const zm = this.mix(fx, fz - GRAD, at.zm);
+    const N: Partial<Record<LifeKind, number>> = AMBIENT.night;
+    for (const k of KINDS) {
+      const nf = k === 'fireflies' ? night * (N.fireflies ?? 1) : 1 + ((N[k] ?? 1) - 1) * night;
+      this.c[k] = c[k] * nf;
+      this.gx[k] = ((xp[k] - xm[k]) / (2 * GRAD)) * nf;
+      this.gz[k] = ((zp[k] - zm[k]) / (2 * GRAD)) * nf;
+    }
+    // fewer fireflies in the rain
+    const dry = 1 - AMBIENT.fireflies.rainCut * Math.min(1, Math.max(0, this.c.rain) * 1.5);
+    this.c.fireflies *= dry;
+    this.gx.fireflies *= dry;
+    this.gz.fireflies *= dry;
+  }
+}

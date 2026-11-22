@@ -1,0 +1,239 @@
+:root {
+  --paper: #efe0c2;
+  --paper-edge: #fbf3e1;
+  --ink: #3a2417;
+  --ink-soft: #5a3a28;
+  --red: #a8402e;
+  --gold: #d6a548;
+  --shadow: rgba(42, 26, 16, 0.35);
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #b9a27e;
+}
+
+#scene {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+}
+
+.hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  font-family: 'IM Fell English', Georgia, serif;
+  color: var(--ink);
+  user-select: none;
+}
+
+.hud-panel {
+  position: absolute;
+  right: 22px;
+  bottom: 22px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 18px 12px 12px;
+  background: var(--paper);
+  border: 3px solid var(--paper-edge);
+  outline: 1.5px solid var(--ink);
+  outline-offset: -5px;
+  border-radius: 10px 14px 9px 13px;
+  box-shadow: 2px 4px 0 var(--shadow), 0 8px 18px var(--shadow);
+}
+
+.hud-compass {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #f6ead0 0 55%, #e2cda2 56% 100%);
+  border: 1.5px solid var(--ink);
+}
+
+.hud-rose {
+  position: absolute;
+  top: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 13px;
+  color: var(--red);
+}
+
+.hud-needle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 28px solid var(--red);
+  transform-origin: 50% 100%;
+  transform: translate(-50%, -100%);
+  filter: drop-shadow(0 1px 0 var(--ink));
+}
+
+.hud-wind {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 3px;
+  height: 58px;
+  background: linear-gradient(to bottom, transparent 0 10%, rgba(58, 36, 23, 0.55) 10% 100%);
+  transform-origin: 50% 50%;
+}
+
+.hud-wind::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 9px solid rgba(58, 36, 23, 0.7);
+}
+
+.hud-readout {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 112px;
+}
+
+.hud-speed {
+  font-size: 15px;
+  color: var(--ink-soft);
+}
+
+.hud-speed span {
+  font-size: 30px;
+  color: var(--ink);
+}
+
+.hud-pips {
+  display: flex;
+  gap: 6px;
+}
+
+.hud-pips i {
+  width: 26px;
+  height: 9px;
+  border: 1.5px solid var(--ink);
+  border-radius: 2px;
+  background: transparent;
+}
+
+.hud-pips i.on {
+  background: var(--red);
+}
+
+.hud-sails {
+  font-size: 15px;
+}
+
+.hud-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 4.5vh;
+  transform: translateX(-50%);
+  font-family: Georgia, serif;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  color: rgba(255, 240, 214, 0.78);
+  text-shadow: 0 1px 4px rgba(20, 12, 6, 0.6);
+  white-space: nowrap;
+  pointer-events: none;
+  transition: opacity 1.4s ease;
+}
+
+.hud-hint.faded {
+  opacity: 0;
+}
+
+@media (max-width: 640px) {
+  .hud-panel {
+    right: 16px;
+    bottom: 16px;
+  }
+
+  .hud-hint {
+    display: none;
+  }
+}
+
+.hud-toast {
+  position: absolute;
+  top: 70px;
+  left: 50%;
+  transform: translate(-50%, -12px) rotate(-1deg);
+  padding: 10px 26px 12px;
+  text-align: center;
+  background: var(--paper);
+  border: 3px solid var(--paper-edge);
+  outline: 1.5px solid var(--ink);
+  outline-offset: -6px;
+  border-radius: 6px 10px 7px 9px;
+  box-shadow: 2px 4px 0 var(--shadow), 0 8px 18px var(--shadow);
+  opacity: 0;
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+.hud-toast.on {
+  opacity: 1;
+  transform: translate(-50%, 0) rotate(-1deg);
+}
+
+.hud-toast-title {
+  font-family: 'IM Fell English SC', 'IM Fell English', Georgia, serif;
+  font-size: 26px;
+  color: var(--red);
+}
+
+.hud-toast-line {
+  font-size: 15px;
+  color: var(--ink-soft);
+}
+
+.hud-prompt {
+  position: fixed;
+  left: 50%;
+  bottom: 96px;
+  transform: translate(-50%, 8px) rotate(-0.8deg);
+  padding: 7px 16px;
+  font: 17px 'IM Fell English', Georgia, serif;
+  color: var(--ink);
+  background: var(--paper);
+  border: 2px solid var(--paper-edge);
+  outline: 1px solid var(--ink);
+  outline-offset: -5px;
+  border-radius: 6px 9px 7px 8px;
+  box-shadow: 2px 4px 0 rgba(42, 26, 16, 0.3);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.hud-prompt.on {
+  opacity: 1;
+  transform: translate(-50%, 0) rotate(-0.8deg);
+}
+
+.hud-prompt b {
+  color: var(--red);
+  font-weight: normal;
+}
+
+.hud-panel {
+  transition: opacity 0.8s ease;
+}
+
+.hud-panel.faded {
+  opacity: 0;
+}

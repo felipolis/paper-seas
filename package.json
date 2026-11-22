@@ -1,0 +1,25 @@
+{
+  "name": "paper-seas",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Paper Seas - sail a paper pirate ship across an endless pop-up ocean (Three.js)",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "art:cut": "node tools/art/cut-sprites.mjs"
+  },
+  "dependencies": {
+    "three": "^0.187.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.187.0",
+    "playwright-core": "^1.65.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "wrangler": "^4.166.0"
+  }
+}

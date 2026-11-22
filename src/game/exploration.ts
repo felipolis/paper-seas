@@ -1,0 +1,256 @@
+/**
+ * What the ship has seen, for the voyage chart: a set of explored cells (CELL world units square), one small
+ * printed tile per cell (land and sea painted from the land field in the game's own tones, coast inked), the dominant
+ * feature of each cell (for the map's stamped trees, peaks, waves and landmarks), and the track the ship has sailed.
+ *
+ * Cells are marked within SIGHT of the ship. Their tiles are painted in the background a few per frame, so opening
+ * the chart is instant. The explored set and the track are kept in localStorage.
+ */
+import { clamp, hexRgb, smoothstep } from '../core/math';
+import { PALETTE } from '../config/palette';
+import { valueNoise } from '../world/noise';
+import type { Biome, LandField } from '../world/land';
+import type { IslandKind } from '../world/island-layout';
+
+export const CELL = 4;
+/** Tile resolution (pixels per cell side). */
+export const TILE_PX = 24;
+const SIGHT = 15;
+const STORAGE_KEY = 'paper-seas:explored:v1';
+const TRACK_STEP = 1.6;
+const TRACK_MAX = 4000;
+
+export interface CellInfo {
+  /** Share of the cell that is land. */
+  land: number;
+  /** Highest terrace in the cell (-1 = all sea). */
+  terrace: number;
+  biome: Biome | null;
+  snow: boolean;
+  /** The kind of the stamped island whose centre lies in this cell (its landmark goes on the chart), or null. */
+  island: IslandKind | null;
+}
+
+type Rgb = [number, number, number];
+/** The sea as the sea surface paints it (sea/sea-surface.ts), the land as the ground print does (world/terrain.ts). */
+const COL = {
+  deep: hexRgb(PALETTE.seaDeep),
+  sea: hexRgb(PALETTE.sea),
+  light: hexRgb(PALETTE.seaLight),
+  shallow: hexRgb(PALETTE.seaShallow),
+  foam: hexRgb(PALETTE.foam),
+  ink: hexRgb(PALETTE.ink),
+  sand: hexRgb('#e6cf9a'),
+  wet: hexRgb('#cdb07a'),
+  page: hexRgb('#a8a374'),
+  hill: hexRgb('#8a8a58'),
+  rock: hexRgb('#8f9070'),
+};
+/** The heights only tint the page a little (world/terrain.ts): the relief is the standing mountains. */
+const HILL_TINT = 0.18;
+const ROCK_TINT = 0.32;
+
+export const cellKey = (i: number, j: number): number => (i + 32768) * 65536 + (j + 32768);
+export const keyI = (k: number): number => Math.floor(k / 65536) - 32768;
+export const keyJ = (k: number): number => (k % 65536) - 32768;
+
+export class Exploration {
+  readonly cells = new Set<number>();
+  readonly tiles = new Map<number, HTMLCanvasElement>();
+  readonly info = new Map<number, CellInfo>();
+  readonly track: Array<[number, number]> = [];
+  private readonly queue: number[] = [];
+  private dirty = false;
+  private saveTimer = 0;
+  private lastCi = Number.NaN;
+  private lastCj = Number.NaN;
+
+  constructor(private readonly land: LandField) {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const data = JSON.parse(raw) as { cells?: number[]; track?: number[] };
+        for (const k of data.cells ?? []) {
+          this.cells.add(k);
+          this.queue.push(k);
+        }
+        const t = data.track ?? [];
+        for (let i = 0; i + 1 < t.length; i += 2) this.track.push([t[i], t[i + 1]]);
+      }
+    } catch {
+      // storage unavailable: the chart starts blank
+    }
+  }
+
+  reset(): void {
+    this.cells.clear();
+    this.tiles.clear();
+    this.info.clear();
+    this.track.length = 0;
+    this.queue.length = 0;
+    this.extra.clear();
+    this.onReset?.();
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+  }
+
+  /** Paints the tile of a cell that is not explored (the fog's soft edge reaches into it). Returns it if ready. */
+  requestTile(k: number): HTMLCanvasElement | undefined {
+    const t = this.tiles.get(k);
+    if (!t && !this.extra.has(k)) {
+      this.extra.add(k);
+      this.queue.unshift(k);
+    }
+    return t;
+  }
+
+  private readonly extra = new Set<number>();
+  /** Called whenever a tile has been painted (the chart re-bakes the region it falls in). */
+  onTile: ((k: number) => void) | null = null;
+  /** Called when the voyage is forgotten. */
+  onReset: (() => void) | null = null;
+
+  /** Cells still waiting for their printed tile. */
+  get pending(): number {
+    return this.queue.length;
+  }
+
+  update(dt: number, x: number, z: number, budgetMs: number): void {
+    // mark what is in sight (only when the ship enters a new cell)
+    const ci = Math.floor(x / CELL);
+    const cj = Math.floor(z / CELL);
+    if (ci !== this.lastCi || cj !== this.lastCj) {
+      this.lastCi = ci;
+      this.lastCj = cj;
+      const r = Math.ceil(SIGHT / CELL);
+      for (let j = cj - r; j <= cj + r; j++) {
+        for (let i = ci - r; i <= ci + r; i++) {
+          if (Math.hypot((i + 0.5) * CELL - x, (j + 0.5) * CELL - z) > SIGHT) continue;
+          const k = cellKey(i, j);
+          if (this.cells.has(k)) continue;
+          this.cells.add(k);
+          this.queue.push(k);
+          this.dirty = true;
+        }
+      }
+    }
+    // the track
+    const last = this.track[this.track.length - 1];
+    if (!last || Math.hypot(last[0] - x, last[1] - z) > TRACK_STEP) {
+      this.track.push([Math.round(x * 10) / 10, Math.round(z * 10) / 10]);
+      if (this.track.length > TRACK_MAX) this.track.splice(0, this.track.length - TRACK_MAX);
+      this.dirty = true;
+    }
+    this.paint(budgetMs);
+    this.saveTimer -= dt;
+    if (this.dirty && this.saveTimer <= 0) this.save();
+  }
+
+  /** Paints queued tiles until the time budget is spent. */
+  paint(budgetMs: number): void {
+    const t0 = performance.now();
+    while (this.queue.length && performance.now() - t0 < budgetMs) {
+      const k = this.queue.pop()!;
+      if (!this.tiles.has(k)) this.paintTile(k);
+    }
+  }
+
+  private save(): void {
+    this.dirty = false;
+    this.saveTimer = 3;
+    try {
+      const track: number[] = [];
+      for (const [x, z] of this.track) track.push(x, z);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ cells: [...this.cells], track }));
+    } catch {
+      // ignore
+    }
+  }
+
+  private paintTile(k: number): void {
+    const i = keyI(k);
+    const j = keyJ(k);
+    const N = TILE_PX;
+    const step = CELL / N;
+    const x0 = i * CELL;
+    const z0 = j * CELL;
+    // samples on an (N + 2)^2 grid (one ring outside the tile, for the field's gradient at the coast)
+    const W = N + 2;
+    const d = new Float32Array(W * W);
+    for (let jj = 0; jj < W; jj++) for (let ii = 0; ii < W; ii++) d[jj * W + ii] = this.land.distance(x0 + (ii - 0.5) * step, z0 + (jj - 0.5) * step);
+    const c = document.createElement('canvas');
+    c.width = c.height = N;
+    const ctx = c.getContext('2d')!;
+    const img = ctx.createImageData(N, N);
+    let landN = 0;
+    let topTerrace = -1;
+    let snow = false;
+    for (let jj = 0; jj < N; jj++) {
+      for (let ii = 0; ii < N; ii++) {
+        const dd = d[(jj + 1) * W + ii + 1];
+        const x = x0 + (ii + 0.5) * step;
+        const z = z0 + (jj + 0.5) * step;
+        // the field is a distance estimate: over its gradient it reads in pixels at the coast, where the shore is
+        // drawn anti-aliased (the share of the pixel that is land) and a fine ink line follows it
+        const gx = d[(jj + 1) * W + ii + 2] - d[(jj + 1) * W + ii];
+        const gz = d[(jj + 2) * W + ii + 1] - d[jj * W + ii + 1];
+        const px = dd / Math.max(0.05, Math.hypot(gx, gz) / 2);
+        const cover = clamp(0.5 - px, 0, 1);
+        let col: Rgb = COL.sea;
+        if (cover < 1) col = seaColour(x, z, Math.max(0, dd));
+        if (dd < 0) {
+          landN++;
+          const terrace = this.land.terraceAt(x, z, dd);
+          topTerrace = Math.max(topTerrace, terrace);
+          snow ||= terrace === 3 && this.land.highland(x, z) > 0.72;
+          col = mix(col, landColour(terrace, dd), cover);
+        } else if (cover > 0) col = mix(col, landColour(0, 0), cover);
+        col = mix(col, COL.ink, clamp(1.2 - Math.abs(px) / 1.2, 0, 1) * (0.2 + 0.4 * cover));
+        const o = (jj * N + ii) * 4;
+        img.data[o] = col[0];
+        img.data[o + 1] = col[1];
+        img.data[o + 2] = col[2];
+        img.data[o + 3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    this.tiles.set(k, c);
+    const cx = x0 + CELL / 2;
+    const cz = z0 + CELL / 2;
+    const dc = this.land.distance(cx, cz);
+    const island = this.land.islandsNear(cx, cz, CELL).find((s) => s.x >= x0 && s.x < x0 + CELL && s.z >= z0 && s.z < z0 + CELL);
+    this.info.set(k, {
+      land: landN / (N * N),
+      terrace: topTerrace,
+      biome: dc < 0 ? this.land.biome(cx, cz, dc) : null,
+      snow,
+      island: island?.kind ?? null,
+    });
+    this.onTile?.(k);
+  }
+}
+
+/** The sea dd from the shore: deep and mid tones in broad patches, lighter over the shelf, three shallow steps, foam. */
+function seaColour(x: number, z: number, dd: number): Rgb {
+  const n = valueNoise(31, x * 0.045, z * 0.045) * 0.65 + valueNoise(32, x * 0.13, z * 0.13) * 0.35;
+  let col = mix(COL.deep, COL.sea, smoothstep(0.25, 0.7, n));
+  col = mix(col, COL.light, (1 - smoothstep(1.5, 7, dd)) * 0.35);
+  const dn = dd + 0.35 * (valueNoise(33, x * 0.9, z * 0.9) - 0.5);
+  const steps = 0.34 * (dn < 2.2 ? 1 : 0) + 0.33 * (dn < 1.26 ? 1 : 0) + 0.33 * (dn < 0.55 ? 1 : 0);
+  col = mix(col, COL.shallow, steps * 0.85);
+  return dd < 0.2 ? mix(col, COL.foam, 0.7) : col;
+}
+
+/** The ground of a terrace dd from the shore (dd <= 0): wet sand to dry, the page tone, tinted on the heights. */
+function landColour(terrace: number, dd: number): Rgb {
+  if (terrace <= 0) return mix(COL.sand, COL.wet, 0.9 * (1 - smoothstep(-0.35, 0, dd)));
+  if (terrace === 1) return COL.page;
+  return mix(COL.page, terrace === 2 ? COL.hill : COL.rock, terrace === 2 ? HILL_TINT : ROCK_TINT);
+}
+
+function mix(a: Rgb, b: Rgb, t: number): Rgb {
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+}

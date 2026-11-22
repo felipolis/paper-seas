@@ -1,0 +1,72 @@
+.chart {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  perspective: 1400px;
+  pointer-events: none;
+  z-index: 8;
+  background: rgba(30, 18, 10, 0);
+  transition: background 0.6s ease;
+}
+
+.chart.on {
+  pointer-events: auto;
+  background: rgba(30, 18, 10, 0.28);
+}
+
+/* the sheet comes up from below the table, tipped back, and settles with a little overshoot */
+.chart-sheet {
+  position: relative;
+  width: min(1240px, calc(100vw - 48px));
+  height: min(820px, calc(100vh - 48px));
+  border-radius: 4px 9px 5px 8px;
+  box-shadow: 6px 14px 0 rgba(42, 26, 16, 0.3), 0 30px 70px rgba(20, 10, 4, 0.55);
+  transform-origin: 50% 100%;
+  transform: translateY(115vh) rotateX(38deg) rotateZ(4deg);
+  transition: transform 0.55s cubic-bezier(0.55, 0, 0.8, 0.3);
+}
+
+.chart.on .chart-sheet {
+  transform: translateY(0) rotateX(0) rotateZ(-0.7deg);
+  transition: transform 0.75s cubic-bezier(0.2, 1.25, 0.35, 1);
+}
+
+.chart-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  cursor: grab;
+}
+
+.chart-canvas:active {
+  cursor: grabbing;
+}
+
+.chart-hint {
+  position: absolute;
+  right: 40px;
+  bottom: 30px;
+  font: italic 15px 'IM Fell English', Georgia, serif;
+  color: #5a3a28;
+  pointer-events: none;
+}
+
+.chart-hint b {
+  color: #b9603f;
+  font-style: normal;
+  font-weight: normal;
+}
+
+@media (max-width: 640px) {
+  .chart-sheet {
+    width: calc(100vw - 24px);
+    height: calc(100vh - 24px);
+  }
+
+  .chart-hint {
+    display: none;
+  }
+}
