@@ -4,8 +4,10 @@
  *
  * Each card has its own paper spring, but the land rises and folds by cells, like papertrails' tiles (which cells,
  * when, and how the rise ripples outward: world/reveal.ts): the cards of one cell start one after another over
- * STAGGER seconds, the ground cover first and the tallest last, and fold down in the reverse order, lying flat on the
- * page, face up, until they rise again. A card settled upright rocks in the wind about its hinge (world/wind.ts),
+ * STAGGER seconds in flat-stack order (they fold back, so the nearest lies on top and rises first) and fold down in the
+ * reverse order, lying flat on the page, face up, until they rise again. Nothing stands plumb: each card leans a
+ * little (LEAN), only as it stands, so it still lies exactly flat. At each card's foot the page carries its score line
+ * and glue tabs (world/page-marks.ts). A card settled upright rocks in the wind about its hinge (world/wind.ts),
  * fading in over SWAY_FADE_IN and relaxing away over SWAY_RELEASE once it moves; the animals live and take the captain
  * as world/critters.ts has them.
  */
@@ -23,9 +25,12 @@ import { Critters, type Habitat } from './critters';
 import { tintMaterial } from '../render/biome-tint';
 import { BIOMES, type Biome } from './land';
 import { clamp } from '../core/math';
+import { PageMarks, type Foot } from './page-marks';
 
 /** papertrails' in-tile stagger span: the cards of a cell start one after another over this many seconds. */
 const STAGGER = 0.34;
+/** Each card leans up to this far (rad) toward or away from the camera once upright (the skill: +-2.5 degrees). */
+const LEAN = 2.5 * (Math.PI / 180);
 /** Crossed cards (papertrails' crossDeg): the nearer plane stands this far off the view axis, the other square to it. */
 export const CROSS_PLANES = [24 * (Math.PI / 180), -66 * (Math.PI / 180)];
 const X_AXIS = new THREE.Vector3(1, 0, 0);
@@ -69,6 +74,8 @@ export interface Card extends CardSpec {
   flipAt: number;
   /** Seconds its cell has waited to rise while the traveller crosses it (world/reveal.ts). */
   held: number;
+  /** How far it leans once upright (rad, about its hinge; seeded by its place). */
+  lean: number;
   /** How it rocks in the wind (see wind.ts), its sway now (rad) and how far the sway has faded in (0..1). */
   wind: Sway;
   sway: number;
@@ -96,6 +103,9 @@ export class CardField {
   private nextId = 1;
   private time = 0;
   private readonly critters: Critters;
+  /** The score lines and glue tabs printed at the cards' feet, and whether they need printing again. */
+  private readonly marks = new PageMarks();
+  private marksDirty = false;
   /** This frame's step and focus, for the animals. */
   private dt = 0;
   private focusX = 0;
@@ -104,6 +114,7 @@ export class CardField {
   /** habitat: where the animals may walk and swim, and whether it is night. */
   constructor(habitat: Habitat) {
     this.critters = new Critters(habitat);
+    this.group.add(this.marks.group);
   }
 
   /** Adds cards (returns them, so their owner can remove them later). */
@@ -125,6 +136,7 @@ export class CardField {
         jitter: cellJitter(s.x, s.z),
         flipAt: -99,
         held: 0,
+        lean: ((Math.abs(Math.sin(s.x * 39.346 + s.z * 11.135) * 43758.5453) % 1) * 2 - 1) * LEAN,
         wind: swayOf(s.sprite, s.height, (s.height * spriteInfo(s.sprite).w) / spriteInfo(s.sprite).h, s.x, s.z),
         sway: 0,
         swayLevel: 0,
@@ -138,11 +150,13 @@ export class CardField {
       b.dirty = true;
       out.push(card);
     }
-    // the rise order inside each cell: the small ground cover first, the tallest last (a chunk holds whole cells)
+    // the rise order inside each cell, the flat stack's: the nearest first (the camera looks north, so the largest z),
+    // the farthest last (a chunk holds whole cells)
     for (const cell of cells.values()) {
-      cell.sort((a, b) => a.height - b.height || a.phase - b.phase);
+      cell.sort((a, b) => b.z - a.z || a.phase - b.phase);
       cell.forEach((c, k) => (c.order = cell.length > 1 ? k / (cell.length - 1) : 0));
     }
+    this.marksDirty = true;
     return out;
   }
 
@@ -153,6 +167,7 @@ export class CardField {
       b.cards = b.cards.filter((c) => !dead.has(c));
       if (b.cards.length !== before) b.dirty = true;
     }
+    this.marksDirty = true;
   }
 
   /**
@@ -171,6 +186,7 @@ export class CardField {
   hide(card: Card): void {
     card.hidden = true;
     this.batch(card.sprite, card.flip, card.biome).dirty = true;
+    this.marksDirty = true;
   }
 
   get count(): number {
@@ -188,6 +204,10 @@ export class CardField {
     this.focusZ = focusZ;
     const steps = this.stepper.advance(dt);
     const h = POPUP.step;
+    if (this.marksDirty) {
+      this.marks.rebuild(this.feet());
+      this.marksDirty = false;
+    }
     for (const b of this.batches.values()) {
       let animate = b.dirty;
       for (const c of b.cards) {
@@ -207,7 +227,7 @@ export class CardField {
             }
           } else c.held = 0;
         } else if (may && reveal.wantsDown(c.cx, c.cz)) {
-          // folding, the cell closes in the reverse order: the tallest first
+          // folding, the cell closes in the reverse order: the farthest first
           const delay = reveal.foldDelay(c.cx, c.cz, c.jitter) + (1 - c.order) * STAGGER;
           f.setTarget(0, delay);
           c.flipAt = this.time;
@@ -236,6 +256,19 @@ export class CardField {
         if (Critters.is(c.sprite) && f.p > 0.5 && d < SWAY_RADIUS) animate = true;
       }
       if (animate) this.rebuild(b);
+    }
+  }
+
+  /**
+   * The feet that carry a score line and tabs: every card that stays where it was planted (not the animals, which
+   * walk off, nor a vignette up on its seat), a crossed card at its first plane.
+   */
+  private *feet(): Generator<Foot> {
+    for (const b of this.batches.values()) {
+      for (const c of b.cards) {
+        if (c.hidden || Critters.is(c.sprite) || c.vignette) continue;
+        yield { sprite: c.sprite, flip: c.flip, x: c.x, y: c.y, z: c.z, height: c.height, yaw: c.cross ? c.yaw + CROSS_PLANES[0] : c.yaw };
+      }
     }
   }
 
@@ -271,10 +304,11 @@ export class CardField {
         // crossed cards: two planes slotted together (the nearer 24 degrees off the view); the second folds the other way
         const yaw = (c.cross ? c.yaw + CROSS_PLANES[k] : c.yaw) + turn;
         // the wind rocks the card about its (first plane's) hinge, the top tipping the way it folds, and twists it about
-        // its long axis; a crossed card rocks as one piece
-        if (sw !== 0) {
+        // its long axis; its lean grows with it as it stands; a crossed card rocks and leans as one piece
+        const tilt = sw + c.lean * p;
+        if (tilt !== 0) {
           _q.setFromAxisAngle(Y_AXIS, yaw0);
-          _q.multiply(_qa.setFromAxisAngle(X_AXIS, -sw));
+          _q.multiply(_qa.setFromAxisAngle(X_AXIS, -tilt));
           _q.multiply(_qa.setFromAxisAngle(Y_AXIS, sw * c.wind.twist + yaw - yaw0));
         } else _q.setFromAxisAngle(Y_AXIS, yaw);
         _qa.setFromAxisAngle(X_AXIS, ((k === 0 ? -1 : 1) * Math.PI) / 2 * (1 - p));

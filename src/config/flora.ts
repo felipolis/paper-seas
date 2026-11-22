@@ -9,6 +9,9 @@
  */
 import type { Biome } from '../world/land';
 
+/** The captain's height (world units): the hero every size is measured against. */
+export const HERO_HEIGHT = 0.58;
+
 /** Height range (world units) of every sprite that stands on the land. */
 export const HEIGHT: Record<string, [number, number]> = {
   // trees

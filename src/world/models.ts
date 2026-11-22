@@ -27,6 +27,11 @@ export interface ModelInfo {
   /** A pier's / bridge's walkable deck: its height above the foot at the ends, and how much it rises at the middle. */
   deck: number;
   rise: number;
+  /**
+   * A bridge's deck profile (the skill's bridge): a ramp rising at `ramp` (rad) over `share` of each half span from the
+   * bank, then the crown at `crown` (rad) to the middle; null for a level deck.
+   */
+  profile: { share: number; ramp: number; crown: number } | null;
 }
 
 interface Prototype {
@@ -143,6 +148,10 @@ function prototype(root: THREE.Object3D, scale: number, solid: boolean): Prototy
       height: Number(root.userData.height ?? 1) * scale,
       deck: Number(root.userData.deck ?? 0) * scale,
       rise: Number(root.userData.rise ?? 0) * scale,
+      profile:
+        root.userData.rampShare === undefined
+          ? null
+          : { share: Number(root.userData.rampShare), ramp: (Number(root.userData.rampDeg) * Math.PI) / 180, crown: (Number(root.userData.crownDeg) * Math.PI) / 180 },
     },
     geometry,
     bones,
@@ -220,7 +229,9 @@ export function buildModel(name: string, x: number, y: number, z: number, yaw: n
     const f = proto.folds[i];
     let depth = 0;
     for (let a = b.parent; a && a !== rootBone; a = a.parent) depth++;
-    fold.add(b, { foldAngle: f.foldAngle, delay: f.delay, size: f.size, seed: (i * 0.618034 + x * 0.37 + z * 0.73) % 1, wobble: 0.7, lift: 0.006 * (depth + 1) + 0.012 * f.layer });
+    // (a piece rides on the piece it is hinged to: it follows it as it opens, papertrails' and the skill's NESTED flaps)
+    const parent = b.parent !== rootBone ? (b.parent ?? undefined) : undefined;
+    fold.add(b, { foldAngle: f.foldAngle, delay: f.delay, size: f.size, seed: (i * 0.618034 + x * 0.37 + z * 0.73) % 1, wobble: 0.7, lift: 0.006 * (depth + 1) + 0.012 * f.layer, parent });
   });
   fold.snap(0);
   mesh.onBeforeRender = () => setPaperFlat(paper, 1 - fold.progress);

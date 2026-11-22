@@ -592,54 +592,88 @@ def pier(name, L=3.0, W=0.62, H=0.16):
 
 
 # ------------------------------------------------------------------------------------------------------------------
-# a footbridge over a stream (walkable: its deck rises as the parabola y = rise * (1 - (t / half)^2) over the span,
-# which the game reads from the root's extras {deck, rise}): two side boards cut to the arch stand up off the page,
-# the deck folds over from the left board in sections following the arch, posts and a hand rail along both sides.
-# It runs along +z.
+# a footbridge (the papercraft skill's bridge, built-ground.js there, at our scale: hero 0.58 against its 3.6). It runs
+# along +z, its banks at z = +-L/2.
+#   DECK   a ramp hinged on each bank rising RAMP_DEG over RAMP_SHARE of its half span, a crown panel hinged on the
+#          ramp's top edge bent back to CROWN_DEG; folded, the ramps and crowns lie flat over the water
+#   SIDES  a card along each deck edge, its foot on the page, an arch cut under the deck, its top the deck line plus a
+#          parapet, leaning LEAN_DEG outward (a trough: from along the bridge both printed faces show); a second, lower,
+#          darker card just outside it for the side's thickness; newel posts at both ends of the inner card, facing
+#          along the span; folded, the sides lie flat outward
+# The game reads its walkable deck from the root's extras: deck (height at the banks), rise (at the middle) and the
+# profile's ramp share and angles.
 
-def bridge(name, L=1.9, W=0.5, rise=0.16, base=0.03):
+BRIDGE = {"ramp_deg": 26.0, "crown_deg": 8.0, "ramp_share": 0.55, "lean_deg": 18.0}
+
+
+def bridge(name, L=1.7, W=0.5, rail=0.18, base=0.002):
     m = Model(name)
-    art = "pier-plank"
     half = L / 2
-    n = 6
-    ts = [-half + L * k / n for k in range(n + 1)]
-    ys = [base + rise * (1 - (t / half) ** 2) for t in ts]
-    # side boards: the arch's outline cut out of a plank card (the bottom straight on the page)
-    for side, x in (("l", -W / 2), ("r", W / 2)):
-        o = V(x, 0, -half)
-        corners = (o, o + V(0, 0, L), o + V(0, base + rise, L), o + V(0, base + rise, 0))
-        poly = [(0, 0), (1, 0)] + [((ts[k] + half) / L, ys[k] / (base + rise)) for k in range(n, -1, -1)]
-        if side == "r":
-            corners = (V(x, 0, half), V(x, 0, -half), V(x, base + rise, -half), V(x, base + rise, half))
-            poly = [(0, 0), (1, 0)] + [((half - ts[k]) / L, ys[k] / (base + rise)) for k in range(0, n + 1)]
-        p = m.card(f"side_{side}", None, art, corners, poly, (V(x, 0, -half), V(0, 0, 1)), V(-1 if side == "l" else 1, 0, 0), 0.0 if side == "l" else 0.05)
-        if side == "l":
-            left = p
-    ov = 0.03
-    for k in range(n):
-        z0, z1 = ts[k], ts[k + 1]
-        y0, y1 = ys[k] + THICK, ys[k + 1] + THICK
-        m.card(f"deck{k}", left, art, (V(-W / 2 - ov, y1, z1), V(W / 2 + ov, y1, z1), V(W / 2 + ov, y0, z0), V(-W / 2 - ov, y0, z0)), FULL,
-               (V(-W / 2, 0, -half), V(0, 0, 1)), V(0, -1, 0), 0.2 + 0.3 * k / (n - 1))
-    # posts (two crossed cards each, seen from any side) at both ends and the middle of each side, and a hand rail
-    # along their tops: a strip lying flat on them (seen from above) over a strip standing along the side
-    pw, ph, rw = 0.07, 0.22, 0.06
-    for side, x in (("l", -W / 2 - 0.02), ("r", W / 2 + 0.02)):
-        out = -1 if side == "l" else 1
-        for k, kk in enumerate((0, n // 2, n)):
-            c = V(x, ys[kk], ts[kk])
-            for j, (ux, uz) in enumerate(((0.7071, 0.7071), (0.7071, -0.7071))):
-                u = V(ux, 0, uz) * (pw / 2)
-                m.card(f"post{side}{k}{j}", None, art, (c - u, c + u, c + u + V(0, ph, 0), c - u + V(0, ph, 0)), FULL,
-                       (c, u), V(-uz, 0, ux), 0.6 + 0.08 * k, thin=True)
-        rail = [V(x, ys[k] + ph, ts[k]) for k in range(n + 1)]
-        for k in range(n):
-            a, b = rail[k], rail[k + 1]
-            standing = m.card(f"rail{side}{k}", None, art, (a - V(0, 0.05, 0), b - V(0, 0.05, 0), b, a), FULL,
-                              (V(x, 0, -half), V(0, 0, 1)), V(out, 0, 0), 0.8 + 0.02 * k)
-            m.card(f"railtop{side}{k}", standing, art, (a - V(rw / 2, 0, 0), b - V(rw / 2, 0, 0), b + V(rw / 2, 0, 0), a + V(rw / 2, 0, 0)), FULL,
-                   (a + V(out * rw / 2, 0, 0), b - a), V(0, -1, 0), 0.9 + 0.02 * k)  # hinged on its outer edge
-    return m, {"W": W, "D": L, "H": base + rise + ph, "deck": base + THICK, "rise": rise}
+    A1 = math.radians(BRIDGE["ramp_deg"])
+    A2 = math.radians(BRIDGE["crown_deg"])
+    lean = math.radians(BRIDGE["lean_deg"])
+    z1 = half - BRIDGE["ramp_share"] * half  # where the ramp meets the crown
+    h1 = (half - z1) * math.tan(A1)
+
+    def deck_h(u):
+        u = abs(u)
+        return 0.0 if u >= half else (half - u) * math.tan(A1) if u >= z1 else h1 + (z1 - u) * math.tan(A2)
+
+    top = deck_h(0.0)
+    # the deck: a ramp on each bank, a crown panel riding on its top edge
+    for s in (1, -1):
+        foot, edge, apex = base, base + h1, base + top
+        ramp = m.card(f"ramp{'n' if s > 0 else 's'}", None, "pier-plank",
+                      (V(-s * W / 2, foot, s * half), V(s * W / 2, foot, s * half), V(s * W / 2, edge, s * z1), V(-s * W / 2, edge, s * z1)),
+                      FULL, (V(-s * W / 2, foot, s * half), V(1, 0, 0)), V(0, 0, -s), 0.0)
+        up_ramp = V(0, h1, -s * (half - z1)).normalized()
+        m.card(f"crown{'n' if s > 0 else 's'}", ramp, "pier-plank",
+               (V(-s * W / 2, edge, s * z1), V(s * W / 2, edge, s * z1), V(s * W / 2, apex, 0), V(-s * W / 2, apex, 0)),
+               FULL, (V(-s * W / 2, edge, s * z1), V(1, 0, 0)), up_ramp, 0.15)
+    # the sides: the outline along the span (a: 0..1 over -ext..ext, b: up the card), the arch under the deck
+    ext = half * 1.06
+    aw, ah = half * 0.6, max(0.016, top * 0.72)
+
+    def side_poly(parapet, height):
+        A = lambda t: (t + ext) / (2 * ext)
+        pts = [(0.0, 0.0), (A(-aw), 0.0)]
+        for i in range(1, 16):
+            a = math.pi - math.pi * i / 16
+            pts.append((A(math.cos(a) * aw), math.sin(a) * ah / height))
+        pts += [(A(aw), 0.0), (1.0, 0.0)]
+        for i in range(25):
+            t = ext - 2 * ext * i / 24
+            pts.append((A(t), (deck_h(t) + parapet * (0.85 if abs(t) > half else 1.0)) / height))
+        return pts
+
+    for sg in (1, -1):
+        for outer in (False, True):
+            parapet = rail * (0.62 if outer else 1.0)
+            height = top + parapet
+            x0 = sg * (W / 2 + 0.016 + (0.045 if outer else 0.0))
+            up = V(sg * math.sin(lean), math.cos(lean), 0) * height
+            # (the printed face looks outward; a runs from -ext to +ext seen from outside)
+            za, zb = (ext, -ext) if sg > 0 else (-ext, ext)
+            c00, c10 = V(x0, 0, za), V(x0, 0, zb)
+            side = m.card(f"side{'l' if sg < 0 else 'r'}{'o' if outer else ''}", None, "pier-plank-dark" if outer else "pier-plank",
+                          (c00, c10, c10 + up, c00 + up), side_poly(parapet, height), (V(x0, 0, -ext), V(0, 0, 1)), V(sg, 0, 0),
+                          0.4 if outer else 0.35)
+            if outer:
+                continue
+            # newel posts at both ends of the inner side, riding on it, facing along the span (a little inside it)
+            pw, ph = 0.08, rail * 1.25
+            inward = V(-sg * math.cos(lean), math.sin(lean), 0) * 0.04
+            for ze in (ext, -ext):
+                o = V(x0, 0, ze) + inward
+                lean_up = V(sg * math.sin(lean), math.cos(lean), 0) * ph
+                zs = 1 if ze > 0 else -1
+                # (its face looks out along the span, away from the bridge)
+                a0, a1 = (o + V(-zs * pw / 2, 0, 0), o + V(zs * pw / 2, 0, 0))
+                m.card(f"post{'l' if sg < 0 else 'r'}{'n' if ze > 0 else 's'}", side, "pier-plank",
+                       (a0, a1, a1 + lean_up, a0 + lean_up), FULL, (a0, V(1, 0, 0)), V(0, 0, zs), 0.6)
+    dims = {"W": W, "D": L, "H": base + top + rail, "deck": base + THICK, "rise": top,
+            "rampShare": BRIDGE["ramp_share"], "rampDeg": BRIDGE["ramp_deg"], "crownDeg": BRIDGE["crown_deg"]}
+    return m, dims
 
 
 # ------------------------------------------------------------------------------------------------------------------
@@ -655,9 +689,9 @@ def build_blender(models):
         root["width"] = dims["W"]
         root["depth"] = dims["D"]
         root["height"] = dims["H"]
-        for key in ("deck", "rise"):
+        for key in ("deck", "rise", "rampShare", "rampDeg", "crownDeg"):
             if key in dims:
-                root[key] = dims[key]  # a pier's / bridge's walkable deck: its height at the ends, and its arch
+                root[key] = dims[key]  # a pier's / bridge's walkable deck: its height at the ends, its rise and profile
         col.objects.link(root)
         objs = {}
         for p in model.pieces:

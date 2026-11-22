@@ -35,7 +35,8 @@ tools/art/           sprite sheet cutter (cut-sprites: keeps and trims papertrai
                      sprites; peels the margin of the models' printed faces) and audit (audit-sprites: contact sheet)
 public/art/          cut sprites + manifest (loaded at startup)
 public/models/       Blender-built models (models.glb, crew.glb, ship-*.glb), their printed atlas and textures
-tools/blender/       Blender build scripts (buildings, mountains, pier and bridge; the ships; the crew)
+tools/blender/       Blender build scripts (buildings, mountains, the pier and the skill's bridge: ramps and a crown
+                     between sides leaning out; the ships; the crew)
 tools/ship/          exports the hull shape for the Blender build
 assets-src/models/   cut and painted faces of the models, the atlas layout (atlas.json), the dome outlines (domes.json)
 ```
@@ -52,7 +53,11 @@ What papertrails does, Paper Seas does the same way (its traveller is as tall as
   reach (0 at its 10.8 framing, 0.9 tiles at its 14.5 wide view, at most 1.5 tiles), the rest unchanged; the land, the
   waves and what is adrift all keep to it, and whatever it has not raised lies folded flat, face up, in view;
   the rows behind fold from the track outward; a cell flips at most once per 2 s; the anchor trails on a 1-unit rope.
-  A cell's cards start over 0.34 s, ground cover first and the tallest last, and fold in the reverse order.
+  A cell's cards start over 0.34 s in flat-stack order (they fold back, so the nearest lies on top and rises first)
+  and fold in the reverse order; each leans up to 2.5 degrees once it stands, and lies exactly flat when folded. At
+  every card's foot the page carries a pale score line and, on the wider cards, two kraft glue tabs
+  (world/page-marks.ts). A piece of a building that rides on another (a roof on its wall) follows it as it opens
+  (popup/spring.ts NESTED), so the planes of one construction never scissor.
   Folded flat, every piece (cards, buildings, mountains, piers and bridges alike) fades with its distance from the
   captain or the ship into papertrails' pencil plan of the unpainted book: full colour within 6.8, beyond 9.6 a pale
   cream wash keeping a quarter of its colour, pencil outlines and a little hatching (render/paper-material.ts).

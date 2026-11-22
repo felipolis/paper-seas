@@ -32,7 +32,7 @@ import { polylineDistance, segmentDistance, type Box, type Pt } from './polyline
 import { heightOf } from '../config/flora';
 import { CROSS_PLANES, type Card, type CardField, type CardSpec } from './card-field';
 import { islandName } from './island-names';
-import { buildModel, modelInfo, type Building } from './models';
+import { buildModel, modelInfo, type Building, type ModelInfo } from './models';
 import type { IslandSpec } from './island-layout';
 import { WORLD } from '../config/world';
 import { Critters } from './critters';
@@ -138,7 +138,7 @@ interface Paths {
 
 /**
  * A walkable deck: centred at (x, z), running along the unit (dx, dz) (a pier: out to sea), half its length and
- * width; its height is y at the ends and rises by `rise` at the middle (a bridge's arch).
+ * width; its height is y at the ends plus top(along) (a bridge's ramps and crown; a pier is level).
  */
 interface Deck {
   kind: 'pier' | 'bridge';
@@ -149,7 +149,7 @@ interface Deck {
   half: number;
   halfW: number;
   y: number;
-  rise: number;
+  top: (along: number) => number;
   building: Building;
 }
 
@@ -228,11 +228,27 @@ const BANK_ANIMAL_CHANCE = 0.08;
 const SOFT = /^(grass|fern|bush|flower|tuft|hibiscus|orchids|bird-of-paradise|cattails|papyrus|mushrooms|shells|pebbles|monkey|parrot|toucan|crab|iguana|pelican|flamingo|duck|hen|chick|goat|pig|cat|dog|frog|rabbit|owl|hummingbird|tortoise|boar|gecko|heron)/;
 /** A river's footbridge gives way to a road's bridge this near; the way on and off it is kept clear this far past its ends. */
 const BRIDGE_ROAD = 4;
-const BRIDGE_CLEAR = 0.8;
+const BRIDGE_CLEAR = 1.2;
 /** The ground round each end of a river (its pool, mound and crags) is kept clear this far. */
 const SOURCE_CLEAR = 1;
 /** Room kept between a path's edge and the blocking foot of any card (u). */
 const PATH_ROOM = 0.12;
+
+/**
+ * A deck's height above its ends at `along` from its middle: the skill's bridge profile (a ramp from each bank over
+ * its share of the half span, then the crown to the middle), or level.
+ */
+function deckTop(info: ModelInfo): (along: number) => number {
+  const p = info.profile;
+  if (!p) return () => 0;
+  const half = info.depth / 2;
+  const z1 = half * (1 - p.share);
+  const h1 = (half - z1) * Math.tan(p.ramp);
+  return (along) => {
+    const u = Math.abs(along);
+    return u >= half ? 0 : u >= z1 ? (half - u) * Math.tan(p.ramp) : h1 + (z1 - u) * Math.tan(p.crown);
+  };
+}
 
 /** The part of a card's width (0..1 across its face) that stops the feet: its print in the blocking height band. */
 function blockingSpan(sprite: string, height: number): [number, number] | null {
@@ -412,7 +428,7 @@ export class Terrain {
         const along = rx * p.dx + rz * p.dz;
         const across = -rx * p.dz + rz * p.dx;
         if (Math.abs(along) > p.half || Math.abs(across) > p.halfW || p.building.fold.progress < 0.9) continue;
-        return p.y + p.rise * (1 - (along / p.half) ** 2);
+        return p.y + p.top(along);
       }
     }
     return null;
@@ -445,7 +461,7 @@ export class Terrain {
   private addDeck(chunk: Chunk, kind: Deck['kind'], x: number, y: number, z: number, dx: number, dz: number): void {
     const info = modelInfo(kind)!;
     const building = this.addBuilding(chunk, kind, x, y, z, Math.atan2(dx, dz));
-    chunk.decks.push({ kind, x, z, dx, dz, half: info.depth / 2, halfW: info.width / 2 + 0.02, y: y + info.deck, rise: info.rise, building });
+    chunk.decks.push({ kind, x, z, dx, dz, half: info.depth / 2, halfW: info.width / 2 + 0.02, y: y + info.deck, top: deckTop(info), building });
   }
 
   /** Unfolds / folds the assembled buildings with the same reach as the cards. */

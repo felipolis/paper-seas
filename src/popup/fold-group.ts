@@ -4,7 +4,8 @@
  * Every hinge is an Object3D whose origin sits on the fold line and whose local X axis is the hinge axis.
  * Its rest quaternion (the upright pose, including any yaw) is captured when the hinge is added; the drawn pose is
  *     quaternion = rest * RotX(foldAngle * (1 - p)) * RotY(flutter twist)
- * so a card with foldAngle -PI/2 lies flat face-up behind its hinge and stands up toward the camera.
+ * so a card with foldAngle -PI/2 lies flat face-up behind its hinge and stands up toward the camera. A card hinged on
+ * another (its `parent`) follows that card while it moves (spring.ts NESTED) and starts after it.
  */
 import * as THREE from 'three';
 import { POPUP } from '../config/popup';
@@ -21,6 +22,8 @@ export interface HingeOptions extends FlapTuning {
    * rises: cards folded onto each other lie in stacked layers instead of fighting over one plane.
    */
   lift?: number;
+  /** The hinge node this card rides on (already added): it follows that card's progress (NESTED) and starts after it. */
+  parent?: THREE.Object3D;
 }
 
 interface Hinge {
@@ -53,10 +56,15 @@ export class FoldGroup {
 
   constructor(private readonly staggerSpan: number = POPUP.staggerSpan) {}
 
-  /** Registers `node` as a hinge. Call while the node is in its upright rest pose. */
+  /** Registers `node` as a hinge. Call while the node is in its upright rest pose (and after its parent's hinge). */
   add(node: THREE.Object3D, options: HingeOptions): void {
     const flap = new Flap(flapConstants(options));
-    const delay = clamp(options.delay ?? 0, 0, 1) * this.staggerSpan;
+    let delay = clamp(options.delay ?? 0, 0, 1) * this.staggerSpan;
+    const parent = options.parent && this.hinges.find((h) => h.node === options.parent);
+    if (parent) {
+      flap.parent = parent.flap;
+      delay = Math.max(delay, parent.delayUp + POPUP.nested.lag);
+    }
     this.hinges.push({ node, rest: node.quaternion.clone(), restPos: node.position.clone(), lift: options.lift ?? 0, flap, foldAngle: options.foldAngle ?? -Math.PI / 2, delayUp: delay, delayDown: 0 });
     // fold-down runs in exact reverse: the last card up is the first one down
     let span = 0;
@@ -114,13 +122,13 @@ export class FoldGroup {
     if (this.settled) return;
     const steps = this.stepper.advance(dt);
     const h = POPUP.step;
+    // every flap advances one fixed step at a time, parents (added first) before the pieces riding on them
+    for (let i = 0; i < steps; i++) for (const hinge of this.hinges) hinge.flap.step(h);
     let busy = false;
     for (const hinge of this.hinges) {
-      const flap = hinge.flap;
-      for (let i = 0; i < steps; i++) flap.step(h);
-      flap.interpolate(this.stepper.alpha);
+      hinge.flap.interpolate(this.stepper.alpha);
       this.pose(hinge);
-      if (flap.active) busy = true;
+      if (hinge.flap.active) busy = true;
     }
     this.settled = !busy;
   }

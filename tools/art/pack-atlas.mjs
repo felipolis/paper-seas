@@ -27,10 +27,13 @@ const PATCHES = {
 
 // printed swatches shared with the ship (public/models/tex) that the models print too
 const EXTRA = { 'pier-plank': 'public/models/tex/plank-oak.png' };
-const faces = [
+// faces printed as a darker copy of another (name: [face, brightness]): the bridge's outer side card
+const DERIVED = { 'pier-plank-dark': ['pier-plank', 0.8] };
+const sources = [
   ...readdirSync(facesDir).filter((f) => f.endsWith('.png')).map((f) => ({ name: f.replace(/\.png$/, ''), file: join(facesDir, f) })),
   ...Object.entries(EXTRA).map(([name, file]) => ({ name, file: join(root, file) })),
 ].map(({ name, file }) => ({ name, url: `data:image/png;base64,${readFileSync(file).toString('base64')}` }));
+const faces = [...sources, ...Object.entries(DERIVED).map(([name, [from, shade]]) => ({ name, url: sources.find((f) => f.name === from).url, shade }))];
 
 const browser = await chromium.launch({ executablePath: 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', headless: true });
 const page = await browser.newPage();
@@ -40,7 +43,14 @@ const result = await page.evaluate(async ({ faces, SIZE, PAD, PATCHES }) => {
     const i = new Image();
     i.src = f.url;
     await i.decode();
-    return { name: f.name, img: i, w: i.width, h: i.height };
+    if (!f.shade) return { name: f.name, img: i, w: i.width, h: i.height };
+    const d = document.createElement('canvas');
+    d.width = i.width;
+    d.height = i.height;
+    const dc = d.getContext('2d');
+    dc.filter = `brightness(${f.shade})`;
+    dc.drawImage(i, 0, 0);
+    return { name: f.name, img: d, w: i.width, h: i.height };
   }));
   // shelf packing, tallest first; the faces are drawn as large as the atlas allows (scaled down only as far as needed:
   // every measure taken from a face is a share of it, so the build does not depend on its size in pixels)

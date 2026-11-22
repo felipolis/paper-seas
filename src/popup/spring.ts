@@ -8,6 +8,8 @@
  *                                                  latched the moment the card reaches upright: it whips past by
  *                                                  8-15 % and quivers at 4-7 Hz for 2-3 cycles (the paper wobble)
  *   FALL    p'' = -kd p - cd p' - pull             softer; at the page the card slaps with a little restitution
+ *   NESTED  p'' = clamp(kN (p_parent - p) + cN (p'_parent - p'), +-aN)
+ *                                                  a piece riding on another follows it while the parent moves
  *
  * The same model drives every pop-up in the game: island props (Object3D hinges, fold-group.ts), the wave cards
  * (instanced, wave-field.ts) and the ship's masts.
@@ -80,6 +82,8 @@ export class Flap {
   /** Seconds left before a pending target change starts (stagger / ripple). */
   wait = 0;
   pendingTarget = -1;
+  /** The flap this one rides on (NESTED), stepped before it in every fixed step; null for a free card. */
+  parent: Flap | null = null;
 
   constructor(readonly k: FlapConstants) {}
 
@@ -142,12 +146,19 @@ export class Flap {
       return;
     }
     const k = this.k;
+    const par = this.parent;
+    // (its parent moving toward the same side, its stagger slot reached)
+    const pulled = (side: 0 | 1) => par !== null && par.target === side && par.pendingTarget < 0 && !par.atRest;
     let a: number;
     if (this.target === 1) {
       if (!this.locked && this.m >= 1) this.locked = true;
       a = this.locked
         ? -k.wLsq * (this.m - 1) - (k.cL + k.dragL * Math.abs(this.v) + k.fricL / (Math.abs(this.v) + 0.05)) * this.v
-        : k.kUp * (1 - this.m) - k.cUp * this.v;
+        : pulled(1)
+          ? this.linkage(par!)
+          : k.kUp * (1 - this.m) - k.cUp * this.v;
+    } else if (pulled(0) && this.m <= 1 && par!.m <= 1) {
+      a = this.linkage(par!);
     } else {
       a = -k.kDn * this.m - k.cDn * this.v - k.gDn;
       // reversed while still travelling up: brake like the rise spring; the end stop still exists past upright
@@ -172,6 +183,12 @@ export class Flap {
       this.v = 0;
       this.atRest = true;
     }
+  }
+
+  /** NESTED: the pull of the parent flap, bounded so catching up never reads as a jerk. */
+  private linkage(par: Flap): number {
+    const N = POPUP.nested;
+    return clamp(N.stiffness * (par.m - this.m) + 2 * N.damping * Math.sqrt(N.stiffness) * (par.v - this.v), -N.maxAccel, N.maxAccel);
   }
 
   /** Interpolates the drawn progress between the last two fixed steps. */
