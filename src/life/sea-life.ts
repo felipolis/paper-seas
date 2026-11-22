@@ -1,11 +1,12 @@
 /**
- * Sea life around the ship. Every few seconds an encounter pops up near the ship, on the side it is heading to:
+ * Sea life around the ship. Now and then an encounter pops up near the ship, on the side it is heading to:
  *   whale     surfaces (pop-up), swims, blows a spout, dives and waves its tail
- *   dolphins  a small pod leaping alongside: each on an arm turning about an axle under the sea page (a paper mover)
+ *   dolphins  a small pod leaping along its own line: each on an arm turning about an axle under the sea page
  *   turtle    paddles by
  *   shark     a fin circling
  *   kraken    tentacles rise around a point, sway, and sink again
- * Gulls circle over the ship all the time. Every card faces the camera; creatures heading left use a mirrored print.
+ * Gulls circle spots of their own over the sea (nothing follows the ship: a spot left behind, its gull shrinks away and
+ * comes back over one ahead). Every card faces the camera; creatures heading left use a mirrored print.
  */
 import * as THREE from 'three';
 import { LIFE } from '../config/life';
@@ -240,13 +241,15 @@ const FLYING_FISH: LeaperStyle = { sprites: ['flying-fish'], count: 3, height: 0
 const LEAP_PIN = 0.55;
 
 /**
- * A pod of creatures leaping alongside the ship, as a paper mover: each rides an arm turning about an axle under the
+ * A pod of creatures leaping beside the ship's track (along its own line, from where it came up), as a paper mover: each rides an arm turning about an axle under the
  * sea page, so it swings up out of the water, over and back in, only ever turning (the axle steps on between leaps).
  */
 class Leapers implements Encounter {
   readonly group = new THREE.Group();
   private readonly members: Array<{ node: THREE.Group; right: THREE.Mesh; left: THREE.Mesh; delay: number; side: number }> = [];
   private t = 0;
+  /** Where the pod came up and the line it runs (the ship's place and heading then): it never paces the ship. */
+  private from: { x: number; z: number; fx: number; fz: number } | null = null;
 
   constructor(private readonly style: LeaperStyle, private readonly side: number) {
     const h = style.height;
@@ -268,18 +271,19 @@ class Leapers implements Encounter {
     const t0 = this.t;
     this.t += dt;
     const period = st.air + st.gap;
-    // the pod runs alongside the ship, a little faster than it
-    const rx = -ship.fz * this.side;
-    const rz = ship.fx * this.side;
-    const goingRight = ship.fx >= 0;
+    // the pod runs its own line, from beside where the ship was when it came up, the way the ship was heading
+    const o = (this.from ??= { x: ship.x, z: ship.z, fx: ship.fx, fz: ship.fz });
+    const rx = -o.fz * this.side;
+    const rz = o.fx * this.side;
+    const goingRight = o.fx >= 0;
     for (const d of this.members) {
       const tl = this.t - d.delay;
       const tl0 = t0 - d.delay;
       const cycle = Math.floor(tl / period);
       const s = (tl - cycle * period) / st.air; // 0..1 in the air
       const along = tl * st.speed - 1.3;
-      const baseX = ship.x + rx * d.side + ship.fx * along;
-      const baseZ = ship.z + rz * d.side + ship.fz * along;
+      const baseX = o.x + rx * d.side + o.fx * along;
+      const baseZ = o.z + rz * d.side + o.fz * along;
       const inAir = tl >= 0 && cycle < st.jumps && s <= 1 && water(baseX, baseZ, 0.6);
       d.node.visible = inAir;
       if (!inAir) continue;
@@ -290,10 +294,10 @@ class Leapers implements Encounter {
       const axleY = -st.height * 0.45 - arm * Math.cos(swing);
       const angle = swing * (2 * s - 1);
       const back = (s - 0.5) * st.air * st.speed;
-      const ax = baseX - ship.fx * back;
-      const az = baseZ - ship.fz * back;
+      const ax = baseX - o.fx * back;
+      const az = baseZ - o.fz * back;
       const reach = arm * Math.sin(angle);
-      d.node.position.set(ax + ship.fx * reach, axleY + arm * Math.cos(angle), az + ship.fz * reach);
+      d.node.position.set(ax + o.fx * reach, axleY + arm * Math.cos(angle), az + o.fz * reach);
       d.node.rotation.z = -angle * LEAP_PIN * (goingRight ? 1 : -1);
       d.right.visible = goingRight;
       d.left.visible = !goingRight;
@@ -409,8 +413,9 @@ class PassingShip implements Encounter {
   }
 }
 
-/** papertrails' paper flip: the card's facing eases round at this rate (1/s). */
+/** papertrails' paper flip: the card's facing eases round at this rate (1/s), cut across its middle below FLIP_CUT. */
 const FLIP_RATE = 11;
+const FLIP_CUT = 0.3;
 /** The share of the gulls still out at night. */
 const NIGHT_GULLS = 0.35;
 
@@ -423,7 +428,10 @@ class Gull {
   private readonly radius: number;
   private readonly height: number;
   private readonly speed: number;
+  /** The spot it circles, and how far it is out (0 gone .. 1 out): it shrinks away when the ship leaves the spot behind. */
   private readonly cx: number[] = [0, 0];
+  private placed = false;
+  private out = 0;
   private t = Math.random() * 10;
 
   constructor() {
@@ -442,10 +450,16 @@ class Gull {
   /** shown: 0..1, how far this gull is out (it shrinks away); clear: the shared clear line. */
   update(dt: number, ship: ShipState, shown: number, clear: ClearLine): void {
     this.t += dt;
-    // the circle's centre trails the ship
-    const k = 1 - Math.exp(-dt * 0.6);
-    this.cx[0] += (ship.x - this.cx[0]) * k;
-    this.cx[1] += (ship.z - this.cx[1]) * k;
+    // its own spot: kept while the ship is near; left behind, the gull shrinks away and then takes a spot ahead
+    const far = !this.placed || Math.hypot(ship.x - this.cx[0], ship.z - this.cx[1]) > LIFE.gullRange;
+    this.out += ((far ? 0 : 1) - this.out) * (1 - Math.exp(-dt * 1.5));
+    if (far && this.out < 0.02) {
+      const ahead = LIFE.gullAhead[0] + Math.random() * (LIFE.gullAhead[1] - LIFE.gullAhead[0]);
+      const side = (Math.random() - 0.5) * 6;
+      this.cx[0] = ship.x + ship.fx * ahead - ship.fz * side;
+      this.cx[1] = ship.z + ship.fz * ahead + ship.fx * side;
+      this.placed = true;
+    }
     this.angle += this.speed * dt;
     const x = this.cx[0] + Math.cos(this.angle) * this.radius;
     const z = this.cx[1] + Math.sin(this.angle) * this.radius * 0.7;
@@ -456,9 +470,11 @@ class Gull {
     const frame = cyc < 2.2 ? (Math.floor(this.t / 0.17) % 2) : 2;
     this.frames.forEach((m, fi) => { m.visible = fi === frame; });
     this.face += ((vx >= 0 ? 1 : -1) - this.face) * (1 - Math.exp(-dt * FLIP_RATE));
-    const size = shown * clear.k(x, this.node.position.y, z);
+    // (the flip cut at its middle: never seen edge-on, it jumps across)
+    if (Math.abs(this.face) < FLIP_CUT) this.face = FLIP_CUT * (vx >= 0 ? 1 : -1);
+    const size = shown * this.out * clear.k(x, this.node.position.y, z);
     this.node.visible = size > 0.01;
-    this.node.scale.set(Math.sign(this.face || 1) * Math.max(0.1, Math.abs(this.face)) * size, size, size);
+    this.node.scale.set(this.face * size, size, size);
     this.node.rotation.z = (frame === 2 ? 0.08 : 0) * Math.sign(vx);
   }
 }

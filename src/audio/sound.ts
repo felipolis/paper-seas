@@ -5,7 +5,7 @@
  *             so a wave of cards is a ripple of soft flaps, never a rustle; the chart and the sails are big sheets
  *   hull      a hollow wooden knock when the ship touches a shore
  *   creatures a whale's breath, splashes, the kraken's rumble
- *   sea       a slow warm wash under the table, and air that rises with the ship's speed
+ *   sea       a room tone: a slow warm wash under the table, so the silence between sounds is never digital black
  * Chain: voices -> room -> soft limiter -> master; music and sea -> master.
  */
 import { AUDIO } from '../config/audio';
@@ -24,9 +24,8 @@ interface AudioGraph {
   fx: GainNode;
   voices: PaperVoices;
   music: Music;
-  /** A few seconds of noise for the creature sounds and the wind. */
+  /** A few seconds of noise for the creature sounds. */
   noise: AudioBuffer;
-  wind: GainNode;
 }
 
 export class Sound {
@@ -46,7 +45,7 @@ export class Sound {
     window.addEventListener('pointerdown', start);
     window.addEventListener('keydown', (e) => { if (e.code === 'KeyM' && !e.repeat) this.toggleMute(); });
 
-    bus.on('paper', (e) => this.paper(e.x, e.z, e.size, e.up, e.delay ?? 0));
+    bus.on('paper', (e) => this.paper(e.x, e.z, e.size, e.up, e.delay ?? 0, e.key));
     bus.on('sails', (e) => this.sheet(e.level < 0 ? 1 : 0.8, e.level >= 0));
     bus.on('bump', (e) => this.knock(e.strength));
     bus.on('step', (e) => {
@@ -74,15 +73,11 @@ export class Sound {
     master.gain.setTargetAtTime(this.muted ? 0 : AUDIO.masterGain, ctx.currentTime, 0.05);
   }
 
-  /** Per frame: where the listener is and how fast the ship goes. */
-  update(x: number, z: number, speed: number): void {
+  /** Per frame: where the listener is. */
+  update(x: number, z: number): void {
     this.listenerX = x;
     this.listenerZ = z;
-    const g = this.graph;
-    if (!g) return;
-    g.voices.update();
-    const S = AUDIO.sea;
-    g.wind.gain.setTargetAtTime(S.windGain + S.windSpeedGain * clamp(speed / 3.4, 0, 1), g.ctx.currentTime, 0.6);
+    this.graph?.voices.update();
   }
 
   private start(): void {
@@ -112,31 +107,16 @@ export class Sound {
     const d = noise.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = rng() * 2 - 1;
 
-    // the sea: a baked loop, faded in
+    // the sea's room tone: a baked loop, faded in
     const sea = ctx.createBufferSource();
     sea.buffer = makeSea(ctx);
     sea.loop = true;
     const seaGain = ctx.createGain();
     seaGain.gain.setValueAtTime(0, ctx.currentTime);
-    seaGain.gain.linearRampToValueAtTime(AUDIO.sea.gain, ctx.currentTime + 3);
+    seaGain.gain.linearRampToValueAtTime(AUDIO.sea.gain, ctx.currentTime + AUDIO.sea.fadeIn);
     sea.connect(seaGain).connect(master);
     sea.start();
-    // air: soft band of noise, louder with speed
-    const air = ctx.createBufferSource();
-    air.buffer = noise;
-    air.loop = true;
-    const bp = ctx.createBiquadFilter();
-    bp.type = 'bandpass';
-    bp.frequency.value = AUDIO.sea.windHz;
-    bp.Q.value = 0.5;
-    const lp = ctx.createBiquadFilter();
-    lp.type = 'lowpass';
-    lp.frequency.value = 2200;
-    const wind = ctx.createGain();
-    wind.gain.value = 0;
-    air.connect(bp).connect(lp).connect(wind).connect(master);
-    air.start();
-    this.graph = { ctx, master, fx, voices: new PaperVoices(ctx, fx), music: new Music(ctx, master), noise, wind };
+    this.graph = { ctx, master, fx, voices: new PaperVoices(ctx, fx), music: new Music(ctx, master), noise };
   }
 
   /** Gain (0..1), pan (-1..1) and distance softening (0..1) of a sound at (x, z). */
@@ -153,12 +133,12 @@ export class Sound {
     return this.graph && this.graph.ctx.state === 'running' && !this.muted ? this.graph : null;
   }
 
-  private paper(x: number, z: number, size: number, up: boolean, delay: number): void {
+  private paper(x: number, z: number, size: number, up: boolean, delay: number, key: string): void {
     const g = this.live();
     if (!g) return;
     const p = this.place(x, z);
     if (p.gain <= 0) return;
-    g.voices.flap(up, size, p.gain, p.pan, p.air, hashXZ(x, z, up ? 1 : 2), delay);
+    g.voices.flap(up, size, p.gain, p.pan, p.air, hashXZ(x, z, up ? 1 : 2), delay, false, key);
   }
 
   /** A big sheet: the chart unfolding, the sails being set or furled. */

@@ -5,12 +5,9 @@ export const CAMERA = {
   distance: 18,
   minDistance: 10,
   maxDistance: 26,
-  /** World units the camera leads in the direction of travel (per unit / s of speed), clamped. */
-  lead: 1.0,
-  leadMax: 3.4,
-  /** Critically damped follow time constant (s). */
+  /** Critically damped follow time constant (s) while tipped toward the map (otherwise the window's, ON_FOOT.zone). */
   smoothTime: 0.55,
-  /** The ship sits a little below the centre of the frame (world units pushed toward the top of the screen). */
+  /** Tipped toward the map, the ship sits a little below the centre of the frame (world units toward the top). */
   screenUp: 0.8,
   near: 0.5,
   far: 120,

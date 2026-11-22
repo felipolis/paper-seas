@@ -8,7 +8,8 @@ export interface GameEvents {
    * Paper cards started to rise / fold somewhere (count = how many, size = 0 tiny .. 1 large card, delay = seconds
    * until the card actually moves).
    */
-  paper: { x: number; z: number; count: number; size: number; up: boolean; delay?: number };
+  /** key: the piece it belongs to (one sound per gesture: a piece's flaps within the group window speak as one). */
+  paper: { x: number; z: number; count: number; size: number; up: boolean; delay?: number; key: string };
   /** The sails were set or furled. */
   sails: { level: number };
   /** The hull hit a shore. */

@@ -14,7 +14,10 @@
  *     clears him, and eases back once the plain view has been clear for a while.
  * Every window size is papertrails' at its distance and scales with the zoom.
  *
- * At sea it follows the ship with the same spring, leading in the direction of travel. The wheel zooms.
+ * At sea the ship has the same window, its sizes scaled with the zoom, so the camera stands still while the ship idles
+ * or turns about and only travels once it sails on (the skill: a calm camera that never chases); the sight assist is
+ * for the captain only. A change of view (boarding, going ashore) glides over VIEW_GLIDE seconds on a smoothstep of
+ * every key (distance, pitch, field of view), never an exponential ease or a cut. The wheel zooms.
  */
 import * as THREE from 'three';
 import { CAMERA, ON_FOOT } from '../config/view';
@@ -26,6 +29,9 @@ export type SightTest = (ox: number, oy: number, oz: number, dx: number, dy: num
 /** The captain's height (papertrails' TRAVELLER_HEIGHT): thigh, chest and hat are where sight is tested. */
 const TRAVELLER_HEIGHT = 0.6;
 const SIGHT_HEIGHTS = [0.35, 0.65, 0.95];
+
+/** How long a change of view (boarding, going ashore) takes (s; the skill's 0.9). */
+const VIEW_GLIDE = 0.9;
 
 const _v = new THREE.Vector3();
 const _goal = new THREE.Vector3();
@@ -47,8 +53,11 @@ export class FollowCamera {
   recenter(): void {
     this.initialised = false;
   }
-  /** 0..1: on foot (papertrails' pose) or at sea. */
+  /** 0..1: on foot (papertrails' pose) or at sea, as the glide has it now. */
   private foot = 0;
+  /** The view change under way: how far (0..1), and the distance and pose it set out from; null when none is. */
+  private glide: { t: number; distance: number; foot: number } | null = null;
+  private onFoot = false;
   private clock = 0;
   // ---- the camera window ----
   private readonly zc = new THREE.Vector3();
@@ -106,13 +115,26 @@ export class FollowCamera {
    */
   update(dt: number, x: number, z: number, vx: number, vz: number, wheel: number, onFoot = false, y = 0): void {
     if (wheel !== 0) this.targetDistance = clamp(this.targetDistance * (1 + wheel * 0.1), CAMERA.minDistance, CAMERA.maxDistance);
-    this.distance += (this.targetDistance - this.distance) * (1 - Math.exp(-dt * 6));
-    this.foot += ((onFoot ? 1 : 0) - this.foot) * (1 - Math.exp(-dt * 4));
-    // papertrails: the window and the assist only for its own pose (not tipped toward the map)
-    const zone = onFoot && this.basePitch <= 60;
+    if (onFoot !== this.onFoot) {
+      this.onFoot = onFoot;
+      this.glide = { t: 0, distance: this.distance, foot: this.foot };
+      // (the window starts again round whichever it follows now)
+      this.zoneLive = false;
+    }
+    if (this.glide) {
+      // a change of view: every key on one smoothstep over VIEW_GLIDE seconds
+      const gl = this.glide;
+      gl.t = Math.min(1, gl.t + dt / VIEW_GLIDE);
+      const e = smoothstep(0, 1, gl.t);
+      this.distance = gl.distance + (this.targetDistance - gl.distance) * e;
+      this.foot = gl.foot + ((onFoot ? 1 : 0) - gl.foot) * e;
+      if (gl.t >= 1) this.glide = null;
+    } else this.distance += (this.targetDistance - this.distance) * (1 - Math.exp(-dt * 6));
+    // the window for the captain and the ship alike (not tipped toward the map); the sight assist on foot only
+    const zone = this.basePitch <= 60;
     if (!zone) this.zoneLive = false;
 
-    const goal = zone ? this.zoneStep(dt, x, y, z, vx, vz) : this.seaGoal(x, z, vx, vz);
+    const goal = zone ? this.zoneStep(dt, x, y, z, vx, vz) : this.liftGoal(x, z);
     if (!this.initialised) {
       this.focus.copy(goal);
       this.prevGoal.copy(goal);
@@ -133,16 +155,13 @@ export class FollowCamera {
       }
       this.prevGoal.copy(goal);
     }
-    this.updateAssist(dt, zone, x, y, z);
+    this.updateAssist(dt, zone && onFoot, x, y, z);
     this.place();
   }
 
-  /** At sea: a point leading the ship in its direction of travel, the ship a little below the middle of the frame. */
-  private seaGoal(x: number, z: number, vx: number, vz: number): THREE.Vector3 {
-    const speed = Math.hypot(vx, vz);
-    const lead = Math.min(CAMERA.leadMax, speed * CAMERA.lead);
-    const scale = this.distance / CAMERA.distance;
-    return _goal.set(x + (speed > 1e-3 ? (vx / speed) * lead : 0), 0, z + (speed > 1e-3 ? (vz / speed) * lead : 0) - CAMERA.screenUp * scale);
+  /** Tipped toward the map (the chart is open): the camera rises over what it follows, a little below the middle. */
+  private liftGoal(x: number, z: number): THREE.Vector3 {
+    return _goal.set(x, 0, z - CAMERA.screenUp * (this.distance / CAMERA.distance));
   }
 
   /** papertrails' zoneStep: the camera window round the captain, and the look target it gives. */

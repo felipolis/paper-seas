@@ -116,7 +116,7 @@ export type ChimeKind = 'discover' | 'treasure' | 'bottle';
 
 const CHIMES: Record<ChimeKind, { lo: number; hi: number; vel: number; notes: number; gap: number }> = {
   discover: { lo: 62, hi: 79, vel: 0.17, notes: 2, gap: 0.2 }, // a two-note rising figure
-  treasure: { lo: 62, hi: 86, vel: 0.17, notes: 3, gap: 0.15 }, // a little arpeggio
+  treasure: { lo: 62, hi: 86, vel: 0.17, notes: 2, gap: 0.15 }, // a wider two-note figure (the skill: never more than two)
   bottle: { lo: 74, hi: 86, vel: 0.14, notes: 1, gap: 0 }, // one high soft note
 };
 

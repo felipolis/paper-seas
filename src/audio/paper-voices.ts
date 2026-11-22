@@ -3,6 +3,7 @@
  *   - a fixed pool of voice slots (gain + stereo panner, each with its own reusable buffer), the quietest voice is
  *     faded out and replaced when all are busy;
  *   - a token-bucket rate limit, and overlapping voices turned down (~1 / sqrt(voices)) so they never sum into hiss;
+ *   - one sound per gesture: the flaps of one piece the same way within a group window speak as one (the skill);
  *   - flaps keep a minimum spacing: cards rising around the ship come out as a soft flap now and then, the loudest
  *     candidate (nearest, largest) taking the next slot, late ones dropped.
  * Everything goes through a short room (early reflections) into `out`.
@@ -46,6 +47,8 @@ export class PaperVoices {
   private lastSt: number | null = null;
   private nextOnset = -1;
   private queued: Pending | null = null;
+  /** When each piece (key and direction) last flapped (audio clock), for the group window. */
+  private readonly gestures = new Map<string, number>();
 
   constructor(private readonly ctx: AudioContext, out: AudioNode) {
     this.sr = ctx.sampleRate;
@@ -70,13 +73,22 @@ export class PaperVoices {
   /**
    * A card rose (up) or folded away. gain: distance gain 0..1, pan -1..1, air 0..1 (distance softening),
    * delay: seconds until the card actually moves. force: a sheet the player moved (the chart, the sails), played
-   * at once whatever the spacing.
+   * at once whatever the spacing. key: the piece it belongs to; its flaps the same way within the group window after
+   * the first stay silent.
    */
-  flap(up: boolean, size: number, gain: number, pan: number, air: number, seed: number, delay = 0, force = false): void {
+  flap(up: boolean, size: number, gain: number, pan: number, air: number, seed: number, delay = 0, force = false, key?: string): void {
     if (gain * AUDIO.flap.gain < AUDIO.minGain) return;
     const now = this.ctx.currentTime;
     this.drain(now);
     const c: Pending = { t: now + delay, up, size, gain, pan, air, seed };
+    if (key !== undefined) {
+      const k = `${key}|${up ? 1 : 0}`;
+      const last = this.gestures.get(k);
+      if (last !== undefined && Math.abs(c.t - last) < AUDIO.flaps.groupWindow) return;
+      this.gestures.set(k, c.t);
+      // (forget the gestures long past, a few at a time)
+      if (this.gestures.size > 256) for (const [g, t] of this.gestures) if (now - t > AUDIO.flaps.groupWindow * 4) this.gestures.delete(g);
+    }
     if (force) {
       this.start(c, now);
       return;

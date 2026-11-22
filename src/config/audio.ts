@@ -10,16 +10,19 @@ export const AUDIO = {
   maxVoices: 10,
   spareVoices: 4,
   stealFade: 0.008,
-  /** Distance law for world sounds: gain = 1 / (1 + (d / falloff)^falloffPow), faded out from earshotFade to earshot. */
-  falloff: 16,
-  falloffPow: 2,
-  earshotFade: 30,
-  earshot: 42,
+  /**
+   * Distance law for world sounds: gain = 1 / (1 + (d / falloff)^falloffPow), faded out from earshotFade to earshot (the
+   * skill's and papertrails': near events stay present, far ones fall away fast, none beyond ~2.4 x falloff).
+   */
+  falloff: 9,
+  falloffPow: 4,
+  earshotFade: 16,
+  earshot: 21.6,
   /** Voices quieter than this are not played at all. */
   minGain: 0.004,
   sampleRate: 48000,
-  /** Fraction of the full pan used at |pan| = 1. */
-  panWidth: 0.55,
+  /** Fraction of the full pan used at |pan| = 1 (the skill: half the range). */
+  panWidth: 0.5,
   /** World units across which a sound pans from centre to full side. */
   panSpan: 14,
   /** New-voice rate limit (token bucket). */
@@ -31,15 +34,17 @@ export const AUDIO = {
   densityTickDuck: 0.55,
   /** Cards rising around the ship: a soft flap now and then, not a continuous rustle. */
   flaps: {
-    /** Minimum time between flap onsets (+- jitter). */
-    spacing: 0.45,
-    spacingJitter: 0.18,
+    /** Minimum time between flap onsets (+- jitter): 0.35-0.75 s, two flaps a second at most (the skill). */
+    spacing: 0.55,
+    spacingJitter: 0.2,
     /** A flap that would start later than this after its card moved is dropped. */
-    maxDefer: 0.12,
+    maxDefer: 0.08,
+    /** One sound per gesture: a piece's flaps the same way within this window (s) after one are left silent. */
+    groupWindow: 0.5,
   },
 
   flap: {
-    gain: 0.16,
+    gain: 0.13,
     downGainDb: -9,
     downBright: 0.9,
     sizeGainMin: 0.85,
@@ -176,6 +181,9 @@ export const AUDIO = {
   /** The felt-piano barcarolle (src/audio/music.ts). bpm counts eighth notes (6/8 time). */
   music: { gain: 1.2, bpm: 112, reverb: 0.42, fadeIn: 5 },
 
-  /** The sea under the table: a slow, warm wash, and air that rises with the ship's speed. */
-  sea: { gain: 0.05, length: 12, lpHz: 420, swell: 0.55, windGain: 0.018, windSpeedGain: 0.05, windHz: 900 },
+  /**
+   * The sea under the table as the skill's room tone, so the silence between flaps is never digital black: a slow warm
+   * wash low-passed at lpHz, normalised, at ~-63 dBFS RMS (gain), faded in over fadeIn seconds.
+   */
+  sea: { gain: 0.001, length: 12, lpHz: 240, swell: 0.55, fadeIn: 1.5 },
 } as const;

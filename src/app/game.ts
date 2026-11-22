@@ -241,7 +241,7 @@ export class Game {
       // (the wheel zooms the chart itself: the camera's notches are dropped)
       this.input.takeWheel();
       this.chart.update(dt);
-      this.sound.update(p.x, p.z, 0);
+      this.sound.update(p.x, p.z);
       this.input.endFrame();
       this.frames++;
       return;
@@ -290,7 +290,7 @@ export class Game {
     this.exploration.update(dt, fx, fz, this.chart.isOpen ? 0 : 0.6);
     this.chart.update(dt);
     this.dayNight.update(dt, !!keys?.isDown('KeyT'));
-    this.sound.update(p.x, p.z, p.speed);
+    this.sound.update(p.x, p.z);
     this.time += dt;
     this.distanceMap.update(p.x, p.z);
     this.sea.follow(this.view.focus.x, this.view.focus.z);

@@ -223,7 +223,7 @@ export class CardField {
               f.setTarget(1, delay);
               c.flipAt = this.time;
               c.held = 0;
-              if (!c.hidden) bus.emit('paper', { x: c.x, z: c.z, count: 1, size: Math.min(1, c.height / 3), up: true, delay });
+              if (!c.hidden) bus.emit('paper', { x: c.x, z: c.z, count: 1, size: Math.min(1, c.height / 3), up: true, delay, key: `c${c.cx},${c.cz}` });
             }
           } else c.held = 0;
         } else if (may && reveal.wantsDown(c.cx, c.cz)) {
@@ -231,7 +231,7 @@ export class CardField {
           const delay = reveal.foldDelay(c.cx, c.cz, c.jitter) + (1 - c.order) * STAGGER;
           f.setTarget(0, delay);
           c.flipAt = this.time;
-          if (!c.hidden) bus.emit('paper', { x: c.x, z: c.z, count: 1, size: Math.min(1, c.height / 3), up: false, delay });
+          if (!c.hidden) bus.emit('paper', { x: c.x, z: c.z, count: 1, size: Math.min(1, c.height / 3), up: false, delay, key: `c${c.cx},${c.cz}` });
         }
         if (f.active) {
           for (let i = 0; i < steps; i++) f.step(h);

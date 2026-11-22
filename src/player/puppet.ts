@@ -33,7 +33,6 @@ const WALK = {
   saturate: 0.55,
   settleRate: 14,
   hop: 0.02,
-  leg: 34 * DEG,
   arm: 22 * DEG,
   /** Swing of the arm carrying the lantern, and of the other (the traveller's staff arm). */
   holdArm: 0.22,
@@ -83,6 +82,8 @@ export class Puppet {
   private lanZ = 0;
   private lanVZ = 0;
   private prevForward = 0;
+  /** Height of the hips above the feet: the legs' length, which sets how far they swing to cover a stride. */
+  private readonly legLength: number;
 
   constructor(id: string) {
     if (!crew) throw new Error('crew not loaded');
@@ -101,6 +102,9 @@ export class Puppet {
     });
     this.rig.add(model);
     this.root.add(this.rig);
+    this.root.updateMatrixWorld(true);
+    const hip = this.parts.leg_l?.getWorldPosition(new THREE.Vector3());
+    this.legLength = Math.max(0.05, hip ? hip.y - this.root.position.y : 0.2);
   }
 
   /** The lantern is carried ashore only. */
@@ -109,8 +113,9 @@ export class Puppet {
   }
 
   /**
-   * Walking ashore, papertrails' gait (player/traveller.js there): the step's phase follows the distance walked
-   * (stride per half-cycle, so the feet never skate), a gait weight eases between standing and walking, the lean is
+   * Walking ashore, papertrails' gait (player/traveller.js there) with the skill's legs: the step's phase follows the
+   * distance walked (stride per half-cycle), each leg's stance angle is the one that keeps its planted foot still (so
+   * the feet never skate) and it swings forward on a smoothstep, a gait weight eases between standing and walking, the lean is
    * an under-damped spring on the forward speed (he rocks back when he stops, leans back braking), he rolls into turns,
    * the torso and head lag the footfall, the lantern swings as a pendulum. moved: distance this frame; speed and
    * forward: speed and its forward part (u/s); yawRate: rad / s.
@@ -171,9 +176,9 @@ export class Puppet {
     const sway = W.idleSway * idle;
     this.rig.position.y = W.hop * g * Math.abs(sinP);
     this.rig.rotation.set(this.lean + sway * 0.5 * breathe2, W.twist * g * sinP, this.roll + W.waddle * g * sinP + sway * breathe);
-    const leg = W.leg * g * cosP;
-    P.leg_l?.rotation.set(-leg, 0, 0);
-    P.leg_r?.rotation.set(leg, 0, 0);
+    // (a leg's forward angle turns its foot toward +z: a negative turn about its hip's x axis)
+    P.leg_l?.rotation.set(-this.legAngle(this.phase), 0, 0);
+    P.leg_r?.rotation.set(-this.legAngle(this.phase + Math.PI), 0, 0);
     const arm = W.arm * g * cosP;
     const armIdle = sway * 1.5 * breathe2;
     P.arm_l?.rotation.set(arm * W.freeArm + armIdle, 0, 0);
@@ -181,6 +186,19 @@ export class Puppet {
     P.body?.rotation.set(W.torsoLag * g * Math.sin(this.phase * 2 - W.secondaryLag), 0, 0);
     P.head?.rotation.set(W.nod * (g * Math.sin(this.phase * 2 - W.secondaryLag - W.hatLag) + idle * 0.5 * breathe), 0, 0);
     P.lantern?.rotation.set(this.lanX, 0, this.lanZ);
+  }
+
+  /**
+   * A leg's forward angle at phase ph (the skill's leg(): one stride is 2 pi, swing for the first half, stance for the
+   * second): planted, the angle whose foot stays put while the hip covers one stride (asin of the stride over the leg's
+   * length, linear in distance); swinging, eased from behind to in front. Scaled down with the gait as he stops.
+   */
+  private legAngle(ph: number): number {
+    const R = Math.min(0.95, (this.gait * WALK.stride) / (2 * this.legLength));
+    const u = (((ph / Math.PI) % 2) + 2) % 2;
+    if (u >= 1) return Math.asin(R * (3 - 2 * u));
+    const e = u * u * (3 - 2 * u);
+    return Math.asin(R) * (2 * e - 1);
   }
 
   /** At the helm: both hands forward on the spokes, leaning into the turn. steer: -1..1 (the wheel's turn). */

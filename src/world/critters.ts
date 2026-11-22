@@ -136,6 +136,8 @@ const LEAP = 0.42;
 /** papertrails' flight directions off straight away from him (rad), the paper flip (1/s), the fastest walk-frame swap (1/s). */
 const FLEE_OFFS = [0, 0.5, -0.5, 1.0, -1.0, 1.6, -1.6, 2.3, -2.3];
 const FLIP_RATE = 11;
+/** The flip is cut at its middle (the skill): the card's width never shows below this share, it jumps across the edge-on. */
+const FLIP_CUT = 0.3;
 const STEP_RATE = 9;
 /** How far our print tips forward for papertrails' head-down frame (rad). */
 const HEAD_DOWN = 0.22;
@@ -173,7 +175,7 @@ interface State {
   cool: number;
   mv: boolean;
   idle: Idle;
-  /** Facing: +1 the print as drawn, -1 turned round; `faceK` eases through 0 (edge-on). */
+  /** Facing: +1 the print as drawn, -1 turned round; `faceK` eases toward it, jumping across the edge-on middle. */
   face: number;
   faceK: number;
   /** Which way it swerves when it flees, a floater's arc (angle, radius, direction, turn rate in rad/s), standing by the water. */
@@ -398,12 +400,14 @@ export class Critters {
       }
     } else if (s.st === 'idle' && shown !== 'sleep') rock += Math.sin(t * 1.1 + i * 2.3) * 0.012; // a breath of life
     s.faceK += (s.face - s.faceK) * Math.min(1, dt * FLIP_RATE);
+    // (cut at the middle: never seen edge-on, a sliver; it jumps across to the turned side)
+    if (Math.abs(s.faceK) < FLIP_CUT) s.faceK = FLIP_CUT * Math.sign(s.face);
 
     const p = POSE;
     p.dx = s.x;
     p.dz = s.z;
     p.dy = lift - s.down;
-    // the paper flip: a yaw from 0 (as printed) to pi (turned round), through edge-on
+    // the paper flip: a yaw from 0 (as printed) to pi (turned round), cut across edge-on
     p.yaw = kind.art === 0 ? 0 : Math.acos(Math.max(-1, Math.min(1, s.faceK)));
     // papertrails rolls the picture on screen, so a turned card (seen from its back) rolls the other way; head down,
     // the print tips toward its nose

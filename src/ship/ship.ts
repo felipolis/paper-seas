@@ -52,7 +52,7 @@ export class Ship {
   launch(delay: number): void {
     this.model.raiseMasts(true, delay);
     this.launched = true;
-    bus.emit('paper', { x: this.physics.x, z: this.physics.z, count: 9, size: 2, up: true, delay });
+    bus.emit('paper', { x: this.physics.x, z: this.physics.z, count: 9, size: 2, up: true, delay, key: 'ship' });
   }
 
   /**

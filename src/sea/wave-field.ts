@@ -32,6 +32,8 @@ function waveArt(name: string): CardArt {
 
 const CAPACITY = 900;
 const FOLD_ANGLE = -Math.PI / 2;
+/** Waves rising in one patch this wide (world units) are one gesture: one flap speaks for them. */
+const WAVE_PATCH = 6;
 
 interface Wave {
   key: number;
@@ -143,7 +145,8 @@ export class WaveField {
             const sz = wave.z - shipZ;
             const sd = Math.sqrt(sx * sx + sz * sz);
             const delay = sd * W.waveRipple + wave.phase * 0.12;
-            if (flap.target === 0 && flap.pendingTarget !== 1 && sd < 7) bus.emit('paper', { x: wave.x, z: wave.z, count: 1, size: 0.4, up: true });
+            // (a patch of waves rising together is one gesture: one sound for it, not a rustle while the ship sails)
+            if (flap.target === 0 && flap.pendingTarget !== 1 && sd < 7) bus.emit('paper', { x: wave.x, z: wave.z, count: 1, size: 0.4, up: true, key: `w${Math.floor(wave.x / WAVE_PATCH)},${Math.floor(wave.z / WAVE_PATCH)}` });
             flap.setTarget(1, flap.target === 1 ? 0 : delay);
           } else if (reveal.wantsDown(wave.x, wave.z)) {
             flap.setTarget(0, wave.phase * 0.2);

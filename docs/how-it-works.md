@@ -124,17 +124,26 @@ What papertrails does, Paper Seas does the same way (its traveller is as tall as
   blossom, the pine woods its pinewood, the jungle and rocks its heartland, sand its desert): falling leaves in five
   autumn colours and blossom petals that settle and fade, drifting dust, butterflies with hinged wings, fireflies over
   the banks at night, rain with splash rings and soft mist in the pine woods, flocks of birds crossing in a V with their
-  shadows on the ground, chimney smoke by day, gulls round the ship; every bit fades where it would cross the camera's
+  shadows on the ground, chimney smoke by day, gulls circling spots of their own (nothing follows the ship: left behind, a gull shrinks
+  away and comes back over a spot ahead), sea encounters now and then (9-18 s apart, two at most); every bit fades where it would cross the camera's
   line to the captain. Animals live as papertrails' do: they idle and walk about their home (a paper hop and roll per
   step), hens peck, goats graze, cats nap, ducks float in slow arcs on the streams; near the captain they freeze, then
   bound, dart, flutter or shuffle off and make a new home there; at night grazers stand still and pets doze. They
   walk on the captain's clearance field (papertrails' minClear 0.07), so they go round trees, rocks, fences and houses.
   papertrails' vignettes tie some to a piece: a cat sitting on a fence, a barrel, the well or a bench, a cat by a door,
   a dog by the cart or the well, hens by a fence, an owl at the top of a watchtower, a gecko at a tree's trunk, a boar
-  half hidden behind one; they mostly keep their place, and leave a seat with a paper leap down.
+  half hidden behind one; they mostly keep their place, and leave a seat with a paper leap down. Turning round, an
+  animal's card flips with its edge-on middle cut out, so it never shows as a sliver.
 - **Footsteps** (`audio/paper-synth.ts`): a synthesised paper step on every footfall, its timbre set by the ground
-  (grass, path, a deck).
-- **The camera on foot** (`camera/follow-camera.ts`): papertrails' follow camera as it is: a 27 degree lens at 10.8, 42
+  (grass, path, a deck). His legs walk by the skill's gait: each planted foot holds still under the moving hip (its
+  stance angle covers the stride exactly), the other swings forward on a smoothstep.
+- **The mix** (`config/audio.ts`, `audio/paper-voices.ts`): the skill's approved levels: one flap per gesture (a land
+  cell, a patch of waves, within 0.5 s), 0.35-0.75 s between flaps, the nearest and largest winning, sounds falling away
+  fast with distance (silent beyond ~2.4 x 9 units); no wind; the sea is only a room tone at ~-63 dBFS so the silence is
+  never digital black.
+- **The camera** (`camera/follow-camera.ts`): at sea the ship has the same window (scaled with the zoom), so the camera
+  stands still while the ship idles or turns and only travels once it sails on; boarding and going ashore glide over
+  0.9 s on a smoothstep. On foot it is papertrails' follow camera as it is: a 27 degree lens at 10.8, 42
   degrees down; a still zone round the captain where it does not move, a soft zone that picks up his step, hard edges;
   after a moment of steady walking the window travels with him and leads; an exact critically damped spring; a slow
   tripod drift; the lens eases up or round when a building hides him.

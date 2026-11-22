@@ -1,9 +1,9 @@
 /** Sea life: how often creatures show up around the ship and how they move. */
 export const LIFE = {
-  /** Seconds between two creature appearances (random in this range). */
-  spawnInterval: [3.5, 8] as [number, number],
+  /** Seconds between two creature appearances (random in this range): now and then, never filling the sea. */
+  spawnInterval: [9, 18] as [number, number],
   /** At most this many encounters at once. */
-  maxActive: 4,
+  maxActive: 2,
   /** Relative chance of each encounter. */
   weights: {
     dolphins: 0.16, whale: 0.1, turtle: 0.09, shark: 0.08, kraken: 0.04, manta: 0.08, jellyfish: 0.09, octopus: 0.05,
@@ -11,10 +11,15 @@ export const LIFE = {
   },
   /** Encounters appear this far from the ship (world units), on the side it is heading to. */
   spawnDistance: [4, 6.5] as [number, number],
-  /** Gulls circling over the ship. */
+  /**
+   * Gulls, each circling a spot of its own over the sea; once the ship is gullRange from it, it shrinks away and comes
+   * back over a spot gullAhead ahead of the ship.
+   */
   gulls: 3,
   gullHeight: [2.6, 3.4] as [number, number],
   gullRadius: [2.5, 4.5] as [number, number],
+  gullRange: 11,
+  gullAhead: [3, 8] as [number, number],
 } as const;
 
 /** The kinds of ambient life whose numbers follow the biome and the night. */
