@@ -75,8 +75,8 @@ type Pair = readonly [day: THREE.Color, night: THREE.Color];
 const pair = (day: string, night: string): Pair => [new THREE.Color(day), new THREE.Color(night)];
 const COLOURS = {
   background: pair(POST.background, NIGHT.background),
-  fadeLeft: pair(POST.fade.color, NIGHT.fade.color),
-  fadeRight: pair(POST.fade.colorRight, NIGHT.fade.colorRight),
+  fade: pair(POST.fade.color, NIGHT.fade.color),
+  vignette: pair(POST.vignetteColor, NIGHT.vignetteColor),
   shadowTint: pair(POST.shadowTint, NIGHT.shadowTint),
   aoTint: pair(POST.aoTint, NIGHT.aoTint),
 };
@@ -109,8 +109,7 @@ export class PostChain {
     uFocusW: { value: new THREE.Vector3() },
     uGobo: { value: new THREE.Vector4(1, 0, 1 / POST.gobo.radius, POST.gobo.key) },
     uGobo2: { value: new THREE.Vector4(POST.gobo.tint, POST.fade.start, POST.fade.end, POST.fade.amount) },
-    uFadeA: { value: new THREE.Color() },
-    uFadeB: { value: new THREE.Color() },
+    uFade: { value: new THREE.Color() },
     uCloudA: { value: this.clouds.a },
     uCloudB: { value: this.clouds.b },
     uCloudColor: { value: this.clouds.color },
@@ -196,6 +195,7 @@ export class PostChain {
       uShadowTint: { value: new THREE.Color() },
       uTint: { value: new THREE.Vector3(...POST.tint) },
       uLens: { value: new THREE.Vector4(POST.vignette, POST.grain, POST.grainSize, POST.chroma) },
+      uVignetteColor: { value: new THREE.Color() },
       uFx: { value: new THREE.Vector4(POST.bloom, POST.rim, POST.rimPx, 0) },
       uSharpen: { value: POST.sharpen },
       uSpill: { value: POST.spill },
@@ -205,8 +205,8 @@ export class PostChain {
   }
 
   /**
-   * night: 0 day .. 1 night; blends every term of the look toward papertrails' night (NIGHT_BASE), and pre-compensates
-   * the surround and the haze for the tone curve so they come out exactly their colour on screen.
+   * night: 0 day .. 1 night; blends every term of the look toward the night set, and pre-compensates the surround, the
+   * haze and the vignette's colour for the tone curve so they come out exactly their colour on screen.
    */
   setNight(night: number): void {
     if (night === this.night) return;
@@ -246,8 +246,8 @@ export class PostChain {
 
     const P: Tone = { exposure: L.exposure, contrast: tone.y, saturation: tone.z, tint };
     inverseTone(blend(this._c, COLOURS.background), P, this.background);
-    inverseTone(blend(this._c, COLOURS.fadeLeft), P, C.uFadeA.value);
-    inverseTone(blend(this._c, COLOURS.fadeRight), P, C.uFadeB.value);
+    inverseTone(blend(this._c, COLOURS.fade), P, C.uFade.value);
+    inverseTone(blend(this._c, COLOURS.vignette), P, u.uVignetteColor.value as THREE.Color);
   }
 
   /** Drifts the cloud shadows on with the wind round the traveller (fx, fz); they are gone at night (0..1). */

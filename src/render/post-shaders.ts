@@ -33,8 +33,7 @@ uniform mat4 uCamWorld;
 uniform vec3 uFocusW;
 uniform vec4 uGobo;   // screen-right axis on the ground (x, z), 1 / radius, key falloff
 uniform vec4 uGobo2;  // warm / cool tint, fade start, fade end, fade amount
-uniform vec3 uFadeA;  // haze colour on the left / right of the frame (pre-compensated for the tone curve)
-uniform vec3 uFadeB;
+uniform vec3 uFade;   // haze colour (pre-compensated for the tone curve)
 ${CLOUD_GLSL}
 float viewZ(float d) { return (uProj.x * uProj.y) / (uProj.y - d * (uProj.y - uProj.x)); }
 float cocAt(vec2 uv, float z) {
@@ -51,7 +50,7 @@ float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
 vec3 viewPos(vec2 uv, float z) { return vec3((uv * 2.0 - 1.0) * vec2(uProj.z * uProj.w, uProj.z) * z, -z); }
 
 // papertrails' world-space light falloff: the key side (screen-left) brighter and warmer, the fill side dimmer and
-// cooler, and everything melting into the haze with distance from the focus (like the edge of a lamp-lit table).
+// cooler; and far from the focus, on the ground, a subtle haze of one colour.
 vec3 gradeWorld(vec3 col, vec2 uv, float z, float rawDepth) {
   vec3 pv = viewPos(uv, z);
   vec3 pw = (uCamWorld * vec4(pv, 1.0)).xyz;
@@ -61,7 +60,7 @@ vec3 gradeWorld(vec3 col, vec2 uv, float z, float rawDepth) {
   float t = clamp(dot(rel, uGobo.xy) * uGobo.z, -1.0, 1.0);
   col *= (1.0 - uGobo.w * t) * vec3(1.0 - uGobo2.x * 0.5 * t, 1.0, 1.0 + uGobo2.x * t);
   float f = rawDepth >= 0.99999 ? 1.0 : smoothstep(uGobo2.y, uGobo2.z, length(rel));
-  return mix(col, mix(uFadeA, uFadeB, smoothstep(-0.5, 0.9, t)), f * uGobo2.w);
+  return mix(col, uFade, f * uGobo2.w);
 }
 `;
 
@@ -260,6 +259,7 @@ uniform vec4 uTone;       // exposure, contrast, saturation, shadow lift
 uniform vec3 uShadowTint; // sRGB: it lifts the darkest tones after the tone curve
 uniform vec3 uTint;       // white balance before the tone curve
 uniform vec4 uLens;       // vignette, grain, grain size (px), edge chroma (px)
+uniform vec3 uVignetteColor; // what the vignette darkens toward (pre-compensated for the tone curve)
 uniform vec4 uFx;         // bloom, rim strength, rim width (px), frame seed
 uniform float uSharpen;
 uniform float uSpill;
@@ -331,7 +331,7 @@ void main() {
   // --- lens + film -----------------------------------------------------------------------------------
   vec2 vc = (vUv - 0.5) * vec2(uProj.w / 1.7778, 1.0) * vec2(1.0, 1.12);
   float vr = dot(vc, vc) * 2.4;
-  col *= 1.0 - uLens.x * smoothstep(0.12, 1.25, vr) * 1.25;
+  col = mix(col, uVignetteColor, uLens.x * smoothstep(0.12, 1.25, vr) * 1.25);
   col = aces(col * uTone.x * uTint);
   float l = luma(col);
   col = mix(vec3(l), col, uTone.z);

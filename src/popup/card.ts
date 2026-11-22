@@ -30,17 +30,22 @@ export function materialFor(art: CardArt, options: Omit<PaperOptions, 'map'> = {
 }
 
 /**
- * papertrails' contact shading, baked into every card's vertex colours (tiles.glb): the face at its hinge (and below
- * it), rising smoothly to full colour over this height (world units) above it.
+ * Contact shading, baked into every card's vertex colours (the skill's makeCard contact: 12 % darker at the hinge over
+ * ~11 % of the hero's height): the face at its hinge (and below it), rising smoothly to full colour over this height
+ * (world units) above it.
  */
-const FOOT_SHADE = 0.787;
-const FOOT_RAMP = 0.21;
-/** papertrails' cut edge: the card's own tone darkened per channel (sRGB; median of its cards in tiles.glb). */
-const EDGE_DARK = [0.62, 0.65, 0.78];
+const FOOT_SHADE = 0.88;
+const FOOT_RAMP = 0.065;
+/**
+ * The card's side (its stock's thickness), the skill's edgeColorFor: the print's own tone darkened toward a dark umber,
+ * with a hint of the cream core (more darkening and less core on dark prints, so a pine never shows a pale edge).
+ */
+const EDGE_UMBER = [0x2b, 0x1a, 0x0e].map((v) => v / 255);
+const EDGE_CORE = [0xf4, 0xe6, 0xc8].map((v) => v / 255);
 
 const edgeTones = new WeakMap<object, THREE.Color>();
 
-/** The colour of a print's cut edge: the mean of its art (the cream border left out), darkened. Cached per image. */
+/** The colour of a print's side: the mean of its art (the cream border left out), as EDGE_UMBER says. Cached per image. */
 function edgeColour(texture: THREE.Texture): THREE.Color {
   const image = texture.image as (CanvasImageSource & { width: number; height: number }) | undefined;
   const fallback = new THREE.Color('#4a4a3a');
@@ -62,7 +67,16 @@ function edgeColour(texture: THREE.Texture): THREE.Color {
     if (mn > 175 && mx - mn < 70) continue; // the cream die-cut border
     r += d[i]; g += d[i + 1]; b += d[i + 2]; n++;
   }
-  const tone = n ? new THREE.Color().setRGB((r / n / 255) * EDGE_DARK[0], (g / n / 255) * EDGE_DARK[1], (b / n / 255) * EDGE_DARK[2], THREE.SRGBColorSpace) : fallback;
+  if (!n) return fallback;
+  // (in sRGB, as the skill mixes its hex colours)
+  const mean = [r / n / 255, g / n / 255, b / n / 255];
+  const dark = 0.2126 * mean[0] + 0.7152 * mean[1] + 0.0722 * mean[2] < 0.42;
+  const [toUmber, toCore] = dark ? [0.5, 0.06] : [0.45, 0.1];
+  const side = mean.map((v, k) => {
+    const shaded = v + (EDGE_UMBER[k] - v) * toUmber;
+    return shaded + (EDGE_CORE[k] - shaded) * toCore;
+  });
+  const tone = new THREE.Color().setRGB(side[0], side[1], side[2], THREE.SRGBColorSpace);
   edgeTones.set(image, tone);
   return tone;
 }

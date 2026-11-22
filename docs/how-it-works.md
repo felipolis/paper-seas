@@ -103,10 +103,12 @@ What papertrails does, Paper Seas does the same way (its traveller is as tall as
   (closeRadius 0.2), a gap narrower than 0.4 between two pieces is filled (no pockets to wedge in). The captain
   moves on a clearance field: a step is taken if it leaves room or is no tighter than where he stands, a blocked step
   slides along the obstacle or goes round it, so he is never pinned.
-- **Light** (`render/shadows.ts`, `config/time.ts`): soft paper shadows (PCSS) with a warm leak, papertrails' key and
-  fill by day, its moon and night grade (blue tint, low saturation) by night, a lantern on the captain. The clock eases
-  from papertrails' day look into its night look over an hour and a half round dusk (and back round dawn): only its two
-  looks, mixed.
+- **Light** (`render/shadows.ts`, `config/time.ts`, `config/view.ts`): the papercraft skill's light. By day a warm key from
+  screen-left 45 degrees up, a warm frontal fill at ~0.27 of it, soft paper shadows (PCSS) with a warm amber leak; by
+  night an even pale-blue moon that keeps every card coloured and readable, the warmth in the windows and lanterns, navy
+  only in the far haze and the deep shadows (never a filter over the frame), a lantern on the captain. The clock eases
+  from the day look into the night look over an hour and a half round dusk (and back round dawn): only the two looks,
+  mixed.
 - **Life** (`life/`, `world/critters.ts`): papertrails' densities per biome (its rows mapped to ours: the meadow its
   blossom, the pine woods its pinewood, the jungle and rocks its heartland, sand its desert): falling leaves in five
   autumn colours and blossom petals that settle and fade, drifting dust, butterflies with hinged wings, fireflies over
@@ -126,8 +128,9 @@ What papertrails does, Paper Seas does the same way (its traveller is as tall as
   after a moment of steady walking the window travels with him and leads; an exact critically damped spring; a slow
   tripod drift; the lens eases up or round when a building hides him.
 - **A quiet HUD**: one line of hints that fades as soon as you get under way; the ship's panel goes when ashore.
-- **Haze and depth of field** (`render/post.ts`): the far page fades into warm haze from 6.5 to 13.5 units (at a 17-unit
-  framing, scaled with the focus distance). The blur is papertrails' tilt-shift: each pixel blurred by a mix of its
+- **Haze and depth of field** (`render/post.ts`): a subtle haze of one mid-tone colour, only far away (from 6.7 to 18.7
+  units from the focus at a 17-unit framing, scaled with the focus distance; on foot ~9 to ~26 hero heights). The blur is a
+  tilt-shift whose sharp band measures ~0.65 of the frame (the skill's measure.py focusHeight, its range 0.55-0.75): each pixel blurred by a mix of its
   height on screen and its depth (0.8 depth: the pieces blur in layers), a sharp band round the focus that grows with a
   close camera, a near-field tile pass so the foreground blurs over the sharp band, a near / far aware bokeh gather and a
   fill pass.
