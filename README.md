@@ -37,7 +37,7 @@ lanterns come on in the windows when night falls.
   </tr>
   <tr>
     <td><b>Villages</b> fold up with their lanes, wells, stalls, windmills and animals, each one laid out by the seed.</td>
-    <td><b>Streams</b> rise at a spring and run down to the sea, through woods that change colour with the biome.</td>
+    <td><b>Rivers</b> wind a long way across the land from spring to spring, through woods that change colour with the biome, with footbridges to cross them.</td>
   </tr>
   <tr>
     <td><img src="docs/media/night.jpg" alt="Two cottages at night, their windows lit warm yellow, the ship moored behind them on a dark blue sea"></td>

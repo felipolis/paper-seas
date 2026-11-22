@@ -20,8 +20,8 @@ import { Streams, type Stream } from './streams';
 
 /** Width of the bank band (world units) laid outside the water on each side. */
 const BANK = 0.14;
-/** Segments of the round pool at a stream's spring. */
-const SPRING_SEGMENTS = 8;
+/** Segments of the round pool at either end of a stream. */
+const POOL_SEGMENTS = 8;
 /** A stream's water blends from one biome's to the next over this many points either side. */
 const BLEND = 4;
 
@@ -48,10 +48,10 @@ function streamMaterial(): THREE.MeshLambertMaterial {
 
 /**
  * The ribbons of the streams that pass through the square [x0, x1) x [z0, z1) (one more point either side, so
- * neighbouring chunks' ribbons meet), as one mesh, or null. distance: the shore distance (the water ends where the
- * land does: from there on the stream is the sea's); biome: the biome inland at a point (the water's colours).
+ * neighbouring chunks' ribbons meet), as one mesh, or null. A ribbon begins and ends in a little round pool (its
+ * river's spring at either end); biome: the biome inland at a point (the water's colours).
  */
-export function streamRibbons(streams: Stream[], x0: number, z0: number, x1: number, z1: number, distance: (x: number, z: number) => number, biome: (x: number, z: number) => Biome): THREE.Mesh | null {
+export function streamRibbons(streams: Stream[], x0: number, z0: number, x1: number, z1: number, biome: (x: number, z: number) => Biome): THREE.Mesh | null {
   const pos: number[] = [];
   const river: number[] = [];
   const mix: number[] = [];
@@ -73,7 +73,7 @@ export function streamRibbons(streams: Stream[], x0: number, z0: number, x1: num
           const l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
           const nx = -(b[1] - a[1]) / l;
           const nz = (b[0] - a[0]) / l;
-          const hw = Streams.widthAt(st, i) / 2;
+          const hw = Streams.widthAt(i) / 2;
           const half = hw + BANK;
           for (const side of [-1, 1]) {
             pos.push(pts[i][0] + nx * half * side, LAND_TOP + 0.004, pts[i][1] + nz * half * side);
@@ -86,42 +86,57 @@ export function streamRibbons(streams: Stream[], x0: number, z0: number, x1: num
           // (counter-clockwise seen from above)
           index.push(v, v + 1, v + 2, v + 1, v + 3, v + 2);
         }
-        // the spring: the water rises in a little round pool, its bank closing behind it, not a square cut
-        if (run[0] === 0) springCap(st, base);
+        // both ends: the water rises in a little round pool and sinks into another, its bank closing round each, not
+        // a square cut (the ribbon's vertices on either side of the way into the river)
+        const end = pts.length - 1;
+        if (run[0] === 0) pool(0, 1, base + 1, base);
+        const last = base + (run.length - 1) * 2;
+        if (run[run.length - 1] === end) pool(end, end - 1, last, last + 1);
       }
       run = [];
     };
-    const springCap = (s: Stream, first: number) => {
-      const [px, pz] = s.pts[0];
-      const [qx, qz] = s.pts[1];
+    // a round pool at the river's end point i, from the ribbon's vertex `left` of the way in (toward point `into`)
+    // round the back of the end to the one `right` of it
+    const pool = (i: number, into: number, left: number, right: number) => {
+      const [px, pz] = pts[i];
+      const [qx, qz] = pts[into];
       const l = Math.hypot(qx - px, qz - pz) || 1;
       const tx = (qx - px) / l;
       const tz = (qz - pz) / l;
-      const hw = Streams.widthAt(s, 0) / 2;
+      const hw = Streams.widthAt(i) / 2;
       const half = hw + BANK;
       const centre = pos.length / 3;
       pos.push(px, LAND_TOP + 0.004, pz);
-      river.push(0, 0, hw);
-      mixAt(0);
-      // a half circle round the back of the spring, from the ribbon's first vertex on one side round to the other
-      const rim: number[] = [first + 1];
-      for (let k = 1; k < SPRING_SEGMENTS; k++) {
-        const a = Math.PI / 2 + (k / SPRING_SEGMENTS) * Math.PI;
+      river.push(arc[i], 0, hw);
+      mixAt(i);
+      const rim: number[] = [left];
+      // (down the river is the way in at its spring, the way out at its other end; the ribbon's left of the way in is
+      // its side +1 at the spring, -1 at the other end)
+      const down = into > i ? 1 : -1;
+      const rimVertex = (a: number, side: number) => {
         const ox = Math.cos(a);
         const oy = Math.sin(a);
-        // (a: from the left normal round behind the spring to the right one, in the stream's own frame)
         pos.push(px + (tx * ox - tz * oy) * half, LAND_TOP + 0.004, pz + (tz * ox + tx * oy) * half);
-        river.push(0, 1, hw);
-        mixAt(0);
+        river.push(arc[i] + down * ox * half, side, hw);
+        mixAt(i);
         rim.push(pos.length / 3 - 1);
+      };
+      // (a: from the left normal round behind the end to the right one, in the frame of the way in. s runs on round the
+      // pool and c keeps the ribbon's side on each half, so the dashes and current lines carry on from the ribbon and
+      // curve with the bank; the halves meet at the back, behind the stones, where the vertex there is laid twice)
+      const back = POOL_SEGMENTS / 2;
+      for (let k = 1; k < POOL_SEGMENTS; k++) {
+        const a = Math.PI / 2 + (k / POOL_SEGMENTS) * Math.PI;
+        if (k <= back) rimVertex(a, down);
+        if (k >= back) rimVertex(a, -down);
       }
-      rim.push(first);
+      rim.push(right);
       for (let k = 0; k + 1 < rim.length; k++) index.push(centre, rim[k + 1], rim[k]);
     };
     for (let i = 0; i < pts.length; i++) {
       const inside = (p: readonly number[]) => p[0] >= x0 && p[0] < x1 && p[1] >= z0 && p[1] < z1;
       const near = inside(pts[i]) || (i > 0 && inside(pts[i - 1])) || (i + 1 < pts.length && inside(pts[i + 1]));
-      if (near && distance(pts[i][0], pts[i][1]) < -0.05) run.push(i);
+      if (near) run.push(i);
       else flush();
     }
     flush();

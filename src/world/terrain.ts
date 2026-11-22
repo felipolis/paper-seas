@@ -226,8 +226,11 @@ const BANK_ANIMAL_CHANCE = 0.08;
 
 /** Ground cover and animals: the feet go through (or past) them. */
 const SOFT = /^(grass|fern|bush|flower|tuft|hibiscus|orchids|bird-of-paradise|cattails|papyrus|mushrooms|shells|pebbles|monkey|parrot|toucan|crab|iguana|pelican|flamingo|duck|hen|chick|goat|pig|cat|dog|frog|rabbit|owl|hummingbird|tortoise|boar|gecko|heron)/;
-/** How far up a stream's bed (from the shore) the sea comes in: its inlet. */
-const MOUTH = 1.2;
+/** A river's footbridge gives way to a road's bridge this near; the way on and off it is kept clear this far past its ends. */
+const BRIDGE_ROAD = 4;
+const BRIDGE_CLEAR = 0.8;
+/** The ground round each end of a river (its pool, mound and crags) is kept clear this far. */
+const SOURCE_CLEAR = 1;
 /** Room kept between a path's edge and the blocking foot of any card (u). */
 const PATH_ROOM = 0.12;
 
@@ -575,22 +578,13 @@ export class Terrain {
     // what spans chunks and reaches this square (world/places.ts): streams, roads with their bridges, villages, ruins
     const box: Box = [x0 - 1, z0 - 1, x1 + 1, z1 + 1];
     const streams = minD < 3 ? this.places.streams.near(box) : [];
-    // where a stream reaches the sea the sea comes up its bed: the land is cut along its banks for its last stretch,
-    // so the stream pours off the paper's edge into a little inlet instead of ending against a straight shore
-    for (const st of streams) {
-      for (let k = 0; k < dist.length; k++) {
-        if (dist[k] < -(MOUTH + 1) || dist[k] > 0.5) continue;
-        const x = gx0 + (k % W) * CELL;
-        const z = gz0 + Math.floor(k / W) * CELL;
-        if (x < st.box[0] - 1 || x > st.box[2] + 1 || z < st.box[1] - 1 || z > st.box[3] + 1) continue;
-        const [d, at] = polylineDistance(st.pts, x, z);
-        const [ax, az] = st.pts[Math.round(at)];
-        if (land.distance(ax, az) < -MOUTH) continue;
-        dist[k] = Math.max(dist[k], Streams.widthAt(st, at) / 2 - d);
-      }
-    }
     const shore = (chunk.dist = trueDistance(dist, GRID_W, CELL));
     const roads = minD < 3 ? this.places.roadsNear(box) : [];
+    // the rivers' footbridges (where no road bridges the river close by)
+    const footbridges = streams.flatMap((st) => st.bridges).filter((b) => !roads.some((r) => r.bridges.some((rb) => Math.hypot(rb.x - b.x, rb.z - b.z) < BRIDGE_ROAD)));
+    // (along a footbridge, from past one end to past the other)
+    const bridgeReach = modelInfo('bridge')!.depth / 2 + BRIDGE_CLEAR;
+    const nearBridge = (x: number, z: number) => footbridges.some((b) => Math.hypot(b.x - x, b.z - z) < bridgeReach);
     const layouts = minD < 3 ? this.places.layoutsNear(box) : [];
     yield;
     if (hasLand) {
@@ -684,7 +678,7 @@ export class Terrain {
       const sheet = loops.length ? this.layer(loops, base, LAND_TOP - base, x0, z0, top, this.edgeMaterial) : null;
       if (sheet) ground.add(sheet);
       // the streams' water on it (world/stream-mesh.ts)
-      const ribbons = streamRibbons(streams, x0, z0, x1, z1, (x, z) => sampleAt(dist, x, z), (x, z) => land.biomeInland(x, z));
+      const ribbons = streamRibbons(streams, x0, z0, x1, z1, (x, z) => land.biomeInland(x, z));
       if (ribbons) ground.add(ribbons);
       yield;
       this.group.add(ground);
@@ -741,7 +735,13 @@ export class Terrain {
           if (inBox(p)) taken.push([p[0], p[1], r(k)]);
         });
       };
-      for (const st of streams) claimLine(st.pts, (k) => Streams.widthAt(st, k) / 2 + 0.12);
+      for (const st of streams) claimLine(st.pts, (k) => Streams.widthAt(k) / 2 + 0.12);
+      // (a river's ends, and the way on and off a footbridge)
+      for (const st of streams) claimLine([st.pts[0], st.pts[st.pts.length - 1]], () => SOURCE_CLEAR);
+      for (const b of footbridges) {
+        const n = Math.ceil(bridgeReach / 0.35);
+        claimLine(Array.from({ length: 2 * n + 1 }, (_, k): Pt => [b.x + b.dx * bridgeReach * (k / n - 1), b.z + b.dz * bridgeReach * (k / n - 1)]), () => 0.45);
+      }
       for (const road of roads) claimLine(road.pts, () => ROAD_WIDTH / 2 + 0.1);
       for (const l of layouts) {
         taken.push([l.site.x, l.site.z, l.site.kind === 'ruins' ? 0.3 : 1.0]);
@@ -812,13 +812,15 @@ export class Terrain {
           this.addDeck(chunk, 'pier', p.x, heightAt(p.x - dx * back, p.z - dz * back), p.z, dx, dz);
         }
       }
-      for (const road of roads) for (const b of road.bridges) if (own(b.x, b.z)) this.addDeck(chunk, 'bridge', b.x, heightAt(b.x, b.z), b.z, b.dx, b.dz);
+      for (const b of [...roads.flatMap((r) => r.bridges), ...footbridges]) if (own(b.x, b.z)) this.addDeck(chunk, 'bridge', b.x, heightAt(b.x, b.z), b.z, b.dx, b.dz);
       for (const st of streams) {
-        const [sx, sz] = st.pts[0];
-        if (own(sx, sz)) {
-          // the spring (papertrails' river_source): a stone mound card with the water's mouth at the stream's head,
-          // three crags in a horseshoe behind it, reeds and a stone on the pool's bank
-          const [ax, az] = st.pts[Math.min(3, st.pts.length - 1)];
+        const end = st.pts.length - 1;
+        for (const [i, into] of [[0, 3], [end, end - 3]]) {
+          const [sx, sz] = st.pts[i];
+          if (!own(sx, sz)) continue;
+          // the river_source at both ends of a river (papertrails'): a stone mound card with the water's mouth at the
+          // river's end, three crags in a horseshoe behind it, reeds and a stone on the pool's bank
+          const [ax, az] = st.pts[into];
           const l = Math.hypot(ax - sx, az - sz) || 1;
           const ux = (ax - sx) / l;
           const uz = (az - sz) / l;
@@ -830,15 +832,16 @@ export class Terrain {
           add(rng() < 0.5 ? 'cattails' : 'papyrus', ...at(-0.45, 0.42));
           if (rng() < 0.45) add('frog', ...at(-0.5, -0.4));
         }
-        // the banks: reeds now and then, a duck afloat, a frog, a duck or a heron at the water's edge
-        for (let k = 2; k < st.pts.length - 1; k++) {
+        // the banks (clear of the stones at either end and of the footbridges): reeds now and then, a duck afloat, a
+        // frog, a duck or a heron at the water's edge
+        for (let k = 2; k < end - 1; k++) {
           const [px, pz] = st.pts[k];
-          if (!own(px, pz)) continue;
+          if (!own(px, pz) || nearBridge(px, pz)) continue;
           const [qx, qz] = st.pts[k + 1];
           const l = Math.hypot(qx - px, qz - pz) || 1;
           const nx = -(qz - pz) / l;
           const nz = (qx - px) / l;
-          const hw = Streams.widthAt(st, k) / 2;
+          const hw = Streams.widthAt(k) / 2;
           const side = rng() < 0.5 ? -1 : 1;
           if (k % REED_EVERY === 0) add(rng() < 0.6 ? 'cattails' : 'papyrus', px + nx * side * (hw + 0.14), pz + nz * side * (hw + 0.14));
           if (rng() < DUCK_CHANCE) add('duck-float', px + nx * (rng() - 0.5) * hw, pz + nz * (rng() - 0.5) * hw, undefined, rng() < 0.5, 25);

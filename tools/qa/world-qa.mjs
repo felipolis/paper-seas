@@ -67,6 +67,8 @@ async function checkWorld() {
   const step = (n) => { for (let i = 0; i < n; i++) g.step(1 / 60); };
   const key = (code, down) => window.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', { code }));
   const SEA_CARDS = new Set(['flamingo', 'sea-arch', 'rock-spire']);
+  // (cards that belong on a river's water: a duck afloat, and the mound and back crag of the river_source in its pool)
+  const STREAM_CARDS = new Set(['duck-float', 'spring', 'crag-0']);
   const manifest = await (await fetch('/art/manifest.json')).json();
   const CROSS = [24 * Math.PI / 180, -66 * Math.PI / 180];
   const ray = new THREE.Raycaster();
@@ -171,7 +173,7 @@ async function checkWorld() {
         if (card.y - seat - ground(card.x, card.z) > 0.05 && !SEA_CARDS.has(card.sprite)) add('floating', card.x, card.z, `${card.sprite} (foot above ground)`);
         if (card.vignette) continue;
         if (roads.some((r) => onLine(r.pts, card.x, card.z, 0.25)) || lanes.some((l) => onLine(l, card.x, card.z, 0.18))) add('overlap', card.x, card.z, `${card.sprite} on a road`);
-        if (streams.some((s) => onLine(s.pts, card.x, card.z, 0.3))) add('overlap', card.x, card.z, `${card.sprite} in a stream`);
+        if (!STREAM_CARDS.has(card.sprite) && streams.some((s) => onLine(s.pts, card.x, card.z, 0.3))) add('overlap', card.x, card.z, `${card.sprite} in a stream`);
       }
       for (const h of c.houses) {
         if (!near(h.x, h.z, 8) || h.fold.progress < 0.9) continue;

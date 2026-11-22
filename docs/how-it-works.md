@@ -82,10 +82,10 @@ What papertrails does, Paper Seas does the same way (its traveller is as tall as
   wide as tall), the ferns as compact clumps. Villages have a well, stalls, laundry, bunting, carts, benches, lamps, hives and fences and their hens, chicks,
   cats, dogs, pigs and goats; every few units of road a signpost, guidepost, bench, cart, lamp or barrel stands by it;
   now and then a lookout tower or a camp of tents round a fire stands in the wild.
-- **Roads and streams** (`world/places.ts`): streams run from a spring inland down to the sea; villages, ports, inland hamlets and ruins are joined by roads routed over the land (noise, turn cost, hills
-  dear), crossing streams on bridges; lanes lead to every door and pier.
-  A stream rises at papertrails' spring: a stone mound card with the water's mouth, three crags in a horseshoe behind
-  it, reeds and a frog on the pool's bank; reeds stand along its banks, ducks float on it, frogs and herons wait at the
+- **Roads and streams** (`world/places.ts`): rivers wind a long way across the land and never reach the sea, each in its own stretch of country so no two meet; villages, ports, inland hamlets and ruins are joined by roads routed over the land (noise, turn cost, hills
+  dear), crossing the rivers on bridges, and every river has footbridges of its own along it; lanes lead to every door and pier.
+  Both ends of a river are papertrails' river_source: a stone mound card with the water's mouth, three crags in a
+  horseshoe behind it, reeds and a frog on the pool's bank; reeds stand along its banks, ducks float on it, frogs and herons wait at the
   edge.
 - **A flat page**: the land is one sheet of paper cut to the shore; relief comes only from what stands on it. The world
   is mostly sea (the land is under a third of it).
@@ -94,8 +94,7 @@ What papertrails does, Paper Seas does the same way (its traveller is as tall as
   and from one another like trodden paths. No standing card's blocking foot comes within 0.12 of a path's edge.
 - **Streams are sea water** (`world/stream-mesh.ts`, `sea/water.ts`): the same colours and fibre as the sea,
   in depth steps, with current dashes flowing down, papertrails' floating leaves (with their shadow and midrib) and
-  faint current lines riding the same flow, and a sandy cut bank; each rises in a round pool at its spring and ends in
-  an inlet the sea cuts up its bed.
+  faint current lines riding the same flow, and a sandy cut bank; each begins and ends in a round pool.
 - **Wind** (`world/wind.ts`): every standing card rocks by its height, thinness and kind, in travelling gusts, as
   strongly as papertrails' wind blows in its biome (the meadow 0.85 of the jungle's, the pine woods all but still at
   0.32).
