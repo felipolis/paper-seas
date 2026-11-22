@@ -15,22 +15,17 @@ export class Input {
     target.addEventListener('wheel', (e) => { this.wheel += Math.sign(e.deltaY); }, { passive: true });
   }
 
-  /** While true (a chart or menu is open) the helm reads no keys and the camera no wheel. */
-  suspended = false;
-
   isDown(...codes: string[]): boolean {
-    if (this.suspended) return false;
     return codes.some((c) => this.down.has(c));
   }
 
   wasPressed(...codes: string[]): boolean {
-    if (this.suspended) return false;
     return codes.some((c) => this.pressed.has(c));
   }
 
   /** Wheel notches since the last frame (positive = zoom out). */
   takeWheel(): number {
-    const w = this.suspended ? 0 : this.wheel;
+    const w = this.wheel;
     this.wheel = 0;
     return w;
   }

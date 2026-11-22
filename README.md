@@ -133,8 +133,8 @@ Cloudflare Workers" template) and `CLOUDFLARE_ACCOUNT_ID`.
 Inspired by [papertrails](https://github.com/xikhar/papertrails) by xikhar (MIT licence), whose look and rules it
 follows. The felt-piano voice and its hall (`src/audio/piano-synth.ts`, `src/audio/music.ts`) and the paper-flap
 synthesis and voice allocation (`src/audio/paper-synth.ts`, `src/audio/paper-voices.ts`) are ported from its
-`src/audio`, and many of its shaders and tunables are ported throughout (credited where they are used); the music
-played on that piano is Paper Seas' own. The printed art was generated with Google Flow and cut into cards by
+`src/audio`, many of its shaders and tunables are ported throughout (credited where they are used), and its paper
+maps (`public/textures/paper`) are used as they are; the music played on that piano is Paper Seas' own. The printed art was generated with Google Flow and cut into cards by
 `tools/art`.
 
 ## License

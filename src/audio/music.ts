@@ -129,7 +129,6 @@ export class Music {
   private on = true;
   private chimeAt = -1;
   private chimeTurn = 0;
-  private readonly timer: number;
 
   constructor(private readonly ctx: AudioContext, destination: AudioNode) {
     this.out = ctx.createGain();
@@ -152,7 +151,8 @@ export class Music {
       if (this.buffers.size === ALL_NOTES.length) worker.terminate();
     };
     worker.postMessage(ALL_NOTES);
-    this.timer = window.setInterval(() => this.tick(), 60);
+    // (the score is scheduled a little ahead of the audio clock, for the whole session)
+    window.setInterval(() => this.tick(), 60);
   }
 
   setOn(on: boolean): void {
@@ -176,11 +176,6 @@ export class Music {
     this.chimeTurn++;
     const first = k.notes === 1 ? (this.chimeTurn * 2) % cand.length : this.chimeTurn % Math.max(1, cand.length - k.notes + 1);
     for (let i = 0; i < k.notes && first + i < cand.length; i++) this.play(now + 0.02 + i * k.gap, cand[first + i], k.vel * (1 + i * 0.08));
-  }
-
-  dispose(): void {
-    window.clearInterval(this.timer);
-    this.out.disconnect();
   }
 
   private get barLength(): number {

@@ -11,7 +11,8 @@ import { WORLD } from '../config/world';
 import { POPUP } from '../config/popup';
 import { PALETTE } from '../config/palette';
 import { hash01 } from '../core/rng';
-import { DEG, distanceToSegment } from '../core/math';
+import { DEG, clamp } from '../core/math';
+import { segmentDistance } from '../world/polyline';
 import { Flap, FixedStepper, flapConstants } from '../popup/spring';
 import { bus } from '../core/events';
 import { cardGeometry, thickCardGeometry, thickMaterial } from '../popup/card';
@@ -19,6 +20,7 @@ import { createPaperMaterial } from '../render/paper-material';
 import { spriteArt, spriteInfo, spritesWithPrefix } from '../art/sprites';
 import type { CardArt } from '../art/card-painter';
 import type { Reveal } from '../world/reveal';
+import { cellKey } from '../core/grid';
 
 /** Wave cards are about this wide (world units), but never taller than WAVE_MAX_HEIGHT. */
 const WAVE_WIDTH = 1.3;
@@ -63,10 +65,6 @@ const _p = new THREE.Vector3();
 const _s = new THREE.Vector3();
 const X_AXIS = new THREE.Vector3(1, 0, 0);
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
-
-function cellKey(i: number, j: number): number {
-  return (i + 32768) * 65536 + (j + 32768);
-}
 
 export class WaveField {
   readonly group = new THREE.Group();
@@ -132,7 +130,7 @@ export class WaveField {
         const wave = list[i];
         const flap = wave.flap;
         // the hull presses waves flat; they come back up after it has passed
-        const hullD = distanceToSegment(wave.x, wave.z, ship.sternX, ship.sternZ, ship.bowX, ship.bowZ);
+        const [hullD] = segmentDistance(wave.x, wave.z, ship.sternX, ship.sternZ, ship.bowX, ship.bowZ);
         if (hullD < wakeR + 0.45 * wave.scale) {
           if (flap.target === 1 || flap.pendingTarget === 1) {
             flap.setTarget(0);
@@ -157,7 +155,7 @@ export class WaveField {
         // (lying flat, a wave is drawn face up on the sea: the folded flaps of a pop-up page, seen from afar)
         // pose: yaw * fold about the bottom edge (+ swell sway while standing) * flutter twist
         const p = flap.p;
-        const upright = Math.min(1, Math.max(0, p));
+        const upright = clamp(p, 0, 1);
         const sway = swayAmp * upright * Math.sin(swayW * this.time - swayK * (wave.x * 0.8 + wave.z * 0.6) + wave.phase * 2.1);
         _qFold.setFromAxisAngle(X_AXIS, FOLD_ANGLE * (1 - p) + sway);
         _q.setFromAxisAngle(Y_AXIS, wave.yaw).multiply(_qFold);

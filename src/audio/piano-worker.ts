@@ -5,9 +5,12 @@
  */
 import { synthNote } from './piano-synth';
 
+// (this module runs as a dedicated worker, not in the page the DOM types describe)
+declare const self: DedicatedWorkerGlobalScope;
+
 self.onmessage = (e: MessageEvent<number[]>) => {
   for (const midi of e.data) {
     const samples = synthNote(midi);
-    (self as unknown as DedicatedWorkerGlobalScope).postMessage({ midi, samples }, [samples.buffer]);
+    self.postMessage({ midi, samples }, [samples.buffer]);
   }
 };

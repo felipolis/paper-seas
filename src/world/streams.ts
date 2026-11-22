@@ -10,6 +10,7 @@ import { hash01 } from '../core/rng';
 import { valueNoise } from './noise';
 import { boundsOf, overlaps, polylineDistance, type Box, type Pt } from './polyline';
 import type { LandField } from './land';
+import { cellKey } from '../core/grid';
 
 const SEED = WORLD.seed;
 /** One spring at most per REGION x REGION square, with this chance. */
@@ -73,7 +74,7 @@ export class Streams {
   }
 
   private stream(i: number, j: number): Stream | null {
-    const key = i * 73856093 ^ j * 19349663;
+    const key = cellKey(i, j);
     let s = this.cache.get(key);
     if (s === undefined) {
       s = this.trace(i, j);

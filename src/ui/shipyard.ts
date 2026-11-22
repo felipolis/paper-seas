@@ -13,7 +13,7 @@ export class Shipyard {
   private ship = activeShip().id;
   private captain = activeCaptain().id;
 
-  constructor(parent: HTMLElement, private readonly onClose: () => void) {
+  constructor(parent: HTMLElement) {
     this.root = document.createElement('div');
     this.root.className = 'yard';
     const fastest = Math.max(...SHIP_TYPES.map((s) => s.maxSpeed));
@@ -80,7 +80,6 @@ export class Shipyard {
 
   hide(): void {
     this.root.classList.remove('on');
-    this.onClose();
   }
 
   private render(): void {

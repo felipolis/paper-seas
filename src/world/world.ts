@@ -11,6 +11,7 @@ import { Places } from './places';
 import type { Reveal } from './reveal';
 import { PADDING, type Segment } from './blockers';
 import { segmentDistance } from './polyline';
+import { cellKey } from '../core/grid';
 
 /** Waves, creatures and flotsam keep at least this far from any beach. */
 const SHALLOWS = 0.9;
@@ -95,13 +96,13 @@ export class World {
   }
 
   /** reveal: which part of the land stands up (around the ship or the captain on foot); night: 0 day .. 1 night. */
-  update(dt: number, reveal: Reveal, focusX: number, focusZ: number, wind: number, night: number): void {
+  update(dt: number, reveal: Reveal, focusX: number, focusZ: number, night: number): void {
     // papertrails' animals know day or night, not the fade between them
     this.night = night > 0.5;
     // (cards rise and fold: the blockers are fetched afresh every frame)
     this.blocks.clear();
     this.terrain.update(focusX, focusZ);
-    this.cards.update(dt, reveal, focusX, focusZ, wind);
+    this.cards.update(dt, reveal, focusX, focusZ);
     this.terrain.updateHouses(dt, reveal);
   }
 
@@ -112,7 +113,7 @@ export class World {
   private room(x: number, z: number): number {
     const i = Math.floor(x / BLOCK_CELL);
     const j = Math.floor(z / BLOCK_CELL);
-    const key = i * 73856093 ^ j * 19349663;
+    const key = cellKey(i, j);
     let near = this.blocks.get(key);
     if (!near) {
       near = this.terrain.blockersNear((i + 0.5) * BLOCK_CELL, (j + 0.5) * BLOCK_CELL, BLOCK_CELL * 0.71 + BLOCK_REACH);

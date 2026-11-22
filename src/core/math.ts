@@ -6,6 +6,8 @@ export const hexRgb = (h: string): [number, number, number] => [parseInt(h.slice
 
 export const clamp = (v: number, lo: number, hi: number): number => (v < lo ? lo : v > hi ? hi : v);
 export const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
+/** The value t (0..1) of the way across a [min, max] range (papertrails' range tunables). */
+export const mixRange = (r: readonly number[], t: number): number => r[0] + (r[1] - r[0]) * t;
 export const smoothstep = (e0: number, e1: number, x: number): number => {
   const t = clamp((x - e0) / (e1 - e0), 0, 1);
   return t * t * (3 - 2 * t);
@@ -17,14 +19,3 @@ export function approach(value: number, target: number, maxDelta: number): numbe
   return Math.max(value - maxDelta, target);
 }
 
-
-/** Distance from point (px, pz) to the segment (ax, az) - (bx, bz). */
-export function distanceToSegment(px: number, pz: number, ax: number, az: number, bx: number, bz: number): number {
-  const dx = bx - ax;
-  const dz = bz - az;
-  const len2 = dx * dx + dz * dz;
-  const t = len2 > 0 ? clamp(((px - ax) * dx + (pz - az) * dz) / len2, 0, 1) : 0;
-  const ex = ax + dx * t - px;
-  const ez = az + dz * t - pz;
-  return Math.sqrt(ex * ex + ez * ez);
-}

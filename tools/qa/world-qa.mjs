@@ -104,12 +104,8 @@ async function checkWorld() {
       }
     }
     if (!spot) continue;
-    const ship = g.ship.physics;
-    ship.x = spot[0]; ship.z = spot[1]; ship.vx = ship.vz = 0;
-    g.view.initialised = false;
-    g.world.prime(px, pz);
-    g.distanceMap.prime(ship.x, ship.z);
-    W.land(px, pz, g.walkWorld);
+    g.moveShip(spot[0], spot[1]);
+    g.landCaptain(px, pz);
     step(240);
 
     // ---- holes: land with no paper under it ----
@@ -207,7 +203,7 @@ async function checkWorld() {
       const sx = px + Math.cos(a) * 2.5;
       const sz = pz + Math.sin(a) * 2.5;
       // (only where he could be: the game never lets him stand inside a wall)
-      if (T.distanceAt(sx, sz) > -0.6 || !W.canStand(sx, sz, g.walkWorld)) continue;
+      if (T.distanceAt(sx, sz) > -0.6 || !g.canStand(sx, sz)) continue;
       W.x = sx; W.z = sz;
       step(2);
       // walk into whatever is ahead for a while

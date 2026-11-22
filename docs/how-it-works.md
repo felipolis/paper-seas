@@ -96,7 +96,9 @@ What papertrails does, Paper Seas does the same way (its traveller is as tall as
   in depth steps, with current dashes flowing down, papertrails' floating leaves (with their shadow and midrib) and
   faint current lines riding the same flow, and a sandy cut bank; each rises in a round pool at its spring and ends in
   an inlet the sea cuts up its bed.
-- **Wind** (`world/wind.ts`): every standing card rocks by its height, thinness and kind, in travelling gusts.
+- **Wind** (`world/wind.ts`): every standing card rocks by its height, thinness and kind, in travelling gusts, as
+  strongly as papertrails' wind blows in its biome (the meadow 0.85 of the jungle's, the pine woods all but still at
+  0.32).
 - **Collisions as drawn** (`world/blockers.ts`, `player/walker.ts`): only what stands between 0.07 and 0.3 above the
   page stops the feet; crossed cards and mountains block their whole footprint and, as papertrails closes its field
   (closeRadius 0.2), a gap narrower than 0.4 between two pieces is filled (no pockets to wedge in). The captain

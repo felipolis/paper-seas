@@ -1,4 +1,6 @@
 /** Small helpers for the world's printed lines (streams, roads, lanes): points on the page, [x, z]. */
+import { clamp } from '../core/math';
+
 export type Pt = [number, number];
 
 /** Axis-aligned bounds [x0, z0, x1, z1]. */
@@ -27,7 +29,7 @@ export function segmentDistance(px: number, pz: number, ax: number, az: number, 
   const dx = bx - ax;
   const dz = bz - az;
   const l2 = dx * dx + dz * dz;
-  const t = l2 > 1e-12 ? Math.min(1, Math.max(0, ((px - ax) * dx + (pz - az) * dz) / l2)) : 0;
+  const t = l2 > 1e-12 ? clamp(((px - ax) * dx + (pz - az) * dz) / l2, 0, 1) : 0;
   return [Math.hypot(px - (ax + dx * t), pz - (az + dz * t)), t];
 }
 

@@ -11,12 +11,23 @@ import { PALETTE } from '../config/palette';
 import { valueNoise } from '../world/noise';
 import type { Biome, LandField } from '../world/land';
 import type { IslandKind } from '../world/island-layout';
+import { cellKey, keyI, keyJ } from '../core/grid';
+import { forget, isNumberArray, isRecord, loadJson, saveJson } from '../core/storage';
 
 export const CELL = 4;
 /** Tile resolution (pixels per cell side). */
 export const TILE_PX = 24;
 const SIGHT = 15;
 const STORAGE_KEY = 'paper-seas:explored:v1';
+
+/** What is kept of the exploration: the explored cells (their keys) and the track, x and z in turn. */
+interface Explored {
+  cells?: number[];
+  track?: number[];
+}
+
+const isExplored = (v: unknown): v is Explored =>
+  isRecord(v) && (v.cells === undefined || isNumberArray(v.cells)) && (v.track === undefined || isNumberArray(v.track));
 const TRACK_STEP = 1.6;
 const TRACK_MAX = 4000;
 
@@ -50,10 +61,6 @@ const COL = {
 const HILL_TINT = 0.18;
 const ROCK_TINT = 0.32;
 
-export const cellKey = (i: number, j: number): number => (i + 32768) * 65536 + (j + 32768);
-export const keyI = (k: number): number => Math.floor(k / 65536) - 32768;
-export const keyJ = (k: number): number => (k % 65536) - 32768;
-
 export class Exploration {
   readonly cells = new Set<number>();
   readonly tiles = new Map<number, HTMLCanvasElement>();
@@ -66,20 +73,13 @@ export class Exploration {
   private lastCj = Number.NaN;
 
   constructor(private readonly land: LandField) {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const data = JSON.parse(raw) as { cells?: number[]; track?: number[] };
-        for (const k of data.cells ?? []) {
-          this.cells.add(k);
-          this.queue.push(k);
-        }
-        const t = data.track ?? [];
-        for (let i = 0; i + 1 < t.length; i += 2) this.track.push([t[i], t[i + 1]]);
-      }
-    } catch {
-      // storage unavailable: the chart starts blank
+    const data = loadJson(STORAGE_KEY, isExplored);
+    for (const k of data?.cells ?? []) {
+      this.cells.add(k);
+      this.queue.push(k);
     }
+    const t = data?.track ?? [];
+    for (let i = 0; i + 1 < t.length; i += 2) this.track.push([t[i], t[i + 1]]);
   }
 
   reset(): void {
@@ -90,11 +90,7 @@ export class Exploration {
     this.queue.length = 0;
     this.extra.clear();
     this.onReset?.();
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      // ignore
-    }
+    forget(STORAGE_KEY);
   }
 
   /** Paints the tile of a cell that is not explored (the fog's soft edge reaches into it). Returns it if ready. */
@@ -161,13 +157,9 @@ export class Exploration {
   private save(): void {
     this.dirty = false;
     this.saveTimer = 3;
-    try {
-      const track: number[] = [];
-      for (const [x, z] of this.track) track.push(x, z);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ cells: [...this.cells], track }));
-    } catch {
-      // ignore
-    }
+    const track: number[] = [];
+    for (const [x, z] of this.track) track.push(x, z);
+    saveJson(STORAGE_KEY, { cells: [...this.cells], track } satisfies Explored);
   }
 
   private paintTile(k: number): void {

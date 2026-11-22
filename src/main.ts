@@ -5,6 +5,13 @@ import { loadModels } from './world/models';
 import { loadShipMesh } from './ship/ship-mesh';
 import { loadCrew } from './player/puppet';
 
+declare global {
+  interface Window {
+    /** The dev build's handle on the game: the browser console, the world QA and the screenshot tool use it. */
+    game?: Game;
+  }
+}
+
 async function boot(): Promise<void> {
   await Promise.all([loadSprites(), loadPaperMaps()]);
   // (the models' paper material needs the cardstock maps)
@@ -12,10 +19,7 @@ async function boot(): Promise<void> {
   const canvas = document.querySelector<HTMLCanvasElement>('#scene')!;
   const game = new Game(canvas, document.body);
   game.start();
-  if (import.meta.env.DEV) {
-    // handle for debugging in the browser console
-    (window as unknown as { game: Game }).game = game;
-  }
+  if (import.meta.env.DEV) window.game = game;
 }
 
 void boot();

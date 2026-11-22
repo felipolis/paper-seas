@@ -40,8 +40,9 @@ for (const scene of SCENES.filter((s) => !only.length || only.includes(s.name)))
   await page.goto(URL, { waitUntil: 'networkidle' });
   await page.waitForFunction(() => window.game && window.game.frames > 2, null, { timeout: 90000 });
   await page.evaluate(stage, scene);
-  // (the chart and the shipyard open on CSS transitions, in real time)
-  if (scene.ui) await page.waitForTimeout(3000);
+  // (the chart and the shipyard open on CSS transitions, in real time: the chart has settled and no transition runs)
+  if (scene.ui === 'chart') await page.waitForFunction(() => window.game.chartSettled);
+  if (scene.ui) await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running'));
   await page.addStyleTag({ content: '.hud { display: none !important; }' });
   await page.screenshot({ path: join(out, `${scene.name}.jpg`), type: 'jpeg', quality: 88 });
   console.log(`docs/media/${scene.name}.jpg`);
@@ -66,28 +67,24 @@ function stage(sc) {
     }
   }
   const hold = () => { s.x = spot[0]; s.z = spot[1]; s.vx = s.vz = 0; };
+  // (simulated time, not waiting: TOUR_STEPS per point of a tour, STAND_STEPS for the place to rise and settle,
+  // papertrails' rise of a cell taking about 2 s after its ripple delay)
+  const TOUR_STEPS = 40;
+  const STAND_STEPS = 540;
   for (const [px, pz] of sc.tour ?? []) {
-    s.x = px; s.z = pz;
-    for (let i = 0; i < 40; i++) g.step(1 / 60);
+    g.moveShip(px, pz);
+    for (let i = 0; i < TOUR_STEPS; i++) g.step(1 / 60);
   }
-  hold();
-  g.view.initialised = false;
-  if (sc.mode === 'ship') {
-    g.ship.sailIndex = 2;
-    g.ship.model.setSails(g.ship.sailLevel);
-    g.world.prime(s.x, s.z);
-  } else {
-    g.world.prime(tx, tz);
-    g.walker.land(tx, tz, g.walkWorld);
-  }
-  g.distanceMap.prime(s.x, s.z);
-  for (let i = 0; i < 540; i++) {
+  g.moveShip(spot[0], spot[1]);
+  if (sc.mode === 'ship') g.ship.setSailSetting(2);
+  else g.landCaptain(tx, tz);
+  for (let i = 0; i < STAND_STEPS; i++) {
     g.view.targetDistance = sc.dist;
     g.dayNight.hour = sc.hour;
     if (sc.mode === 'ship') hold();
     g.step(1 / 60);
   }
-  if (sc.ui === 'chart') g.chart.toggle();
+  if (sc.ui === 'chart') g.openChart();
   if (sc.ui === 'shipyard') g.shipyard.show();
   if (sc.ui) g.start();
 }

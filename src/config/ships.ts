@@ -1,6 +1,6 @@
 /**
  * The ships the player can sail, and the captains who can stand at the helm. The choice is made in the shipyard
- * (Esc menu) and kept in localStorage; a new choice reloads the page, so every module sees one ship from the start
+ * (Esc menu) and kept in the browser (core/storage.ts); a new choice reloads the page, so every module sees one ship from the start
  * (config/ship.ts takes the hull size and the handling from it).
  *
  * Each ship has its own structure (HullSpec: which decks and castles she has, how high, her plan and sweep, her gun
@@ -9,6 +9,7 @@
  * Each captain is a paper puppet cut like papertrails' traveller, built in Blender (tools/blender/build_crew.py -> public/models/crew.glb).
  */
 import { DEG } from '../core/math';
+import { loadText, saveText } from '../core/storage';
 
 /**
  * How a mast is rigged: square sails hung across the ship from their yards; a lateen, one triangular sail laced to a
@@ -348,34 +349,19 @@ export const CAPTAINS: Captain[] = [
 const SHIP_KEY = 'paper-seas:ship';
 const CAPTAIN_KEY = 'paper-seas:captain';
 
-function stored(key: string): string | null {
-  // the Blender build tools load the game's modules in node: they name the ship on globalThis
-  const forced = (globalThis as { __PAPER_SEAS_SHIP?: string }).__PAPER_SEAS_SHIP;
-  if (forced && key === SHIP_KEY) return forced;
-  try {
-    return globalThis.localStorage?.getItem(key) ?? null;
-  } catch {
-    return null;
-  }
-}
-
 /** The ship sailed this session. */
 export function activeShip(): ShipType {
-  const id = stored(SHIP_KEY);
+  const id = loadText(SHIP_KEY);
   return SHIP_TYPES.find((s) => s.id === id) ?? SHIP_TYPES[0];
 }
 
 export function activeCaptain(): Captain {
-  const id = stored(CAPTAIN_KEY);
+  const id = loadText(CAPTAIN_KEY);
   return CAPTAINS.find((c) => c.id === id) ?? CAPTAINS[0];
 }
 
 /** Keeps a new choice (the page is reloaded to apply it). */
 export function chooseCrew(shipId: string, captainId: string): void {
-  try {
-    localStorage.setItem(SHIP_KEY, shipId);
-    localStorage.setItem(CAPTAIN_KEY, captainId);
-  } catch {
-    // storage unavailable: the choice lasts until the reload only
-  }
+  saveText(SHIP_KEY, shipId);
+  saveText(CAPTAIN_KEY, captainId);
 }

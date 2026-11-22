@@ -12,6 +12,8 @@ import { FoldGroup } from '../popup/fold-group';
 import { createCard } from '../popup/card';
 import { spriteArt } from '../art/sprites';
 import type { Reveal } from '../world/reveal';
+import { cellKey } from '../core/grid';
+import { forget, isNumberArray, loadJson, saveJson } from '../core/storage';
 
 const CELL = 8;
 const CHANCE = 0.3;
@@ -62,22 +64,13 @@ export class Flotsam {
   private spawnR = SPAWN_RADIUS;
 
   constructor(private readonly isOpenWater: (x: number, z: number, margin: number) => boolean) {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) (JSON.parse(raw) as number[]).forEach((k) => this.found.add(k));
-    } catch {
-      // storage unavailable
-    }
+    loadJson(STORAGE_KEY, isNumberArray)?.forEach((k) => this.found.add(k));
   }
 
   /** Forgets every bottle read. */
   reset(): void {
     this.found.clear();
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      // ignore
-    }
+    forget(STORAGE_KEY);
   }
 
   get bottlesFound(): number {
@@ -105,11 +98,7 @@ export class Flotsam {
 
   private pickUp(it: Item): void {
     this.found.add(it.key);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify([...this.found]));
-    } catch {
-      // ignore
-    }
+    saveJson(STORAGE_KEY, [...this.found]);
     const message = MESSAGES[Math.floor(mulberry32(it.key)() * MESSAGES.length)];
     bus.emit('bottle', { message, total: this.found.size });
     this.drop(it);
@@ -125,7 +114,7 @@ export class Flotsam {
     const seed = WORLD.seed ^ 0xf107;
     for (let j = cj - rc; j <= cj + rc; j++) {
       for (let i = ci - rc; i <= ci + rc; i++) {
-        const key = (i + 32768) * 65536 + (j + 32768);
+        const key = cellKey(i, j);
         if (this.items.has(key) || this.found.has(key)) continue;
         if (hash01(seed, i, j) > CHANCE) continue;
         const x = (i + 0.2 + 0.6 * hash01(seed + 1, i, j)) * CELL;

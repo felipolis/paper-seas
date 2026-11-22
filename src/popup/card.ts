@@ -12,6 +12,7 @@ import type { CardArt } from '../art/card-painter';
 import { createPaperMaterial, type PaperOptions } from '../render/paper-material';
 import { contoursFromGrid, outlinesWithHoles } from '../world/contours';
 import type { Pt } from '../world/polyline';
+import { clamp } from '../core/math';
 
 /** Cardstock thickness (world units) of a standing card (papertrails' assets.js: 0.016). */
 export const CARD_THICKNESS = 0.016;
@@ -82,7 +83,7 @@ function paintVertices(g: THREE.BufferGeometry, ramp: number, edge: THREE.Color,
       c[i * 3 + 2] = edge.b;
       continue;
     }
-    const t = Math.min(1, Math.max(0, P.getY(i) / ramp));
+    const t = clamp(P.getY(i) / ramp, 0, 1);
     c[i * 3] = c[i * 3 + 1] = c[i * 3 + 2] = FOOT_SHADE + (1 - FOOT_SHADE) * t * t * (3 - 2 * t);
   }
   g.setAttribute('color', new THREE.Float32BufferAttribute(c, 3));

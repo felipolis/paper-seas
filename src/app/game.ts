@@ -131,7 +131,7 @@ export class Game {
         this.chart.toggle();
       }
     });
-    this.shipyard = new Shipyard(hudParent, () => undefined);
+    this.shipyard = new Shipyard(hudParent);
     this.menu = new Menu(
       hudParent,
       {
@@ -198,6 +198,39 @@ export class Game {
     this.running = false;
   }
 
+  // ---- for the dev tools (tools/qa, tools/media drive the dev build through window.game) ----
+
+  /** Moves the ship to (x, z) at once, stopped, with the land round it built and the camera placed afresh. */
+  moveShip(x: number, z: number): void {
+    const p = this.ship.physics;
+    p.x = x;
+    p.z = z;
+    p.vx = p.vz = 0;
+    this.view.recenter();
+    this.world.prime(x, z);
+    this.distanceMap.prime(x, z);
+  }
+
+  /** Puts the captain ashore at (x, z), the land round him built. */
+  landCaptain(x: number, z: number): void {
+    this.world.prime(x, z);
+    this.walker.land(x, z, this.walkWorld);
+  }
+
+  /** Whether the captain could stand at (x, z). */
+  canStand(x: number, z: number): boolean {
+    return this.walker.canStand(x, z, this.walkWorld);
+  }
+
+  /** Opens the voyage chart (it settles over the scene in a second or so). */
+  openChart(): void {
+    if (!this.chart.isOpen) this.chart.toggle();
+  }
+
+  get chartSettled(): boolean {
+    return this.chart.settled;
+  }
+
   /** Advances the simulation by dt seconds and renders one frame. */
   step(dt: number): void {
     const ship = this.ship;
@@ -205,29 +238,31 @@ export class Game {
     // once the chart has settled over the scene the diorama behind it holds still (and is not redrawn): only the
     // chart, the sound and the input run, so panning and zooming the map get the whole frame
     if (this.chart.settled) {
-      this.input.suspended = true;
+      // (the wheel zooms the chart itself: the camera's notches are dropped)
+      this.input.takeWheel();
       this.chart.update(dt);
-      this.sound.update(dt, p.x, p.z, 0);
+      this.sound.update(p.x, p.z, 0);
       this.input.endFrame();
       this.frames++;
       return;
     }
-    // ashore, the ship lies at anchor and the keys walk the captain
+    // the keys go to the helm at sea and to the captain ashore (the ship then lies at anchor); while the chart is open
+    // the helm is let go and no one reads them
     const walking = this.walker.active;
-    this.input.suspended = walking || this.chart.isOpen;
-    ship.update(dt, this.input, this.world, this.chart.isOpen || walking);
+    const keys = this.chart.isOpen ? null : this.input;
+    ship.update(dt, walking ? null : keys, this.world, this.chart.isOpen || walking);
     if (walking) {
       p.vx *= Math.max(0, 1 - dt * 3);
       p.vz *= Math.max(0, 1 - dt * 3);
     }
-    // while the chart is open the helm is let go and the camera lifts off the diorama
-    this.input.suspended = this.chart.isOpen;
-    this.walker.update(dt, this.input, this.walkWorld);
-    this.shoreLeave();
+    this.walker.update(dt, keys, this.walkWorld);
+    this.shoreLeave(keys);
     const fx = walking ? this.walker.x : p.x;
     const fz = walking ? this.walker.z : p.z;
+    // (with the chart open the camera lifts off the diorama and the wheel is the chart's)
     this.view.lift += ((this.chart.isOpen ? 1 : 0) - this.view.lift) * Math.min(1, dt * 4);
-    this.view.update(dt, fx, fz, walking ? this.walker.vx : p.vx, walking ? this.walker.vz : p.vz, this.input.takeWheel(), walking, this.walker.group.position.y);
+    const wheel = this.input.takeWheel();
+    this.view.update(dt, fx, fz, walking ? this.walker.vx : p.vx, walking ? this.walker.vz : p.vz, keys ? wheel : 0, walking, this.walker.group.position.y);
 
     // streaming focus: ahead of the ship along its velocity
     const lead = Math.min(WORLD.focusLeadMax, WORLD.focusLead * p.speed);
@@ -240,7 +275,7 @@ export class Game {
     // the view's reach as the camera pulls back (the haze beyond it scales with the focus distance in render/post.ts)
     const reach = (this.view.distance - REACH_FROM) * REACH_PER_UNIT;
     this.reveal.update(dt, fx, fz, walking ? this.walker.vx : p.vx, walking ? this.walker.vz : p.vz, reach);
-    this.world.update(dt, this.reveal, fx, fz, 1, this.dayNight.lanterns);
+    this.world.update(dt, this.reveal, fx, fz, this.dayNight.lanterns);
     // (everything in view exists: what the ring has not raised lies folded flat, face up, as papertrails shows it)
     const viewReach = this.view.groundRadius(fx, fz);
     this.waves.update(dt, this.focus.x, this.focus.z, ship.wakeSource, this.reveal, viewReach);
@@ -254,8 +289,8 @@ export class Game {
     this.progress.update(dt, this.world, p.x, p.z);
     this.exploration.update(dt, fx, fz, this.chart.isOpen ? 0 : 0.6);
     this.chart.update(dt);
-    this.dayNight.update(dt, this.input.isDown('KeyT'));
-    this.sound.update(dt, p.x, p.z, p.speed);
+    this.dayNight.update(dt, !!keys?.isDown('KeyT'));
+    this.sound.update(p.x, p.z, p.speed);
     this.time += dt;
     this.distanceMap.update(p.x, p.z);
     this.sea.follow(this.view.focus.x, this.view.focus.z);
@@ -317,11 +352,11 @@ export class Game {
     for (const house of houses) house.dispose(true);
   }
 
-  /** F: go ashore when the ship lies by a coast, back aboard when the captain stands by the ship. */
-  private shoreLeave(): void {
+  /** F: go ashore when the ship lies by a coast, back aboard when the captain stands by the ship (keys: as in step). */
+  private shoreLeave(keys: Input | null): void {
     const p = this.ship.physics;
     const w = this.walker;
-    const press = this.input.wasPressed('KeyF');
+    const press = !!keys?.wasPressed('KeyF');
     if (w.active) {
       const near = Math.hypot(w.x - p.x, w.z - p.z) < 2.6;
       this.hud.setPrompt(near ? '<b>F</b> back aboard' : null);

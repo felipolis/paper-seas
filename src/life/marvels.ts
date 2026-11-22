@@ -1,6 +1,7 @@
 /**
- * Rare sights of the Paper Seas (easter eggs). Each is a pure function of the world seed and the clock, so it is
- * always there to be found again:
+ * Rare sights of the Paper Seas (easter eggs). Where and when they can be met is fixed (Atlantis by the world seed,
+ * the Phantom by the clock), so they are always there to be found again; the Leviathan is a chance meeting, and small
+ * details (which side a sight passes on, how the tentacles stand) are dealt at random each time:
  *
  *   the Phantom Galleon   between 23:30 and 01:00 a ghost ship sails past, glowing green, once a night
  *   Atlantis              here and there (one region in many) a ring of drowned temples lies under the sea; sail
@@ -10,14 +11,15 @@
  */
 import * as THREE from 'three';
 import { bus } from '../core/events';
-import { hash2 } from '../core/rng';
+import { hash01 } from '../core/rng';
 import { FoldGroup } from '../popup/fold-group';
 import { createCard } from '../popup/card';
 import { spriteArt } from '../art/sprites';
-
-/** World hashes are salted with the voyage seed: every voyage places its own villages, ruins, chests... */
 import { WORLD } from '../config/world';
 import { mirrorFor } from '../art/facing';
+import { cellKey } from '../core/grid';
+
+/** World hashes are salted with the voyage seed: every voyage places its own villages, ruins, chests... */
 const SEED = WORLD.seed;
 
 type Water = (x: number, z: number, margin: number) => boolean;
@@ -39,7 +41,7 @@ class Atlantis {
   readonly fold = new FoldGroup(1.6);
   private glow: THREE.Mesh;
 
-  constructor(readonly x: number, readonly z: number, readonly id: number) {
+  constructor(readonly x: number, readonly z: number) {
     this.group.position.set(x, 0.006, z);
     const ring: Array<[string, number]> = [['pillars', 1.6], ['ruin-arch', 1.9], ['pillars', 1.3], ['sea-arch', 1.5], ['tiki', 1.2], ['ruin-arch', 1.6], ['pillars', 1.5], ['rock-pillar', 1.4]];
     ring.forEach(([name, h], i) => {
@@ -183,14 +185,13 @@ export class Marvels {
   constructor(private readonly water: Water) {}
 
   /** The Atlantis site of a region, or null. */
-  private siteOf(ri: number, rj: number): [number, number, number] | null {
-    const h = hash2((71) ^ SEED, ri, rj) >>> 0;
-    if (h / 4294967296 >= ATLANTIS_CHANCE) return null;
-    const x = (ri + 0.2 + 0.6 * ((hash2((73) ^ SEED, ri, rj) >>> 0) / 4294967296)) * REGION;
-    const z = (rj + 0.2 + 0.6 * ((hash2((79) ^ SEED, ri, rj) >>> 0) / 4294967296)) * REGION;
+  private siteOf(ri: number, rj: number): [number, number] | null {
+    if (hash01((71) ^ SEED, ri, rj) >= ATLANTIS_CHANCE) return null;
+    const x = (ri + 0.2 + 0.6 * hash01((73) ^ SEED, ri, rj)) * REGION;
+    const z = (rj + 0.2 + 0.6 * hash01((79) ^ SEED, ri, rj)) * REGION;
     // drowned in open water, clear of every shore round the ring
     for (let a = 0; a < 8; a++) if (!this.water(x + Math.cos(a) * 7, z + Math.sin(a) * 7, 1)) return null;
-    return [x, z, h];
+    return [x, z];
   }
 
   update(dt: number, x: number, z: number, hour: number, night: boolean): void {
@@ -203,11 +204,11 @@ export class Marvels {
     const rj = Math.floor(z / REGION);
     for (let j = rj - 1; j <= rj + 1; j++) {
       for (let i = ri - 1; i <= ri + 1; i++) {
-        const key = hash2((83) ^ SEED, i, j);
+        const key = cellKey(i, j);
         if (this.sites.has(key)) continue;
         const s = this.siteOf(i, j);
         if (!s) continue;
-        const a = new Atlantis(s[0], s[1], key);
+        const a = new Atlantis(s[0], s[1]);
         this.sites.set(key, a);
         this.group.add(a.group);
       }

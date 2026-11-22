@@ -17,7 +17,7 @@ import { mirrorSkip } from '../render/reflection';
 import { toTexture } from '../art/card-painter';
 import { spriteInfo, spriteSpan, spriteTop } from '../art/sprites';
 import { BAND_HI, BAND_LO, HULL_MAX, hullSegments, placeSegments, type Segment } from './blockers';
-import { JITTER, type Reveal } from './reveal';
+import { cellJitter, type Reveal } from './reveal';
 import { contoursFromGrid, outlinesWithHoles, type Grid } from './contours';
 import { LAND_TOP, type LandField } from './land';
 import { valueNoise } from './noise';
@@ -34,14 +34,15 @@ import { CROSS_PLANES, type Card, type CardField, type CardSpec } from './card-f
 import { islandName } from './island-names';
 import { buildModel, modelInfo, type Building } from './models';
 import type { IslandSpec } from './island-layout';
-
-/** World hashes are salted with the voyage seed: every voyage places its own villages, ruins, chests... */
 import { WORLD } from '../config/world';
 import { Critters } from './critters';
 import { applyTint, groundTint, pathTone, type TintRows } from '../render/biome-tint';
+import { cellKey } from '../core/grid';
+
+/** World hashes are salted with the voyage seed: every voyage places its own villages, ruins, chests... */
 const SEED = WORLD.seed;
 
-export const CHUNK = 18;
+const CHUNK = 18;
 
 /**
  * The land field is a distance *estimate*: where its noise flattens out it can read "0.3 from the shore" over open
@@ -263,7 +264,7 @@ export class Terrain {
    */
   /** True on a road, a lane or a village square (trodden ground). */
   onPath(x: number, z: number): boolean {
-    const p = this.chunks.get(this.key(Math.floor(x / CHUNK), Math.floor(z / CHUNK)))?.paths;
+    const p = this.chunks.get(cellKey(Math.floor(x / CHUNK), Math.floor(z / CHUNK)))?.paths;
     if (!p) return false;
     return p.squares.some(([sx, sz, r]) => Math.hypot(x - sx, z - sz) < r) || p.strips.some((st) => polylineDistance(st.pts, x, z)[0] < st.width / 2);
   }
@@ -271,7 +272,7 @@ export class Terrain {
   distanceAt(x: number, z: number): number {
     const i = Math.floor(x / CHUNK);
     const j = Math.floor(z / CHUNK);
-    const c = this.chunks.get(this.key(i, j));
+    const c = this.chunks.get(cellKey(i, j));
     if (!c || !c.dist) return this.land.distance(x, z);
     const fx = Math.min(GRID_N - 1e-3, Math.max(0, (x - (i * CHUNK - CELL)) / CELL));
     const fz = Math.min(GRID_N - 1e-3, Math.max(0, (z - (j * CHUNK - CELL)) / CELL));
@@ -292,7 +293,7 @@ export class Terrain {
   /** Builds every chunk around a point right away (start of the voyage). */
   prime(x: number, z: number): void {
     for (const [i, j] of this.wanted(x, z)) {
-      const key = this.key(i, j);
+      const key = cellKey(i, j);
       if (this.chunks.has(key)) continue;
       const it = this.build(i, j);
       while (!it.next().done) { /* run to completion */ }
@@ -450,7 +451,7 @@ export class Terrain {
     for (const c of this.chunks.values()) {
       for (const h of c.houses) {
         // the same rules as the cards (papertrails' tiles): the building is one cell
-        const jitter = ((Math.abs(Math.sin(h.x * 12.9898 + h.z * 78.233) * 43758.5453) % 1) - 0.5) * 2 * JITTER;
+        const jitter = cellJitter(h.x, h.z);
         if (reveal.mayFlip(h.x, h.z, this.flips.get(h) ?? -99, this.clock)) {
           if (h.fold.target !== 1 && reveal.wantsUp(h.x, h.z)) {
             h.fold.setTarget(1, reveal.riseDelay(h.x, h.z, jitter));
@@ -478,16 +479,12 @@ export class Terrain {
     const t0 = performance.now();
     while (performance.now() - t0 < FRAME_BUDGET_MS) {
       if (!this.job) {
-        const next = this.wanted(shipX, shipZ).find(([i, j]) => !this.chunks.has(this.key(i, j)));
+        const next = this.wanted(shipX, shipZ).find(([i, j]) => !this.chunks.has(cellKey(i, j)));
         if (!next) return;
-        this.job = { key: this.key(next[0], next[1]), it: this.build(next[0], next[1]) };
+        this.job = { key: cellKey(next[0], next[1]), it: this.build(next[0], next[1]) };
       }
       if (this.job.it.next().done) this.job = null;
     }
-  }
-
-  private key(i: number, j: number): number {
-    return (i + 32768) * 65536 + (j + 32768);
   }
 
   private wanted(x: number, z: number): Array<[number, number]> {
@@ -526,7 +523,7 @@ export class Terrain {
 
   /** Builds one chunk, yielding between the expensive steps. */
   private *build(i: number, j: number): Generator<void> {
-    const key = this.key(i, j);
+    const key = cellKey(i, j);
     const chunk: Chunk = { key, i, j, ground: null, cards: [], chests: [], texture: null, data: null, pathTone: null, material: null, dist: null, houses: [], decks: [], paths: null };
     this.chunks.set(key, chunk);
     const land = this.land;

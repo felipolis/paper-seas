@@ -47,20 +47,6 @@
    ]
   },
   {
-   "file": "02-plants.png",
-   "names": [
-    null,
-    null,
-    null,
-    null,
-    null,
-    null,
-    null,
-    null,
-    null
-   ]
-  },
-  {
    "file": "03-rocks.png",
    "names": [
     "rock-spire",
@@ -489,7 +475,7 @@
     "crag-0",
     "crag-1",
     "crag-2",
-    "jetty"
+    null
    ]
   }
  ]

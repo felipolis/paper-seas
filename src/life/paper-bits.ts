@@ -10,8 +10,8 @@
 import * as THREE from 'three';
 import { hash01 } from '../core/rng';
 import { createPaperMaterial } from '../render/paper-material';
+import { TAU } from '../core/math';
 
-const TAU = Math.PI * 2;
 
 export type Shape = 'leaf' | 'leaf2' | 'petal' | 'flake' | 'dot' | 'bar' | 'ring' | 'bird';
 

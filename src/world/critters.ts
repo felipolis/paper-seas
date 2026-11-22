@@ -20,6 +20,7 @@
  * it turns through edge-on, and since both its faces are printed it comes round mirrored (papertrails' flipRate).
  */
 import type { Card } from './card-field';
+import { mulberry32 } from '../core/rng';
 
 /** A pose of papertrails' idle lists as one print shows it: standing (or sitting), head down (graze, peck), asleep. */
 type Idle = 'stand' | 'down' | 'sleep';
@@ -182,8 +183,8 @@ interface State {
   dir: number;
   spin: number;
   bank: boolean;
-  /** Its own random sequence (papertrails' per-animal LCG). */
-  r: number;
+  /** Its own random sequence (papertrails' per-animal stream). */
+  rand: () => number;
   /** Where it heads once down from its seat, and whether it was fleeing. */
   leapTo: [number, number] | null;
   leapFlee: boolean;
@@ -199,12 +200,6 @@ export interface Pose {
 }
 
 const POSE: Pose = { dx: 0, dy: 0, dz: 0, yaw: 0, lean: 0 };
-
-/** papertrails' per-animal random numbers (an LCG). */
-function rnd(s: State): number {
-  s.r = (Math.imul(s.r, 1664525) + 1013904223) >>> 0;
-  return s.r / 4294967296;
-}
 
 export class Critters {
   private readonly states = new WeakMap<Card, State>();
@@ -260,7 +255,7 @@ export class Critters {
         } else if (sp.b === 'shy') {
           const ar = sp.alert * (s.cool > 0 ? 0.55 : 1);
           if (d2 < ar * ar) {
-            this.freeze(s, 0.35 + rnd(s) * 0.4);
+            this.freeze(s, 0.35 + s.rand() * 0.4);
             this.faceToward(s, c, kind, dx, dz, 0.1);
             break;
           }
@@ -273,7 +268,7 @@ export class Critters {
         if (s.st === 'walk') {
           if (sp.b === 'peck' && d2 < SCATTER * SCATTER && this.startFlee(s, c, kind, dx, dz, sp.flee, !!sp.fly)) break;
           if (sp.b === 'shy' && s.cool <= 0 && d2 < sp.alert * sp.alert) {
-            this.freeze(s, 0.3 + rnd(s) * 0.3);
+            this.freeze(s, 0.3 + s.rand() * 0.3);
             break;
           }
         }
@@ -306,7 +301,7 @@ export class Critters {
           } else if (d2 >= sp.alert * sp.alert) {
             s.st = 'idle';
             s.t = 0;
-            s.dur = 1.5 + rnd(s) * 2;
+            s.dur = 1.5 + s.rand() * 2;
             s.cool = 2;
           }
         }
@@ -434,19 +429,19 @@ export class Critters {
       x: 0, z: 0, hx: 0, hz: 0, tx: 0, tz: 0, fx: 0, fz: 0, st: 'idle', t: 0, dur: 0, v: 0, air: false, ph: 0, stuck: 0,
       cool: 0, mv: false, idle: 'stand', face: 1, faceK: 1, side: 1, ang: 0, rad: 0, dir: 1, spin: 0, bank: false, down: 0,
       leapTo: null, leapFlee: false,
-      r: Math.floor(c.phase * 4294967296) >>> 0 || 1,
+      rand: mulberry32(Math.floor(c.phase * 4294967296)),
     };
     const sp = kind.sp;
-    s.dur = rnd(s) * 4;
-    s.side = rnd(s) < 0.5 ? -1 : 1;
-    s.idle = sp.idle[Math.floor(rnd(s) * sp.idle.length)];
+    s.dur = s.rand() * 4;
+    s.side = s.rand() < 0.5 ? -1 : 1;
+    s.idle = sp.idle[Math.floor(s.rand() * sp.idle.length)];
     if (sp.b === 'perch') s.st = 'perch';
     else if (sp.b === 'graze' && sp.swim && kind.float) {
       const [lo, hi] = sp.swim.arc;
       s.st = 'float';
-      s.rad = lo + rnd(s) * (hi - lo);
-      s.ang = rnd(s) * Math.PI * 2;
-      s.dir = rnd(s) < 0.5 ? -1 : 1;
+      s.rad = lo + s.rand() * (hi - lo);
+      s.ang = s.rand() * Math.PI * 2;
+      s.dir = s.rand() < 0.5 ? -1 : 1;
       s.spin = sp.swim.drift / Math.max(0.08, s.rad);
       s.fx = -Math.cos(s.ang) * s.rad;
       s.fz = -Math.sin(s.ang) * s.rad;
@@ -464,11 +459,11 @@ export class Critters {
   private think(s: State, c: Card, sp: Species): void {
     s.t = 0;
     const night = this.habitat.night();
-    if (c.vignette && rnd(s) < STAY) {
+    if (c.vignette && s.rand() < STAY) {
       if (s.x * s.x + s.z * s.z < 0.01) {
         // still at its piece: the same pose again
         if (s.idle !== 'sleep') s.idle = sp.idle[0];
-        s.dur = 6 + rnd(s) * 10;
+        s.dur = 6 + s.rand() * 10;
         return;
       }
       // back to it (only on the ground: a seat is not reached again, as in papertrails)
@@ -485,18 +480,18 @@ export class Critters {
     let walkP = sp.b === 'pet' ? 0.45 : sp.b === 'graze' ? 0.55 : sp.b === 'peck' ? 0.25 : 0.3;
     if (night && sp.b === 'graze') walkP = 0.04;
     else if (night && sp.b === 'pet') walkP = 0.22;
-    if ((s.idle !== 'sleep' || rnd(s) < 0.5) && rnd(s) < walkP && this.wander(s, c, sp)) return;
-    let pose = sp.idle[Math.floor(rnd(s) * sp.idle.length)];
-    if (night && sp.b === 'pet' && sp.idle.includes('sleep') && rnd(s) < 0.5) pose = 'sleep';
+    if ((s.idle !== 'sleep' || s.rand() < 0.5) && s.rand() < walkP && this.wander(s, c, sp)) return;
+    let pose = sp.idle[Math.floor(s.rand() * sp.idle.length)];
+    if (night && sp.b === 'pet' && sp.idle.includes('sleep') && s.rand() < 0.5) pose = 'sleep';
     else if (night && sp.b === 'graze') pose = 'stand';
     s.idle = pose;
-    s.dur = pose === 'sleep' ? 12 + rnd(s) * 16 : sp.b === 'peck' ? 0.35 + rnd(s) * 1.3 : sp.b === 'graze' ? 3 + rnd(s) * 6 : 2.5 + rnd(s) * 5;
+    s.dur = pose === 'sleep' ? 12 + s.rand() * 16 : sp.b === 'peck' ? 0.35 + s.rand() * 1.3 : sp.b === 'graze' ? 3 + s.rand() * 6 : 2.5 + s.rand() * 5;
   }
 
   /** A walk to a spot within its roam of home. */
   private wander(s: State, c: Card, sp: Species): boolean {
-    const tx = s.hx + (rnd(s) - 0.5) * 2 * sp.roam;
-    const tz = s.hz + (rnd(s) - 0.5) * 2 * sp.roam;
+    const tx = s.hx + (s.rand() - 0.5) * 2 * sp.roam;
+    const tz = s.hz + (s.rand() - 0.5) * 2 * sp.roam;
     if (!this.habitat.canStand(c.x + tx, c.z + tz)) return false;
     if (this.leapDown(s, c, tx, tz, false)) return true;
     s.tx = tx;
@@ -623,10 +618,10 @@ export class Critters {
       s.hz = s.z;
       s.idle = 'stand';
       this.faceToward(s, c, kind, dx, dz, 0.1);
-      s.dur = 2.5 + rnd(s) * 3;
+      s.dur = 2.5 + s.rand() * 3;
     } else {
-      s.idle = kind.sp.idle[Math.floor(rnd(s) * kind.sp.idle.length)];
-      s.dur = kind.sp.b === 'pet' ? 2 + rnd(s) * 5 : 0.6 + rnd(s) * 2.5;
+      s.idle = kind.sp.idle[Math.floor(s.rand() * kind.sp.idle.length)];
+      s.dur = kind.sp.b === 'pet' ? 2 + s.rand() * 5 : 0.6 + s.rand() * 2.5;
     }
   }
 

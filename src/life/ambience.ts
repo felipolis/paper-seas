@@ -25,6 +25,7 @@ import { Flocks } from './flocks';
 import { LifeFrame, randomTable } from './life-frame';
 import { Bits } from './paper-bits';
 import { Weather } from './weather';
+import { smoothstep, TAU, mixRange } from '../core/math';
 
 export interface AmbienceWorld {
   /** Signed distance to the coast (negative inland). */
@@ -67,7 +68,6 @@ const GROUND = 0;
 const WATER = 1;
 const SEA = 2;
 
-const TAU = Math.PI * 2;
 const HALF_PI = Math.PI / 2;
 const RADIUS = 9;
 const _m = new THREE.Matrix4();
@@ -80,11 +80,6 @@ const _roll = new THREE.Quaternion();
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
 
-const smooth = (a: number, b: number, x: number) => {
-  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
-  return t * t * (3 - 2 * t);
-};
-const mix = (r: readonly number[], t: number) => r[0] + (r[1] - r[0]) * t;
 /**
  * papertrails' floor (life/life.js there): a leaf or a speck faded below this size is not drawn at all. A card shrunk
  * to a speck still rasterises a pixel now and then, and its lighting there can come out invalid: a black dot the
@@ -94,7 +89,7 @@ const MIN_SIZE = 0.0005;
 
 /** papertrails' gate: the piece of this rank (0..1) shows once the kind's amount reaches it, fading in. */
 function rankGate(amount: number, rank: number): number {
-  return smooth(0, 1, (amount - rank * 0.88) / 0.12);
+  return smoothstep(0, 1, (amount - rank * 0.88) / 0.12);
 }
 
 /** A small canvas texture with one piece drawn on it. */
@@ -258,7 +253,7 @@ export class Ambience {
     const R = k.r;
     for (let i = 0; i < cfg.count; i++) {
       const r = i * 6;
-      const fall = mix(cfg.fall, R[r]);
+      const fall = mixRange(cfg.fall, R[r]);
       const tFall = H / fall;
       const period = tFall + cfg.land;
       const ph = t / period + R[r + 1] * 7;
@@ -274,7 +269,7 @@ export class Ambience {
         continue;
       }
       const lt = k.land.type[i];
-      const size = mix(cfg.size, R[r + 2]) * g;
+      const size = mixRange(cfg.size, R[r + 2]) * g;
       const lh = k.land.h[i];
       if (u < tFall) {
         const rem = tFall - u;
@@ -283,11 +278,11 @@ export class Ambience {
         const px = fx + dx - windX * cfg.wind * rem - windZ * sw;
         const pz = fz + dz - windZ * cfg.wind * rem + windX * sw;
         const py = y + 0.03 + lh;
-        const s = size * smooth(0, 0.6, u) * this.clearLine.k(px, py, pz);
+        const s = size * smoothstep(0, 0.6, u) * this.clearLine.k(px, py, pz);
         if (s <= MIN_SIZE) k.bits.hide(i);
         else k.bits.put(i, px, py, pz, R[r + 4] * TAU + t * cfg.tumble * (0.5 + R[r + 5]), -HALF_PI + 0.8 * Math.sin(t * cfg.tumble * 0.9 + R[r + 3] * TAU), sw * 1.4, s, s * 1.15);
       } else {
-        const s = lt === GROUND ? size * (1 - smooth(0.55, 1, (u - tFall) / cfg.land)) : 0;
+        const s = lt === GROUND ? size * (1 - smoothstep(0.55, 1, (u - tFall) / cfg.land)) : 0;
         if (s <= MIN_SIZE) k.bits.hide(i);
         else k.bits.put(i, fx + dx, 0.028 + R[r + 5] * 0.012 + lh, fz + dz, R[r + 4] * TAU, -HALF_PI + (R[r + 3] - 0.5) * 0.3, 0, s, s * 1.15);
       }
@@ -316,7 +311,7 @@ export class Ambience {
     const R = this.dustR;
     for (let i = 0; i < cfg.count; i++) {
       const r = i * 6;
-      const sp = mix(cfg.speed, R[r]);
+      const sp = mixRange(cfg.speed, R[r]);
       let dx = R[r + 1] * W + windX * sp * t - fx;
       dx -= W * Math.round(dx / W);
       let dz = R[r + 2] * D + windZ * sp * t - fz;
@@ -328,9 +323,9 @@ export class Ambience {
       }
       const x = fx + dx;
       const z = fz + dz;
-      const py = mix(cfg.height, R[r + 3]) + 0.14 * Math.sin(t * 0.5 + R[r + 5] * TAU);
+      const py = mixRange(cfg.height, R[r + 3]) + 0.14 * Math.sin(t * 0.5 + R[r + 5] * TAU);
       // (fading out over the coast: it drifts over the land only)
-      const s = mix(cfg.size, R[r + 4]) * g * this.clearLine.k(x, py, z) * smooth(0, -0.6, this.world.distance(x, z));
+      const s = mixRange(cfg.size, R[r + 4]) * g * this.clearLine.k(x, py, z) * smoothstep(0, -0.6, this.world.distance(x, z));
       if (s <= MIN_SIZE) this.dust.hide(i);
       else this.dust.put(i, x, py, z, camYaw + Math.sin(t * 0.7 + R[r + 5] * TAU), -camElev, t * 0.4 + R[r] * TAU, s, s);
     }
@@ -368,7 +363,7 @@ export class Ambience {
       const z = o.hz + B.roam * (Math.cos(1.2 * b) + 0.4 * Math.sin(1.7 * a));
       const vx = 0.45 * Math.cos(a) + 0.285 * Math.cos(2.3 * b);
       const vz = -0.372 * Math.sin(1.2 * b) + 0.306 * Math.cos(1.7 * a);
-      const y = mix(B.height, 0.5 + 0.5 * Math.sin(t * 0.8 + r4 * TAU)) + 0.04 * Math.sin(t * B.flap);
+      const y = mixRange(B.height, 0.5 + 0.5 * Math.sin(t * 0.8 + r4 * TAU)) + 0.04 * Math.sin(t * B.flap);
       const k = g * this.clearLine.k(x, y, z);
       if (k <= 0.01) return this.hideWings(j);
       const flap = 0.1 + 1.05 * Math.abs(Math.sin(t * B.flap + r5 * TAU));
@@ -396,14 +391,14 @@ export class Ambience {
       if (night <= 0.01 || !this.rehome(o, dt, 0.3)) return this.hideSpark(j);
       if (!o.sought) this.seekWater(o);
       let g = rankGate(amount, (j + 0.5) / F.count);
-      if (o.wet) g = Math.max(g, F.water * smooth(0.02, 0.2, amount));
+      if (o.wet) g = Math.max(g, F.water * smoothstep(0.02, 0.2, amount));
       if (g <= 0) return this.hideSpark(j);
       const [, , r2, r3, r4, r5] = o.r;
       const a = t * 0.33 + r2 * TAU;
       const b = t * 0.21 + r3 * TAU;
       const x = o.hx + F.roam * (Math.sin(a) + 0.5 * Math.sin(2.1 * b));
       const z = o.hz + F.roam * (Math.cos(1.3 * b) + 0.5 * Math.sin(1.6 * a));
-      const y = mix(F.height, 0.5 + 0.5 * Math.sin(t * 0.4 + r2 * TAU));
+      const y = mixRange(F.height, 0.5 + 0.5 * Math.sin(t * 0.4 + r2 * TAU));
       let pulse = Math.sin(t * (0.9 + r4 * 0.9) + r5 * TAU);
       pulse = pulse > 0 ? pulse * pulse : 0;
       const glow = F.glow * g * this.clearLine.k(x, y, z) * (0.12 + 0.88 * pulse);

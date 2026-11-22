@@ -26,7 +26,7 @@ import type { Pt } from './polyline';
 import { CELL } from './reveal';
 
 /** Data texture resolution (pixels per world unit) and the two blurs of the road mask (world units). */
-export const DATA_PPU = 22;
+const DATA_PPU = 22;
 const BLUR_CRISP = 0.03;
 const BLUR_SOFT = 0.125;
 /**

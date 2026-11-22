@@ -4,6 +4,7 @@
  * big pale disc. One shared line, set once a frame.
  */
 import * as THREE from 'three';
+import { smoothstep } from '../core/math';
 
 /** Pieces within this band of the line fade away (papertrails: 0.24 -> 0.42). */
 const BAND: [number, number] = [0.24, 0.42];
@@ -12,10 +13,6 @@ const LENS: [number, number] = [2.2, 5];
 /** The line ends this far above the focus: the captain's head, which the camera looks at. */
 const HEAD = 0.4;
 
-const smooth = (a: number, b: number, x: number) => {
-  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
-  return t * t * (3 - 2 * t);
-};
 
 export class ClearLine {
   private readonly eye = new THREE.Vector3();
@@ -35,10 +32,10 @@ export class ClearLine {
     const rx = x - this.eye.x;
     const ry = y - this.eye.y;
     const rz = z - this.eye.z;
-    const lens = smooth(LENS[0], LENS[1], Math.hypot(rx, ry, rz));
+    const lens = smoothstep(LENS[0], LENS[1], Math.hypot(rx, ry, rz));
     const t = rx * this.dir.x + ry * this.dir.y + rz * this.dir.z;
     if (t < 0 || t > this.length + 0.1) return lens;
     const off = Math.hypot(rx - this.dir.x * t, ry - this.dir.y * t, rz - this.dir.z * t);
-    return lens * smooth(BAND[0], BAND[1], off);
+    return lens * smoothstep(BAND[0], BAND[1], off);
   }
 }

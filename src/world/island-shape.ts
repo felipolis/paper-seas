@@ -4,6 +4,8 @@
  * different levels give the shallow-water ring, the beach and the inland layer (marching squares), the gradient
  * gives shore normals for collisions.
  */
+import { clamp } from '../core/math';
+
 export interface Lump {
   k: number;
   amp: number;
@@ -49,7 +51,7 @@ function cutDistance(c: Cut, x: number, z: number): number {
   const vx = c.x2 - c.x1;
   const vz = c.z2 - c.z1;
   const len2 = vx * vx + vz * vz || 1;
-  const t = Math.max(0, Math.min(1, ((x - c.x1) * vx + (z - c.z1) * vz) / len2));
+  const t = clamp(((x - c.x1) * vx + (z - c.z1) * vz) / len2, 0, 1);
   return Math.hypot(x - (c.x1 + vx * t), z - (c.z1 + vz * t)) - c.r;
 }
 

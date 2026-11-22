@@ -2,6 +2,23 @@
 
 How the printed cards, the Blender-built buildings, mountains, ships and captains are made. Back to the [README](../README.md).
 
+## The cards
+
+Every sprite starts as a sheet of die-cut stickers generated in Google Flow from a prompt in `assets-src/prompts`
+(`00-style-target` and `assets-src/flow/00-*.png` are the style references the sheets are generated against), saved in
+`assets-src/flow`, and is cut out into `public/art`:
+
+```bash
+npm run art:cut                                   # cut every sheet of tools/art/sprite-sheets.json into public/art
+node tools/art/crop-card.mjs <sheet> <out> <x0> <y0> <x1> <y1>   # crop by hand a card the cutter cannot separate
+node tools/art/audit-pages.mjs                    # large pages of every sprite on a dark ground (assets-src/audit)
+node tools/art/audit-sprites.mjs                  # one contact sheet of them all (assets-src/audit-contact.png)
+```
+
+Each sheet entry names its cards in order (`null` for a piece the game does not use); the cutter's header comment
+describes its options (cream edge measure, merges, the `clean` modes that clear paper left inside a piece). The audit
+pages are generated and not kept in git.
+
 ## Buildings (Blender)
 
 Villages, lighthouses and forts are real paper constructions built by a Blender script, like papertrails' tiles:

@@ -23,8 +23,8 @@ for (let p = 0; p * PER_PAGE < files.length; p++) {
     .map((f) => `<div style="display:inline-block;width:390px;height:430px;margin:4px;text-align:center;color:#fd8;font:13px sans-serif;vertical-align:top">
       <div style="height:405px;display:flex;align-items:center;justify-content:center"><img src="data:image/png;base64,${readFileSync(join(dir, f)).toString('base64')}" style="max-width:380px;max-height:400px"></div>${f.replace('.png', '')}</div>`)
     .join('');
-  await page.setContent(`<body style="margin:0;background:#2a0d26">${cells}</body>`);
-  await page.waitForTimeout(200);
+  // (setContent resolves once the page has loaded, its images with it)
+  await page.setContent(`<body style="margin:0;background:#2a0d26">${cells}</body>`, { waitUntil: 'load' });
   await page.screenshot({ path: join(outDir, `page-${String(p + 1).padStart(2, '0')}.png`), fullPage: true });
 }
 console.log(`${files.length} sprites, ${Math.ceil(files.length / PER_PAGE)} pages -> ${outDir}`);

@@ -7,6 +7,7 @@
 import { WORLD } from '../config/world';
 import { Rng, hash01, hash2, pickWeighted } from '../core/rng';
 import { shapeDistance, type Blob, type Cut, type IslandShape, type Lump } from './island-shape';
+import { cellKey } from '../core/grid';
 
 export type IslandKind = 'tropical' | 'jungle' | 'rocky' | 'skull' | 'village' | 'sandbar' | 'volcano' | 'ruins';
 export type IslandForm = 'round' | 'long' | 'crescent' | 'atoll' | 'twin' | 'archipelago' | 'big' | 'stack';
@@ -22,9 +23,9 @@ export interface IslandSpec {
 }
 
 /** Width of the shallow-water ring printed around every island (world units). */
-export const SHALLOW_WIDTH = 1.0;
+const SHALLOW_WIDTH = 1.0;
 /** Largest extent of any island (bounds the neighbour search). */
-export const MAX_EXTENT = 10;
+const MAX_EXTENT = 10;
 
 const FORMS: ReadonlyArray<{ form: IslandForm; weight: number }> = [
   { form: 'round', weight: 0.22 },
@@ -158,7 +159,7 @@ export class IslandLayout {
 
   /** The island of region (i, j), or null. */
   region(i: number, j: number): IslandSpec | null {
-    const key = (i + 32768) * 65536 + (j + 32768);
+    const key = cellKey(i, j);
     if (this.cache.has(key)) return this.cache.get(key)!;
     const spec = this.generate(i, j, key);
     this.cache.set(key, spec);

@@ -7,6 +7,7 @@
  */
 import * as THREE from 'three';
 import { mulberry32 } from '../core/rng';
+import { smoothstep } from '../core/math';
 
 /** papertrails' numbers. */
 const CLOUDS = {
@@ -20,12 +21,8 @@ const CLOUDS = {
   density: 0.8,
 } as const;
 /** Height of the page the shadows lie on (papertrails' 0.02). */
-export const CLOUD_Y = 0.02;
+const CLOUD_Y = 0.02;
 
-const smooth = (a: number, b: number, x: number) => {
-  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
-  return t * t * (3 - 2 * t);
-};
 
 export class CloudShadows {
   /** Per patch: centre x, z and the cosine / sine of its turn. */
@@ -55,8 +52,8 @@ export class CloudShadows {
       let dz = Q[1] * W + (windZ / wl) * C.speed * this.time - fz;
       dz -= W * Math.round(dz / W);
       // papertrails' gate: by rank as the density allows, faded at the edge of the wrapping square
-      const rank = smooth(0, 1, (amount - ((j + 0.5) / C.count) * 0.88) / 0.12);
-      const edge = 1 - smooth(0.8, 1, Math.max(Math.abs(dx), Math.abs(dz)) / (W * 0.5));
+      const rank = smoothstep(0, 1, (amount - ((j + 0.5) / C.count) * 0.88) / 0.12);
+      const edge = 1 - smoothstep(0.8, 1, Math.max(Math.abs(dx), Math.abs(dz)) / (W * 0.5));
       const s = C.size[0] + (C.size[1] - C.size[0]) * Q[2];
       const yaw = Q[3] * Math.PI * 2;
       this.a[j].set(fx + dx, fz + dz, Math.cos(yaw), Math.sin(yaw));

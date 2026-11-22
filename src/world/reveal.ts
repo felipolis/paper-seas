@@ -17,6 +17,9 @@
  *             up through him), except right after a jump of more than JUMP
  *   cap       at most MAX_RISES cells start rising in one frame (the rest wait a frame)
  */
+import { cellKey } from '../core/grid';
+import { hash01 } from '../core/rng';
+
 export const CELL = 2;
 /** papertrails, in world units (its tiles are 2 wide): 3 tiles, x1.07, 1.35 tiles ahead, 4.25 tiles... */
 const RADIUS = 6;
@@ -30,7 +33,9 @@ const REFLIP = 3.5;
 const GRACE = 1;
 const DIR_SMOOTH = 0.3;
 const RIPPLE = 0.055;
-export const JITTER = 0.035;
+const JITTER = 0.035;
+/** Salt of the cells' rise jitter. */
+const JITTER_SALT = 0x6a09e667;
 const MIN_FLIP = 2;
 const FOLD_STAGGER = 0.07;
 /** papertrails' view reach: at most 1.5 tiles, eased at 0.85 tiles a second. */
@@ -135,7 +140,7 @@ export class Reveal {
 
   /** May the cell centred at (x, z) start rising this frame? (Takes one of the frame's slots, once per cell.) */
   claimRise(x: number, z: number): boolean {
-    const key = Math.floor(x / CELL) * 65536 + Math.floor(z / CELL);
+    const key = cellKey(Math.floor(x / CELL), Math.floor(z / CELL));
     if (this.risen.includes(key)) return true;
     if (this.risen.length >= MAX_RISES) return false;
     this.risen.push(key);
@@ -158,4 +163,9 @@ export class Reveal {
     const side = Math.abs((x - this.tx) * this.dz - (z - this.tz) * this.dx);
     return (side / CELL) * FOLD_STAGGER + Math.max(0, jitter + JITTER);
   }
+}
+
+/** The ripple jitter (s) of the cell holding (x, z): one for every card and building in it (papertrails' tiles). */
+export function cellJitter(x: number, z: number): number {
+  return (hash01(JITTER_SALT, Math.floor(x / CELL), Math.floor(z / CELL)) - 0.5) * 2 * JITTER;
 }

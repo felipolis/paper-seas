@@ -17,11 +17,12 @@ import { CARD_THICKNESS, cardGeometry, materialFor, thickCardGeometry, thickMate
 import { heightOf } from '../config/flora';
 import { spriteArt, spriteInfo } from '../art/sprites';
 import { PAPER_FLAT_ATTRIBUTE, pencilPlan } from '../render/paper-material';
-import { CELL, JITTER, type Reveal } from './reveal';
-import { SWAY_FADE_IN, SWAY_RADIUS, SWAY_RELEASE, swayAngle, swayOf, type Sway } from './wind';
+import { CELL, cellJitter, type Reveal } from './reveal';
+import { SWAY_FADE_IN, SWAY_RADIUS, SWAY_RELEASE, swayAngle, swayOf, type Sway, windStrength } from './wind';
 import { Critters, type Habitat } from './critters';
 import { tintMaterial } from '../render/biome-tint';
 import { BIOMES, type Biome } from './land';
+import { clamp } from '../core/math';
 
 /** papertrails' in-tile stagger span: the cards of a cell start one after another over this many seconds. */
 const STAGGER = 0.34;
@@ -74,12 +75,6 @@ export interface Card extends CardSpec {
   swayLevel: number;
 }
 
-/** A deterministic 0..1 hash of a cell. */
-function cellHash(i: number, j: number): number {
-  const h = Math.sin(i * 127.1 + j * 311.7) * 43758.5453;
-  return h - Math.floor(h);
-}
-
 interface Batch {
   mesh: THREE.InstancedMesh;
   cards: Card[];
@@ -127,7 +122,7 @@ export class CardField {
         cx: (i + 0.5) * CELL,
         cz: (j + 0.5) * CELL,
         order: 0,
-        jitter: (cellHash(i, j) - 0.5) * 2 * JITTER,
+        jitter: cellJitter(s.x, s.z),
         flipAt: -99,
         held: 0,
         wind: swayOf(s.sprite, s.height, (s.height * spriteInfo(s.sprite).w) / spriteInfo(s.sprite).h, s.x, s.z),
@@ -185,7 +180,7 @@ export class CardField {
   }
 
   /** reveal decides which cells stand; (focusX, focusZ): where the animals stir and the wind sways the cards. */
-  update(dt: number, reveal: Reveal, focusX: number, focusZ: number, wind: number): void {
+  update(dt: number, reveal: Reveal, focusX: number, focusZ: number): void {
     const relax = Math.exp(-dt / SWAY_RELEASE);
     this.time += dt;
     this.dt = dt;
@@ -228,7 +223,7 @@ export class CardField {
           if (c.wind.amp > 0 && d < SWAY_RADIUS) {
             c.swayLevel = Math.min(1, c.swayLevel + dt / SWAY_FADE_IN);
             const yaw = c.cross ? c.yaw + CROSS_PLANES[0] : c.yaw;
-            c.sway = c.swayLevel * swayAngle(c.wind, c.x, c.z, -Math.sin(yaw), -Math.cos(yaw), this.time, wind);
+            c.sway = c.swayLevel * swayAngle(c.wind, c.x, c.z, -Math.sin(yaw), -Math.cos(yaw), this.time, windStrength(c.biome));
             animate = true;
           }
         } else if (c.swayLevel > 0) {
@@ -287,7 +282,7 @@ export class CardField {
         if (lean !== 0) _q.multiply(_qa.setFromAxisAngle(Z_AXIS, lean));
         if (tw !== 0) _q.multiply(_qa.setFromAxisAngle(Y_AXIS, k === 0 ? tw : -tw));
         _m.compose(_p, _q, _s);
-        flat.setX(n, Math.min(1, Math.max(0, 1 - p)));
+        flat.setX(n, clamp(1 - p, 0, 1));
         mesh.setColorAt(n, _tone.setScalar(c.tone ?? 1));
         mesh.setMatrixAt(n++, _m);
       }

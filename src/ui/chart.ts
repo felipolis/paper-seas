@@ -22,15 +22,17 @@
  * Drag / WASD pan, wheel / + - zoom, E / Tab / Esc close.
  */
 import './chart.css';
-import { CELL, TILE_PX, cellKey, keyI, keyJ, type CellInfo, type Exploration } from '../game/exploration';
+import { CELL, TILE_PX, type CellInfo, type Exploration } from '../game/exploration';
+import { cellKey, keyI, keyJ } from '../core/grid';
 import type { Progress } from '../game/progress';
 import type { Biome } from '../world/land';
 import type { IslandKind } from '../world/island-layout';
 import { pageFibre } from '../art/paper-maps';
 import { PALETTE } from '../config/palette';
-import { hexRgb } from '../core/math';
-import { mulberry32 } from '../core/rng';
+import { hexRgb, clamp } from '../core/math';
+import { hash01, mulberry32 } from '../core/rng';
 import { bus } from '../core/events';
+import { spriteImage } from '../art/sprites';
 
 const INK = PALETTE.ink;
 /** papertrails' accent (its north point and pin head): a terracotta red. */
@@ -130,14 +132,6 @@ const BLOSSOM_CHANCE = 0.3;
 const CHEST = 'chest';
 const BOTTLE = 'bottle';
 
-function hash(x: number, z: number, k: number): number {
-  let h = (Math.imul(x | 0, 0x9e3779b1) ^ Math.imul(z | 0, 0x85ebca6b) ^ Math.imul(k | 0, 0xc2b2ae35)) >>> 0;
-  h ^= h >>> 15;
-  h = Math.imul(h, 0x2c1b3c6d) >>> 0;
-  h ^= h >>> 12;
-  return (h >>> 0) / 4294967296;
-}
-
 const regionOf = (i: number): number => Math.floor(i / RC);
 
 function canvas(w: number, h: number): HTMLCanvasElement {
@@ -177,7 +171,7 @@ export class Chart {
   /** The page fibre laid over the whole sheet (soft-light) and the warm vignette (multiply), per resize. */
   private readonly fibre: CanvasPattern;
   private vignette: CanvasGradient | null = null;
-  /** Each sprite shrunk to STAMP_BASE px high (null until the images have loaded), and the stamps cut from them. */
+  /** Each stamped sprite shrunk to STAMP_BASE px high, and the stickers cut from them. */
   private readonly sprites = new Map<string, HTMLCanvasElement>();
   private readonly stickers = new Map<string, Sticker>();
   private open = false;
@@ -205,7 +199,8 @@ export class Chart {
     this.canvas = this.root.querySelector('.chart-canvas')!;
     this.ctx = this.canvas.getContext('2d', { alpha: false })!;
     this.fibre = this.ctx.createPattern(fibreTile(), 'repeat')!;
-    this.loadSprites();
+    // (the game loaded every sprite before it made the chart)
+    for (const name of [...STAMPS.map((s) => s.sprite), CHEST, BOTTLE]) this.sprites.set(name, shrink(spriteImage(name), STAMP_BASE));
 
     exploration.onTile = (k) => {
       const r = this.regions.get(cellKey(regionOf(keyI(k)), regionOf(keyJ(k))));
@@ -309,25 +304,10 @@ export class Chart {
   // ---------------------------------------------------------------------------------------------------------------
   // stamps
 
-  /** The sprites the chart stamps (the browser already holds them: the game loaded them at startup). */
-  private loadSprites(): void {
-    const base = `${import.meta.env.BASE_URL}art/`;
-    const names = [...STAMPS.map((s) => s.sprite), CHEST, BOTTLE];
-    void Promise.all(names.map(async (name) => {
-      const img = new Image();
-      img.src = `${base}${name}.png`;
-      await img.decode();
-      this.sprites.set(name, shrink(img, STAMP_BASE));
-    })).then(() => {
-      // the coarse bakes carry their stamps: bake them again now that there are stamps to carry
-      for (const r of this.regions.values()) r.dirty = true;
-    });
-  }
-
-  /** A sprite cut to h px high with a faint warm shadow under it (cached per whole pixel), or null before it loads. */
-  private sticker(name: string, h: number): Sticker | null {
+  /** A stamped sprite cut to h px high with a faint warm shadow under it (cached per whole pixel). */
+  private sticker(name: string, h: number): Sticker {
     const src = this.sprites.get(name);
-    if (!src) return null;
+    if (!src) throw new Error(`the chart does not stamp "${name}"`);
     const hq = Math.max(4, Math.round(h));
     const key = `${name}|${hq}`;
     let s = this.stickers.get(key);
@@ -351,7 +331,7 @@ export class Chart {
   }
 
   /** The stickers of every stamp kind for a glyph height of g px. */
-  private stampSet(g: number): Array<Sticker | null> {
+  private stampSet(g: number): Sticker[] {
     return STAMPS.map((s) => this.sticker(s.sprite, g * s.size));
   }
 
@@ -430,7 +410,7 @@ export class Chart {
         if (!cells.has(cellKey(i, j))) continue;
         any = true;
         M.beginPath();
-        M.arc((i - ci0 + MARGIN + 0.5) * MP, (j - cj0 + MARGIN + 0.5) * MP, MP * (0.55 + 0.2 * hash(i, j, 9)), 0, Math.PI * 2);
+        M.arc((i - ci0 + MARGIN + 0.5) * MP, (j - cj0 + MARGIN + 0.5) * MP, MP * (0.55 + 0.2 * hash01(9, i, j)), 0, Math.PI * 2);
         M.fill();
       }
     }
@@ -487,7 +467,7 @@ export class Chart {
         const info = ex.info.get(k);
         if (!info || !cells.has(k)) continue;
         const kind = this.stampOf(k, i, j, info);
-        if (kind >= 0) glyphs.push((i + 0.25 + 0.5 * hash(i, j, 1)) * CELL, (j + 0.3 + 0.5 * hash(i, j, 2)) * CELL, kind);
+        if (kind >= 0) glyphs.push((i + 0.25 + 0.5 * hash01(1, i, j)) * CELL, (j + 0.3 + 0.5 * hash01(2, i, j)) * CELL, kind);
       }
     }
     r.glyphs = glyphs;
@@ -504,8 +484,8 @@ export class Chart {
     const x0 = ci0 * CELL;
     const z0 = cj0 * CELL;
     for (let g = 0; g < glyphs.length; g += 3) {
-      const s = glyphs[g + 2] === WAVE ? null : stamps[glyphs[g + 2]];
-      if (!s) continue;
+      if (glyphs[g + 2] === WAVE) continue;
+      const s = stamps[glyphs[g + 2]];
       const x = Math.min(lpx - s.img.width, Math.max(0, (glyphs[g] - x0) * LO + s.ox));
       const y = Math.min(lpx - s.img.height, Math.max(0, (glyphs[g + 1] - z0) * LO + s.oy));
       L.drawImage(s.img, x, y);
@@ -520,7 +500,7 @@ export class Chart {
     const ex = this.exploration;
     const around = [k + 65536, k - 65536, k + 1, k - 1];
     if (!around.every((n) => ex.cells.has(n))) return -1;
-    const roll = hash(i, j, 4);
+    const roll = hash01(4, i, j);
     if (info.land < 0.05) {
       // a wave only on open water, clear of every coast
       const open = around.every((n) => (ex.info.get(n)?.land ?? 1) < 0.05);
@@ -532,13 +512,13 @@ export class Chart {
       // PEAK_BLOCK x PEAK_BLOCK block may carry one
       const bi = Math.floor(i / PEAK_BLOCK);
       const bj = Math.floor(j / PEAK_BLOCK);
-      const chosen = i - bi * PEAK_BLOCK === Math.floor(hash(bi, bj, 6) * PEAK_BLOCK) && j - bj * PEAK_BLOCK === Math.floor(hash(bi, bj, 7) * PEAK_BLOCK);
+      const chosen = i - bi * PEAK_BLOCK === Math.floor(hash01(6, bi, bj) * PEAK_BLOCK) && j - bj * PEAK_BLOCK === Math.floor(hash01(7, bi, bj) * PEAK_BLOCK);
       return chosen && roll < PEAK_CHANCE ? (info.snow ? SNOW : PEAK) : -1;
     }
     if (info.terrace < 1) return -1;
     const [share, kind] = WOODS[info.biome];
     if (roll >= share) return -1;
-    return kind === TREE && hash(i, j, 5) < BLOSSOM_CHANCE ? BLOSSOM : kind;
+    return kind === TREE && hash01(5, i, j) < BLOSSOM_CHANCE ? BLOSSOM : kind;
   }
 
   // ---------------------------------------------------------------------------------------------------------------
@@ -726,7 +706,7 @@ export class Chart {
         const g = r.glyphs;
         for (let k = 0; k < g.length; k += 3) {
           const st = stamps[g[k + 2]];
-          if (st) target.drawImage(st.img, Math.round(X(g[k]) + st.ox), Math.round(Y(g[k + 1]) + st.oy));
+          target.drawImage(st.img, Math.round(X(g[k]) + st.ox), Math.round(Y(g[k + 1]) + st.oy));
         }
       }
     }
@@ -790,7 +770,7 @@ export class Chart {
       c.moveTo(x - r, y + r);
       c.lineTo(x + r, y - r);
       c.stroke();
-      if (chest) c.drawImage(chest.img, Math.round(x + r * 2.6 + chest.ox), Math.round(y + r + chest.oy));
+      c.drawImage(chest.img, Math.round(x + r * 2.6 + chest.ox), Math.round(y + r + chest.oy));
     }
 
     // ---- names of the lands discovered ----
@@ -930,7 +910,7 @@ export class Chart {
       c.letterSpacing = spacing;
       const lw = c.measureText(name.toUpperCase()).width;
       c.letterSpacing = '0px';
-      const iw = (st ? st.img.width : 24 * u) + 2 * u;
+      const iw = st.img.width + 2 * u;
       return { st, n: String(n), name: name.toUpperCase(), iw, nw, w: iw + nw + 5 * u + lw };
     });
     c.font = title;
@@ -973,7 +953,7 @@ export class Chart {
     c.textBaseline = 'middle';
     c.fillStyle = INK;
     for (const l of legend) {
-      if (l.st) c.drawImage(l.st.img, Math.round(x), Math.round(ly + 11 * u + l.st.oy));
+      c.drawImage(l.st.img, Math.round(x), Math.round(ly + 11 * u + l.st.oy));
       c.globalAlpha = 0.9;
       c.font = count;
       c.fillText(l.n, x + l.iw, ly);
@@ -1072,7 +1052,7 @@ function softenAlpha(ctx: CanvasRenderingContext2D, w: number, h: number, r: num
   }
   for (let i = 0; i < w * h; i++) {
     // ease the ramp so the inside stays solid and only the rim fades
-    const v = Math.min(1, Math.max(0, (a[i] / 255 - 0.32) / 0.55));
+    const v = clamp((a[i] / 255 - 0.32) / 0.55, 0, 1);
     img.data[i * 4 + 3] = Math.round(v * v * (3 - 2 * v) * 255);
   }
   ctx.putImageData(img, 0, 0);

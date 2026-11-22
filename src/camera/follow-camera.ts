@@ -42,6 +42,11 @@ export class FollowCamera {
   private readonly targetVel = new THREE.Vector3();
   private readonly prevGoal = new THREE.Vector3();
   private initialised = false;
+
+  /** On its next update the camera jumps to its goal instead of easing there (after a jump of what it follows). */
+  recenter(): void {
+    this.initialised = false;
+  }
   /** 0..1: on foot (papertrails' pose) or at sea. */
   private foot = 0;
   private clock = 0;

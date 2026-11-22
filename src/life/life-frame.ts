@@ -11,6 +11,7 @@ import * as THREE from 'three';
 import { AMBIENT, type LifeKind } from '../config/life';
 import { mulberry32 } from '../core/rng';
 import type { Biome } from '../world/land';
+import { smoothstep } from '../core/math';
 
 /** World units between the biome samples of the gradient. */
 const GRAD = 5;
@@ -22,10 +23,6 @@ const BLEND = 1.6;
 const KINDS = Object.keys(AMBIENT.biomes.heartland) as LifeKind[];
 type Row = keyof typeof AMBIENT.biomes;
 
-const smooth = (a: number, b: number, x: number) => {
-  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
-  return t * t * (3 - 2 * t);
-};
 
 /** n seeded random numbers in [0, 1) (papertrails' per-piece table: six per piece). */
 export function randomTable(n: number, seed: number): Float32Array {
@@ -114,7 +111,7 @@ export class LifeFrame {
     let total = 0;
     for (const k of KINDS) out[k] = 0;
     for (const [row, count] of Object.entries(n) as Array<[Row, number]>) {
-      const w = smooth(0.2, 0.8, count / 9) + 1e-3;
+      const w = smoothstep(0.2, 0.8, count / 9) + 1e-3;
       total += w;
       for (const k of KINDS) out[k] += AMBIENT.biomes[row][k] * w;
     }

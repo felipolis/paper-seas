@@ -128,17 +128,18 @@ export class Walker {
     this.group.visible = false;
   }
 
-  update(dt: number, input: Input, world: WalkWorld): void {
+  /** input: the keys walking him (null: none, the chart is open). */
+  update(dt: number, input: Input | null, world: WalkWorld): void {
     if (!this.active) return;
     this.world = world;
     let ix = 0;
     let iz = 0;
-    if (input.isDown('KeyW', 'ArrowUp')) iz -= 1;
-    if (input.isDown('KeyS', 'ArrowDown')) iz += 1;
-    if (input.isDown('KeyA', 'ArrowLeft')) ix -= 1;
-    if (input.isDown('KeyD', 'ArrowRight')) ix += 1;
+    if (input?.isDown('KeyW', 'ArrowUp')) iz -= 1;
+    if (input?.isDown('KeyS', 'ArrowDown')) iz += 1;
+    if (input?.isDown('KeyA', 'ArrowLeft')) ix -= 1;
+    if (input?.isDown('KeyD', 'ArrowRight')) ix += 1;
     const il = Math.hypot(ix, iz);
-    const speed = input.isDown('ShiftLeft', 'ShiftRight') ? RUN : SPEED;
+    const speed = input?.isDown('ShiftLeft', 'ShiftRight') ? RUN : SPEED;
     // constant acceleration toward the wanted velocity
     const v0x = this.vx;
     const v0z = this.vz;

@@ -28,6 +28,13 @@ export async function loadSprites(base = `${import.meta.env.BASE_URL}art/`): Pro
   );
 }
 
+/** A loaded sprite's image (loadSprites first). */
+export function spriteImage(name: string): HTMLImageElement {
+  const img = images.get(name);
+  if (!img) throw new Error(`sprite "${name}" not loaded`);
+  return img;
+}
+
 export function spriteInfo(name: string): SpriteInfo {
   const info = manifest[name];
   if (!info) throw new Error(`sprite "${name}" not in the manifest`);

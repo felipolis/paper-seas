@@ -15,10 +15,9 @@ import type { ClearLine } from './clear-line';
 import { randomTable, type LifeFrame } from './life-frame';
 import { Bits } from './paper-bits';
 import { SoftQuads } from './soft-quads';
+import { TAU, mixRange } from '../core/math';
 
 const HALF_PI = Math.PI / 2;
-const TAU = Math.PI * 2;
-const mix = (r: readonly number[], t: number) => r[0] + (r[1] - r[0]) * t;
 
 export class Weather {
   readonly group = new THREE.Group();
@@ -61,7 +60,7 @@ export class Weather {
     const slant = Math.atan2(cfg.wind, 7) * (Math.cos(camYaw) * windX - Math.sin(camYaw) * windZ);
     for (let i = 0; i < cfg.count; i++) {
       const r = i * 6;
-      const fall = mix(cfg.fall, R[r]);
+      const fall = mixRange(cfg.fall, R[r]);
       const tFall = H / fall;
       const period = tFall + cfg.land;
       const ph = t / period + R[r + 1] * 7;
@@ -80,7 +79,7 @@ export class Weather {
       const landH = this.landing(i, fx + dx, fz + dz);
       if (u < tFall) {
         const rem = tFall - u;
-        const len = mix(cfg.size, R[r + 2]);
+        const len = mixRange(cfg.size, R[r + 2]);
         const px = fx + dx - windX * cfg.wind * rem;
         const py = rem * fall + len * 0.5 + landH;
         const pz = fz + dz - windZ * cfg.wind * rem;
@@ -127,7 +126,7 @@ export class Weather {
         this.mist.hide(i);
         continue;
       }
-      this.mist.put(i, fx + dx, cfg.y + 0.06 * Math.sin(t * 0.3 + Q[q + 3] * TAU), fz + dz, camYaw, -0.3, mix(cfg.size, Q[q + 3]), cfg.height * (0.8 + 0.4 * Q[q + 4]), this.mistColor, cfg.alpha * g, 1, 0, 1);
+      this.mist.put(i, fx + dx, cfg.y + 0.06 * Math.sin(t * 0.3 + Q[q + 3] * TAU), fz + dz, camYaw, -0.3, mixRange(cfg.size, Q[q + 3]), cfg.height * (0.8 + 0.4 * Q[q + 4]), this.mistColor, cfg.alpha * g, 1, 0, 1);
     }
     this.mist.commit();
   }

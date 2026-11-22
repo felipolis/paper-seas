@@ -15,13 +15,11 @@ const NT = 96; // stations along the hull
 
 const server = await createServer({ root, logLevel: 'error', server: { middlewareMode: true, hmr: false }, appType: 'custom' });
 const { SHIP_TYPES } = await server.ssrLoadModule('/src/config/ships.ts');
+const { hullShape } = await server.ssrLoadModule('/src/ship/hull-shape.ts');
 const ids = process.argv[2] ? [process.argv[2]] : SHIP_TYPES.map((t) => t.id);
 for (const id of ids) {
-  // the game's modules read the chosen ship once, at load: a fresh module graph per ship
-  globalThis.__PAPER_SEAS_SHIP = id;
-  server.moduleGraph.invalidateAll();
-  const H = await server.ssrLoadModule('/src/ship/hull-shape.ts');
   const type = SHIP_TYPES.find((t) => t.id === id);
+  const H = hullShape(type);
   const spec = type.hull;
   // rows: under the wale, the wale's two edges, the upper works up to the rail
   const rowsAt = (t) => {
@@ -39,12 +37,12 @@ for (const id of ids) {
   }
   const shape = {
     id,
-    length: H.HULL_LENGTH,
+    length: H.length,
     halfBeam: type.halfBeam,
     spec,
     stations,
     decks: H.deckSpans(),
-    masts: H.MASTS.map((m) => ({ t: m.t, z: H.zOf(m.t), deckY: H.deckHeightAt(m.t), rig: m.rig })),
+    masts: H.masts.map((m) => ({ t: m.t, z: H.zOf(m.t), deckY: H.deckHeightAt(m.t), rig: m.rig })),
     lanterns: H.lanternSpots(),
   };
   mkdirSync(join(root, 'assets-src/models'), { recursive: true });

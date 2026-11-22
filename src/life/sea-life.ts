@@ -9,7 +9,7 @@
  */
 import * as THREE from 'three';
 import { LIFE } from '../config/life';
-import { DEG } from '../core/math';
+import { DEG, clamp } from '../core/math';
 import { bus } from '../core/events';
 import { pickWeighted } from '../core/rng';
 import { FoldGroup } from '../popup/fold-group';
@@ -474,7 +474,7 @@ export class SeaLife {
     Object.assign(this.ship, ship);
     // at night most of them roost (papertrails keeps 0.35 of its birds): they go by rank, the last first
     this.flock += ((this.isNight() ? NIGHT_GULLS : 1) - this.flock) * (1 - Math.exp(-dt * 0.5));
-    this.gulls.forEach((g, i) => g.update(dt, this.ship, Math.min(1, Math.max(0, (this.flock * this.gulls.length - i) / 0.6)), this.clearLine));
+    this.gulls.forEach((g, i) => g.update(dt, this.ship, clamp((this.flock * this.gulls.length - i) / 0.6, 0, 1), this.clearLine));
     for (let i = this.encounters.length - 1; i >= 0; i--) {
       const e = this.encounters[i];
       if (!e.update(dt, this.ship)) {

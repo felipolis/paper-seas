@@ -8,6 +8,7 @@ import { SITE_CELL, layoutOf, siteIn, type Layout, type Site } from './sites';
 import { Streams } from './streams';
 import { overlaps, type Box } from './polyline';
 import type { LandField } from './land';
+import { cellKey } from '../core/grid';
 
 /** How many nearest settlements each one is joined to. */
 const LINKS = 2;
@@ -27,7 +28,7 @@ export class Places {
 
   /** The site of the chunk square (i, j), or null. */
   siteIn(i: number, j: number): Site | null {
-    const key = i * 73856093 ^ j * 19349663;
+    const key = cellKey(i, j);
     let s = this.sites.get(key);
     if (s === undefined) {
       s = siteIn(this.land, (x, z, r) => this.streams.waterAt(x, z, r), i, j);

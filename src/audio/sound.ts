@@ -14,16 +14,23 @@ import { Music } from './music';
 import { PaperVoices } from './paper-voices';
 import { makeLimiterCurve } from './paper-synth';
 import { clamp, smoothstep } from '../core/math';
-import { mulberry32 } from '../core/rng';
+import { hash2, mulberry32 } from '../core/rng';
+
+/** The audio graph, made at the player's first key or click (browsers start sound only after a gesture). */
+interface AudioGraph {
+  ctx: AudioContext;
+  master: GainNode;
+  /** The effects bus (into the limiter). */
+  fx: GainNode;
+  voices: PaperVoices;
+  music: Music;
+  /** A few seconds of noise for the creature sounds and the wind. */
+  noise: AudioBuffer;
+  wind: GainNode;
+}
 
 export class Sound {
-  private ctx: AudioContext | null = null;
-  private master!: GainNode;
-  private fx!: GainNode;
-  private voices!: PaperVoices;
-  private music!: Music;
-  private noise!: AudioBuffer;
-  private wind!: GainNode;
+  private graph: AudioGraph | null = null;
   private muted = false;
   private listenerX = 0;
   private listenerZ = 0;
@@ -43,16 +50,16 @@ export class Sound {
     bus.on('sails', (e) => this.sheet(e.level < 0 ? 1 : 0.8, e.level >= 0));
     bus.on('bump', (e) => this.knock(e.strength));
     bus.on('step', (e) => {
-      if (this.live()) this.voices.step(e.surface, e.foot, hashXZ(++this.events, 31, 9));
+      this.live()?.voices.step(e.surface, e.foot, hashXZ(++this.events, 31, 9));
     });
     bus.on('creature', (e) => {
       if (e.kind === 'spout') this.spout(e.x, e.z);
       else if (e.kind === 'splash') this.splash(e.x, e.z);
       else this.rumble(e.x, e.z);
     });
-    bus.on('discovered', () => this.music?.chime('discover'));
-    bus.on('treasure', () => this.music?.chime('treasure'));
-    bus.on('bottle', () => this.music?.chime('bottle'));
+    bus.on('discovered', () => this.graph?.music.chime('discover'));
+    bus.on('treasure', () => this.graph?.music.chime('treasure'));
+    bus.on('bottle', () => this.graph?.music.chime('bottle'));
   }
 
   get isMuted(): boolean {
@@ -61,50 +68,48 @@ export class Sound {
 
   toggleMute(): void {
     this.muted = !this.muted;
-    if (!this.ctx) return;
-    const g = this.master.gain;
-    g.cancelScheduledValues(this.ctx.currentTime);
-    g.setTargetAtTime(this.muted ? 0 : AUDIO.masterGain, this.ctx.currentTime, 0.05);
+    if (!this.graph) return;
+    const { ctx, master } = this.graph;
+    master.gain.cancelScheduledValues(ctx.currentTime);
+    master.gain.setTargetAtTime(this.muted ? 0 : AUDIO.masterGain, ctx.currentTime, 0.05);
   }
 
   /** Per frame: where the listener is and how fast the ship goes. */
-  update(_dt: number, x: number, z: number, speed: number): void {
+  update(x: number, z: number, speed: number): void {
     this.listenerX = x;
     this.listenerZ = z;
-    if (!this.ctx) return;
-    this.voices.update();
+    const g = this.graph;
+    if (!g) return;
+    g.voices.update();
     const S = AUDIO.sea;
-    this.wind.gain.setTargetAtTime(S.windGain + S.windSpeedGain * clamp(speed / 3.4, 0, 1), this.ctx.currentTime, 0.6);
+    g.wind.gain.setTargetAtTime(S.windGain + S.windSpeedGain * clamp(speed / 3.4, 0, 1), g.ctx.currentTime, 0.6);
   }
 
   private start(): void {
-    if (this.ctx) return;
+    if (this.graph) return;
     let ctx: AudioContext;
     try {
       ctx = new AudioContext({ sampleRate: AUDIO.sampleRate, latencyHint: 'interactive' });
     } catch {
+      // (a browser that cannot run at the asked sample rate refuses it: it then runs at its own)
       ctx = new AudioContext();
     }
-    this.ctx = ctx;
-    this.master = ctx.createGain();
-    this.master.gain.value = this.muted ? 0 : AUDIO.masterGain;
-    this.master.connect(ctx.destination);
+    const master = ctx.createGain();
+    master.gain.value = this.muted ? 0 : AUDIO.masterGain;
+    master.connect(ctx.destination);
     // effects: soft-knee limiter (scaled in and out of its range)
     const shaper = ctx.createWaveShaper();
     shaper.curve = makeLimiterCurve();
     const ceiling = ctx.createGain();
     ceiling.gain.value = AUDIO.limiter.ceiling * AUDIO.limiter.range;
-    shaper.connect(ceiling).connect(this.master);
-    this.fx = ctx.createGain();
-    this.fx.gain.value = 1 / AUDIO.limiter.range;
-    this.fx.connect(shaper);
-    this.voices = new PaperVoices(ctx, this.fx);
-    this.music = new Music(ctx, this.master);
+    shaper.connect(ceiling).connect(master);
+    const fx = ctx.createGain();
+    fx.gain.value = 1 / AUDIO.limiter.range;
+    fx.connect(shaper);
 
-    // a few seconds of noise for the creature sounds and the wind
-    this.noise = ctx.createBuffer(1, ctx.sampleRate * 3, ctx.sampleRate);
+    const noise = ctx.createBuffer(1, ctx.sampleRate * 3, ctx.sampleRate);
     const rng = mulberry32(0x5ea);
-    const d = this.noise.getChannelData(0);
+    const d = noise.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = rng() * 2 - 1;
 
     // the sea: a baked loop, faded in
@@ -114,11 +119,11 @@ export class Sound {
     const seaGain = ctx.createGain();
     seaGain.gain.setValueAtTime(0, ctx.currentTime);
     seaGain.gain.linearRampToValueAtTime(AUDIO.sea.gain, ctx.currentTime + 3);
-    sea.connect(seaGain).connect(this.master);
+    sea.connect(seaGain).connect(master);
     sea.start();
     // air: soft band of noise, louder with speed
     const air = ctx.createBufferSource();
-    air.buffer = this.noise;
+    air.buffer = noise;
     air.loop = true;
     const bp = ctx.createBiquadFilter();
     bp.type = 'bandpass';
@@ -127,10 +132,11 @@ export class Sound {
     const lp = ctx.createBiquadFilter();
     lp.type = 'lowpass';
     lp.frequency.value = 2200;
-    this.wind = ctx.createGain();
-    this.wind.gain.value = 0;
-    air.connect(bp).connect(lp).connect(this.wind).connect(this.master);
+    const wind = ctx.createGain();
+    wind.gain.value = 0;
+    air.connect(bp).connect(lp).connect(wind).connect(master);
     air.start();
+    this.graph = { ctx, master, fx, voices: new PaperVoices(ctx, fx), music: new Music(ctx, master), noise, wind };
   }
 
   /** Gain (0..1), pan (-1..1) and distance softening (0..1) of a sound at (x, z). */
@@ -142,37 +148,38 @@ export class Sound {
     return { gain, pan: clamp(dx / A.panSpan, -1, 1), air: clamp(d / A.earshot, 0, 1) };
   }
 
-  private live(): boolean {
-    return !!this.ctx && this.ctx.state === 'running' && !this.muted;
+  /** The graph, if it is running and not muted. */
+  private live(): AudioGraph | null {
+    return this.graph && this.graph.ctx.state === 'running' && !this.muted ? this.graph : null;
   }
 
   private paper(x: number, z: number, size: number, up: boolean, delay: number): void {
-    if (!this.live()) return;
+    const g = this.live();
+    if (!g) return;
     const p = this.place(x, z);
     if (p.gain <= 0) return;
-    this.voices.flap(up, size, p.gain, p.pan, p.air, hashXZ(x, z, up ? 1 : 2), delay);
+    g.voices.flap(up, size, p.gain, p.pan, p.air, hashXZ(x, z, up ? 1 : 2), delay);
   }
 
   /** A big sheet: the chart unfolding, the sails being set or furled. */
   private sheet(size: number, sails: boolean): void {
-    if (!this.live()) return;
-    this.voices.flap(true, size, sails ? 0.8 : 1, 0, 0, hashXZ(++this.events, 7, 3), 0, true);
+    this.live()?.voices.flap(true, size, sails ? 0.8 : 1, 0, 0, hashXZ(++this.events, 7, 3), 0, true);
   }
 
   private knock(strength: number): void {
-    if (!this.live()) return;
-    this.voices.knock(strength, hashXZ(++this.events, 11, 5));
+    this.live()?.voices.knock(strength, hashXZ(++this.events, 11, 5));
   }
 
   /** A shaped noise burst into a world-placed gain. */
   private burst(x: number, z: number, level: number, o: { type: BiquadFilterType; freq: number; q: number; attack: number; decay: number; sweepTo?: number }): void {
-    if (!this.live()) return;
-    const ctx = this.ctx!;
+    const g = this.live();
+    if (!g) return;
+    const { ctx } = g;
     const p = this.place(x, z);
     if (p.gain * level < AUDIO.minGain) return;
     const at = ctx.currentTime + 0.01;
     const src = ctx.createBufferSource();
-    src.buffer = this.noise;
+    src.buffer = g.noise;
     const f = ctx.createBiquadFilter();
     f.type = o.type;
     f.frequency.setValueAtTime(o.freq, at);
@@ -184,7 +191,7 @@ export class Sound {
     env.gain.exponentialRampToValueAtTime(0.0001, at + o.attack + o.decay);
     const pan = ctx.createStereoPanner();
     pan.pan.value = p.pan * AUDIO.panWidth;
-    src.connect(f).connect(env).connect(pan).connect(this.fx);
+    src.connect(f).connect(env).connect(pan).connect(g.fx);
     src.start(at, Math.random() * 2, o.attack + o.decay + 0.05);
   }
 
@@ -204,11 +211,9 @@ export class Sound {
   }
 }
 
+/** A seed for a sound's variation, from where it happens (to an eighth of a unit) and what kind it is. */
 function hashXZ(x: number, z: number, k: number): number {
-  let h = (Math.imul(Math.round(x * 8), 0x9e3779b1) ^ Math.imul(Math.round(z * 8), 0x85ebca6b) ^ Math.imul(k, 0xc2b2ae35)) >>> 0;
-  h ^= h >>> 15;
-  h = Math.imul(h, 0x2c1b3c6d) >>> 0;
-  return (h ^ (h >>> 12)) >>> 0;
+  return hash2(k, Math.round(x * 8), Math.round(z * 8));
 }
 
 /**

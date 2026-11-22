@@ -128,7 +128,6 @@ export const HEIGHT: Record<string, [number, number]> = {
   'crag-0': [0.7, 0.75],
   'crag-1': [0.5, 0.55],
   'crag-2': [0.46, 0.5],
-  jetty: [0.3, 0.34],
   tiki: [0.75, 0.9],
   'ruin-arch': [1.2, 1.3],
   pillars: [1.0, 1.15],

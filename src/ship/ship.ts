@@ -41,28 +41,33 @@ export class Ship {
     return WIND_DIR;
   }
 
+  /** Sets the sails: 0 furled .. the last of SHIP.sailLevels, all sails. */
+  setSailSetting(setting: number): void {
+    this.sailIndex = setting;
+    this.model.setSails(this.sailLevel);
+    bus.emit('sails', { level: this.sailLevel });
+  }
+
   /** Masts pop up after `delay` seconds (the launch). */
   launch(delay: number): void {
     this.model.raiseMasts(true, delay);
     this.launched = true;
-    setTimeout(() => bus.emit('paper', { x: this.physics.x, z: this.physics.z, count: 9, size: 2, up: true }), delay * 1000);
+    bus.emit('paper', { x: this.physics.x, z: this.physics.z, count: 9, size: 2, up: true, delay });
   }
 
-  /** frozen: the voyage is paused (chart open): the hull holds still, the cloth and flag keep moving. */
-  update(dt: number, input: Input, shores: ShoreCollider, frozen = false): void {
+  /**
+   * input: the keys on the helm (null: no one at it, ashore or with the chart open); frozen: the voyage is paused
+   * (chart open): the hull holds still, the cloth and flag keep moving.
+   */
+  update(dt: number, input: Input | null, shores: ShoreCollider, frozen = false): void {
     this.time += dt;
-    if (this.launched) {
-      const up = input.wasPressed('KeyW', 'ArrowUp');
-      const down = input.wasPressed('KeyS', 'ArrowDown');
-      if (up && this.sailIndex < SHIP.sailLevels.length - 1) this.sailIndex++;
-      if (down && this.sailIndex > 0) this.sailIndex--;
-      if (up || down) {
-        this.model.setSails(this.sailLevel);
-        bus.emit('sails', { level: this.sailLevel });
-      }
+    if (this.launched && input) {
+      const step = (input.wasPressed('KeyW', 'ArrowUp') ? 1 : 0) - (input.wasPressed('KeyS', 'ArrowDown') ? 1 : 0);
+      const next = clamp(this.sailIndex + step, 0, SHIP.sailLevels.length - 1);
+      if (next !== this.sailIndex) this.setSailSetting(next);
     }
-    const steer = (input.isDown('KeyD', 'ArrowRight') ? 1 : 0) - (input.isDown('KeyA', 'ArrowLeft') ? 1 : 0);
-    const reverse = this.sailIndex === 0 && input.isDown('KeyS', 'ArrowDown');
+    const steer = input ? (input.isDown('KeyD', 'ArrowRight') ? 1 : 0) - (input.isDown('KeyA', 'ArrowLeft') ? 1 : 0) : 0;
+    const reverse = this.sailIndex === 0 && !!input?.isDown('KeyS', 'ArrowDown');
 
     const p = this.physics;
     const impactBefore = p.impact;

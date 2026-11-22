@@ -8,12 +8,30 @@ import type { World } from '../world/world';
 import { islandName } from '../world/island-names';
 import { hash2 } from '../core/rng';
 import type { IslandKind } from '../world/island-layout';
+import { WORLD } from '../config/world';
+import { isNumber, isNumberArray, isRecord, isString, loadJson, saveJson } from '../core/storage';
 
 /** World hashes are salted with the voyage seed: every voyage places its own villages, ruins, chests... */
-import { WORLD } from '../config/world';
 const SEED = WORLD.seed;
 
 const STORAGE_KEY = 'paper-seas:progress:v2';
+
+/** What is kept of the voyage: lands and treasures found (ids), named places [id, name, x, z], dig spots [name, x, z]. */
+interface Kept {
+  lands?: number[];
+  treasures?: number[];
+  places?: Array<[number, string, number, number]>;
+  spots?: Array<[string, number, number]>;
+}
+
+const isPlace = (v: unknown): v is [number, string, number, number] => Array.isArray(v) && v.length === 4 && isNumber(v[0]) && isString(v[1]) && isNumber(v[2]) && isNumber(v[3]);
+const isSpot = (v: unknown): v is [string, number, number] => Array.isArray(v) && v.length === 3 && isString(v[0]) && isNumber(v[1]) && isNumber(v[2]);
+const isKept = (v: unknown): v is Kept =>
+  isRecord(v) &&
+  (v.lands === undefined || isNumberArray(v.lands)) &&
+  (v.treasures === undefined || isNumberArray(v.treasures)) &&
+  (v.places === undefined || (Array.isArray(v.places) && v.places.every(isPlace))) &&
+  (v.spots === undefined || (Array.isArray(v.spots) && v.spots.every(isSpot)));
 /** The ship collects a treasure when its centre comes this close to the chest. */
 const TREASURE_REACH = 2.7;
 /** A coast counts as discovered when the ship sails this close to it. */
@@ -31,23 +49,11 @@ export class Progress {
   private checkTimer = 0;
 
   constructor() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const data = JSON.parse(raw) as {
-          lands?: number[];
-          treasures?: number[];
-          places?: Array<[number, string, number, number]>;
-          spots?: Array<[string, number, number]>;
-        };
-        data.lands?.forEach((id) => this.discovered.add(id));
-        data.treasures?.forEach((id) => this.treasures.add(id));
-        data.places?.forEach(([id, name, x, z]) => this.places.set(id, { name, x, z }));
-        data.spots?.forEach(([name, x, z]) => this.treasureSpots.push({ name, x, z }));
-      }
-    } catch {
-      // storage unavailable: the voyage just is not remembered
-    }
+    const data = loadJson(STORAGE_KEY, isKept);
+    data?.lands?.forEach((id) => this.discovered.add(id));
+    data?.treasures?.forEach((id) => this.treasures.add(id));
+    data?.places?.forEach(([id, name, x, z]) => this.places.set(id, { name, x, z }));
+    data?.spots?.forEach(([name, x, z]) => this.treasureSpots.push({ name, x, z }));
   }
 
   /** Forgets the whole voyage. */
@@ -108,15 +114,11 @@ export class Progress {
   }
 
   private save(): void {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        lands: [...this.discovered],
-        treasures: [...this.treasures],
-        places: [...this.places].map(([id, p]) => [id, p.name, Math.round(p.x * 10) / 10, Math.round(p.z * 10) / 10]),
-        spots: this.treasureSpots.map((t) => [t.name, Math.round(t.x * 10) / 10, Math.round(t.z * 10) / 10]),
-      }));
-    } catch {
-      // ignore
-    }
+    saveJson(STORAGE_KEY, {
+      lands: [...this.discovered],
+      treasures: [...this.treasures],
+      places: [...this.places].map(([id, p]) => [id, p.name, Math.round(p.x * 10) / 10, Math.round(p.z * 10) / 10]),
+      spots: this.treasureSpots.map((t) => [t.name, Math.round(t.x * 10) / 10, Math.round(t.z * 10) / 10]),
+    } satisfies Kept);
   }
 }

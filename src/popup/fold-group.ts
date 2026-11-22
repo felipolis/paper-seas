@@ -9,6 +9,7 @@
 import * as THREE from 'three';
 import { POPUP } from '../config/popup';
 import { Flap, FixedStepper, flapConstants, type FlapTuning } from './spring';
+import { clamp } from '../core/math';
 
 export interface HingeOptions extends FlapTuning {
   /** Rotation about the hinge (rad) between upright and flat; -PI/2 folds the card back, face up. */
@@ -55,7 +56,7 @@ export class FoldGroup {
   /** Registers `node` as a hinge. Call while the node is in its upright rest pose. */
   add(node: THREE.Object3D, options: HingeOptions): void {
     const flap = new Flap(flapConstants(options));
-    const delay = Math.min(1, Math.max(0, options.delay ?? 0)) * this.staggerSpan;
+    const delay = clamp(options.delay ?? 0, 0, 1) * this.staggerSpan;
     this.hinges.push({ node, rest: node.quaternion.clone(), restPos: node.position.clone(), lift: options.lift ?? 0, flap, foldAngle: options.foldAngle ?? -Math.PI / 2, delayUp: delay, delayDown: 0 });
     // fold-down runs in exact reverse: the last card up is the first one down
     let span = 0;
