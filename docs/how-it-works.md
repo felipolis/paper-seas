@@ -54,9 +54,8 @@ What papertrails does, Paper Seas does the same way (its traveller is as tall as
   waves and what is adrift all keep to it, and whatever it has not raised lies folded flat, face up, in view;
   the rows behind fold from the track outward; a cell flips at most once per 2 s; the anchor trails on a 1-unit rope.
   A cell's cards start over 0.34 s in flat-stack order (they fold back, so the nearest lies on top and rises first)
-  and fold in the reverse order; each leans up to 2.5 degrees once it stands, and lies exactly flat when folded. At
-  every card's foot the page carries a pale score line and, on the wider cards, two kraft glue tabs
-  (world/page-marks.ts). A piece of a building that rides on another (a roof on its wall) follows it as it opens
+  and fold in the reverse order; each leans up to 2.5 degrees once it stands, and lies exactly flat when folded.
+  A piece of a building that rides on another (a roof on its wall) follows it as it opens
   (popup/spring.ts NESTED), so the planes of one construction never scissor.
   Folded flat, every piece (cards, buildings, mountains, piers and bridges alike) fades with its distance from the
   captain or the ship into papertrails' pencil plan of the unpainted book: full colour within 6.8, beyond 9.6 a pale
@@ -77,11 +76,12 @@ What papertrails does, Paper Seas does the same way (its traveller is as tall as
   woods its pinewood (a teal wood, a pine-needle track, darker streams), the jungle and the rocks its heartland
   (unchanged); the streams take papertrails' water of the biome (shallow, deep, rim, floater), petals in the blossom.
 - **Sizes and density** (`config/flora.ts`, `world/cover.ts`): trees about 1.1, pines 1.3, bushes 0.4, flowers and
-  grass 0.3, houses 1.1, a hen a third of the captain (and under everything that stands, papertrails' soft darker contact
+  grass 0.3, houses 1.1, animals at most half the captain (the skill's creatures), every kind varied +-15 % (and under everything that stands, papertrails' soft darker contact
   patch on the ground); the ground is planted by 2 x 2 tiles, each one composition
   mixing a few tall species near its corners with clumps of ground cover and flowers, a small prop or two (a stump, a
   log, mushrooms, coconuts, shells, a woodpile) and about one animal, the woods massing where a low-frequency field is
-  high. Like papertrails' tiles (measured on its tiles.glb: 9 or 10 cards, 7 to 10 drawings) a tile hands out its
+  high and clearings left where another is low (open ground between the groups, a low clump or two on it); no more than
+  three of one prop or animal stand in any 9 x 9 square, about one on-foot view. Like papertrails' tiles (measured on its tiles.glb: 9 or 10 cards, 7 to 10 drawings) a tile hands out its
   species before repeating one (four pines, three broadleaf trees, two blossoms to draw from), and a clump is one to
   four cards of different species, the tallest at the back; the low cover is drawn as wide low drifts (about 2.4 x as
   wide as tall), the ferns as compact clumps. Villages have a well, stalls, laundry, bunting, carts, benches, lamps, hives and fences and their hens, chicks,
@@ -94,7 +94,7 @@ What papertrails does, Paper Seas does the same way (its traveller is as tall as
   edge.
 - **A flat page**: the land is one sheet of paper cut to the shore; relief comes only from what stands on it. The world
   is mostly sea (the land is under a third of it).
-- **Paths as printed** (`world/ground-shader.ts`): roads, lanes and squares are drawn into the ground by papertrails'
+- **Paths as printed** (`world/ground-shader.ts`): roads 0.75 wide (the skill's leading line, 1.3 captains), lanes and squares are drawn into the ground by papertrails'
   road terms (soft edge, halo, fringe, worn middle, pebbles), with grass tufts and flowers; lanes branch from the square
   and from one another like trodden paths. No standing card's blocking foot comes within 0.12 of a path's edge.
 - **The sea** (`sea/sea-surface.ts`, `config/palette.ts`): the world's floor printed pale, as the papercraft skill has it

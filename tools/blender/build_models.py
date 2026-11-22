@@ -606,7 +606,7 @@ def pier(name, L=3.0, W=0.62, H=0.16):
 BRIDGE = {"ramp_deg": 26.0, "crown_deg": 8.0, "ramp_share": 0.55, "lean_deg": 18.0}
 
 
-def bridge(name, L=1.7, W=0.5, rail=0.18, base=0.002):
+def bridge(name, L=1.7, W=0.75, rail=0.18, base=0.002):
     m = Model(name)
     half = L / 2
     A1 = math.radians(BRIDGE["ramp_deg"])

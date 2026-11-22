@@ -6,8 +6,7 @@
  * when, and how the rise ripples outward: world/reveal.ts): the cards of one cell start one after another over
  * STAGGER seconds in flat-stack order (they fold back, so the nearest lies on top and rises first) and fold down in the
  * reverse order, lying flat on the page, face up, until they rise again. Nothing stands plumb: each card leans a
- * little (LEAN), only as it stands, so it still lies exactly flat. At each card's foot the page carries its score line
- * and glue tabs (world/page-marks.ts). A card settled upright rocks in the wind about its hinge (world/wind.ts),
+ * little (LEAN), only as it stands, so it still lies exactly flat. A card settled upright rocks in the wind about its hinge (world/wind.ts),
  * fading in over SWAY_FADE_IN and relaxing away over SWAY_RELEASE once it moves; the animals live and take the captain
  * as world/critters.ts has them.
  */
@@ -25,7 +24,6 @@ import { Critters, type Habitat } from './critters';
 import { tintMaterial } from '../render/biome-tint';
 import { BIOMES, type Biome } from './land';
 import { clamp } from '../core/math';
-import { PageMarks, type Foot } from './page-marks';
 
 /** papertrails' in-tile stagger span: the cards of a cell start one after another over this many seconds. */
 const STAGGER = 0.34;
@@ -103,9 +101,6 @@ export class CardField {
   private nextId = 1;
   private time = 0;
   private readonly critters: Critters;
-  /** The score lines and glue tabs printed at the cards' feet, and whether they need printing again. */
-  private readonly marks = new PageMarks();
-  private marksDirty = false;
   /** This frame's step and focus, for the animals. */
   private dt = 0;
   private focusX = 0;
@@ -114,7 +109,6 @@ export class CardField {
   /** habitat: where the animals may walk and swim, and whether it is night. */
   constructor(habitat: Habitat) {
     this.critters = new Critters(habitat);
-    this.group.add(this.marks.group);
   }
 
   /** Adds cards (returns them, so their owner can remove them later). */
@@ -156,7 +150,6 @@ export class CardField {
       cell.sort((a, b) => b.z - a.z || a.phase - b.phase);
       cell.forEach((c, k) => (c.order = cell.length > 1 ? k / (cell.length - 1) : 0));
     }
-    this.marksDirty = true;
     return out;
   }
 
@@ -167,7 +160,6 @@ export class CardField {
       b.cards = b.cards.filter((c) => !dead.has(c));
       if (b.cards.length !== before) b.dirty = true;
     }
-    this.marksDirty = true;
   }
 
   /**
@@ -186,7 +178,6 @@ export class CardField {
   hide(card: Card): void {
     card.hidden = true;
     this.batch(card.sprite, card.flip, card.biome).dirty = true;
-    this.marksDirty = true;
   }
 
   get count(): number {
@@ -204,10 +195,6 @@ export class CardField {
     this.focusZ = focusZ;
     const steps = this.stepper.advance(dt);
     const h = POPUP.step;
-    if (this.marksDirty) {
-      this.marks.rebuild(this.feet());
-      this.marksDirty = false;
-    }
     for (const b of this.batches.values()) {
       let animate = b.dirty;
       for (const c of b.cards) {
@@ -256,19 +243,6 @@ export class CardField {
         if (Critters.is(c.sprite) && f.p > 0.5 && d < SWAY_RADIUS) animate = true;
       }
       if (animate) this.rebuild(b);
-    }
-  }
-
-  /**
-   * The feet that carry a score line and tabs: every card that stays where it was planted (not the animals, which
-   * walk off, nor a vignette up on its seat), a crossed card at its first plane.
-   */
-  private *feet(): Generator<Foot> {
-    for (const b of this.batches.values()) {
-      for (const c of b.cards) {
-        if (c.hidden || Critters.is(c.sprite) || c.vignette) continue;
-        yield { sprite: c.sprite, flip: c.flip, x: c.x, y: c.y, z: c.z, height: c.height, yaw: c.cross ? c.yaw + CROSS_PLANES[0] : c.yaw };
-      }
     }
   }
 

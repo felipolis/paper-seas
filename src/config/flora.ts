@@ -1,16 +1,14 @@
 /**
  * What stands on the land and how tall, after papertrails (its traveller is 0.6 tall, our captain 0.58, so its
  * heights carry over as they are): trees about 1.8 x the traveller, pines 2.2, bushes 0.67, flowers and tufts a
- * third, rocks half, boulders one, a hen half, a cat or a dog two thirds (its animals.json heights x 1.5 x their size).
+ * third, rocks half, boulders one; animals at most half the captain (the skill's creatures, 1/3 to 1/2 of the hero);
+ * every kind varied +-15 % about the middle of its range.
  * Ground cover is planted by 2 x 2 tiles (world/cover.ts), as papertrails' page is: each tile is one composition (a
  * grove, a thicket, a glade...) mixing several tall species near its corners with clumps of ground cover, flowers,
  * small props and its animals (papertrails: 9 or 10 cards a tile, nearly every one a different drawing), chosen
  * per biome, with forest tiles massing where a low-frequency field is high.
  */
 import type { Biome } from '../world/land';
-
-/** The captain's height (world units): the hero every size is measured against. */
-export const HERO_HEIGHT = 0.58;
 
 /** Height range (world units) of every sprite that stands on the land. */
 export const HEIGHT: Record<string, [number, number]> = {
@@ -73,30 +71,30 @@ export const HEIGHT: Record<string, [number, number]> = {
   'rock-cairn': [0.36, 0.44],
   'rock-big': [0.52, 0.66],
   'rock-spire': [0.7, 0.85],
-  // animals (a monkey about half the captain, a bird a third)
-  monkey: [0.28, 0.32],
+  // animals: the skill's creatures, at most half the captain (a kind taller than that scaled down to it, its range kept)
+  monkey: [0.254, 0.29],
   parrot: [0.2, 0.24],
   toucan: [0.2, 0.24],
   crab: [0.16, 0.2],
   iguana: [0.22, 0.27],
-  pelican: [0.36, 0.42],
-  flamingo: [0.46, 0.52],
+  pelican: [0.249, 0.29],
+  flamingo: [0.257, 0.29],
   'duck-float': [0.24, 0.27],
-  duck: [0.28, 0.31],
+  duck: [0.262, 0.29],
   hen: [0.27, 0.29],
   chick: [0.115, 0.125],
-  goat: [0.38, 0.42],
-  pig: [0.36, 0.4],
-  cat: [0.32, 0.35],
-  dog: [0.4, 0.44],
+  goat: [0.262, 0.29],
+  pig: [0.261, 0.29],
+  cat: [0.265, 0.29],
+  dog: [0.264, 0.29],
   frog: [0.11, 0.125],
   rabbit: [0.2, 0.215],
   owl: [0.215, 0.235],
   hummingbird: [0.12, 0.14],
   tortoise: [0.14, 0.16],
-  boar: [0.26, 0.3],
+  boar: [0.251, 0.29],
   gecko: [0.08, 0.1],
-  heron: [0.4, 0.46],
+  heron: [0.252, 0.29],
   // props and landmarks
   barrel: [0.3, 0.35],
   crates: [0.3, 0.33],
@@ -139,12 +137,18 @@ export const HEIGHT: Record<string, [number, number]> = {
   'skull-rock': [1.5, 1.6],
 };
 
-/** A height for a sprite: r (0..1) picks within its range. */
+/**
+ * A sprite's height for a random r in [0, 1): the middle of its range, varied +-SIZE_VARY (the skill: every kind ~15 %
+ * in scale, so no two of a kind stand alike).
+ */
 export function heightOf(sprite: string, r: number): number {
   const h = HEIGHT[sprite];
   if (!h) throw new Error(`no height for "${sprite}"`);
-  return h[0] + (h[1] - h[0]) * r;
+  return ((h[0] + h[1]) / 2) * (1 + SIZE_VARY * (2 * r - 1));
 }
+
+/** How far a kind's height varies about the middle of its range (+-). */
+const SIZE_VARY = 0.15;
 
 /** One tile composition (2 x 2 units). Counts are [min, max]. */
 export interface TileKind {

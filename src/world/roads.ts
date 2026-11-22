@@ -29,8 +29,8 @@ const ALONG_STREAM = 6;
 const VILLAGE = 6;
 /** Stays this far inland (shore distance), so the rounded road never touches the water. */
 const INLAND = 0.8;
-/** Road width on the print (papertrails: 0.5). */
-export const ROAD_WIDTH = 0.5;
+/** Road width on the print (the skill: the leading line 1.2-1.5 hero heights wide; papertrails had 0.5). */
+export const ROAD_WIDTH = 0.75;
 
 export interface Bridge {
   x: number;

@@ -4,7 +4,9 @@
  * tile to tile, the others of its list mixed in, as papertrails' forest tile mixes four), clumps of ground cover and
  * flowers, small props, and its animals. Like papertrails' tiles, a tile hardly ever shows the same drawing twice: each
  * list hands out all its species before any comes again. Forest tiles gather where a low-frequency field is high, so
- * the woods mass together and open ground is left between them.
+ * the woods mass together; where another slow field is low the tile is a clearing (the skill's designed negative
+ * space: open ground between the groups, clumped, never even), only a low clump or two on it. In any view-sized region
+ * no more than SAME_CAP of one prop or animal stand (the skill: a world of clones reads as a tech demo).
  *
  * A clump is papertrails' (tiles.glb, its 86 clumps measured): one to four cards of different species, the tallest at
  * the back and the shorter ones stepping out in front of it, the cards toward the back printed darker.
@@ -51,6 +53,12 @@ const TRIES = 6;
 /** Forest field: period (world units) and the weight it gives forest tiles (papertrails: 0.06 + 5.2 F^2). */
 const FOREST_PERIOD = 20;
 const SPECIES_PERIOD = 12;
+/** Clearing field: its period (world units, several groups wide) and the level below which a tile is a clearing. */
+const CLEARING_PERIOD = 9;
+const CLEARING_LEVEL = 0.36;
+/** At most this many of one prop or animal in a REGION x REGION square (about what one on-foot view shows). */
+const SAME_CAP = 3;
+const REGION = 9;
 
 export interface CoverEnv {
   /** Shore distance (< 0 on land). */
@@ -104,6 +112,15 @@ function spot(env: CoverEnv, cx: number, cz: number, half: number, room: number,
 
 /** Plants the tiles of the square [x0, x0 + size) x [z0, z0 + size) (size a multiple of CELL, aligned to it). */
 export function plantCover(env: CoverEnv, x0: number, z0: number, size: number): void {
+  // (props and animals counted per region; a region lies within one square, its size a multiple of REGION)
+  const counts = new Map<string, number>();
+  const room = (sprite: string, x: number, z: number): boolean => {
+    const key = `${Math.floor(x / REGION)},${Math.floor(z / REGION)}|${sprite}`;
+    const n = counts.get(key) ?? 0;
+    if (n >= SAME_CAP) return false;
+    counts.set(key, n + 1);
+    return true;
+  };
   for (let cz = z0 + CELL / 2; cz < z0 + size; cz += CELL) {
     for (let cx = x0 + CELL / 2; cx < x0 + size; cx += CELL) {
       const d = env.distance(cx, cz);
@@ -112,12 +129,19 @@ export function plantCover(env: CoverEnv, x0: number, z0: number, size: number):
       const forest = fbm(SEED + 301, cx / FOREST_PERIOD, cz / FOREST_PERIOD, 2);
       const kinds = TILES[biome];
       const kind = pickWeighted(kinds, (k) => k.weight * (k.forest ? 0.06 + 5.2 * forest * forest : 1), env.rng());
-      plantTile(env, kind, kinds.indexOf(kind), biome, cx, cz);
+      const clearing = !kind.forest && fbm(SEED + 331, cx / CLEARING_PERIOD, cz / CLEARING_PERIOD, 2) < CLEARING_LEVEL;
+      plantTile(env, clearing ? clearingOf(kind) : kind, kinds.indexOf(kind), biome, cx, cz, room);
     }
   }
 }
 
-function plantTile(env: CoverEnv, kind: TileKind, kindIndex: number, biome: Biome, cx: number, cz: number): void {
+/** A tile left open: only a low clump or two of its ground cover. */
+function clearingOf(kind: TileKind): TileKind {
+  return { weight: kind.weight, clumps: kind.clumps ? { species: kind.clumps.species, count: [1, 2] } : undefined };
+}
+
+/** room(sprite, x, z): whether one more of this prop or animal may stand there (and counts it if so). */
+function plantTile(env: CoverEnv, kind: TileKind, kindIndex: number, biome: Biome, cx: number, cz: number, room: (sprite: string, x: number, z: number) => boolean): void {
   const talls: Array<[number, number]> = [];
   if (kind.tall) {
     const list = kind.tall.species;
@@ -142,7 +166,7 @@ function plantTile(env: CoverEnv, kind: TileKind, kindIndex: number, biome: Biom
     for (let n = between(env, kind.props.count); n > 0; n--) {
       const sprite = next();
       const at = spot(env, cx, cz, 0.8, PROP_ROOM, (d) => d < -0.2);
-      if (!at) continue;
+      if (!at || !room(sprite, at[0], at[1])) continue;
       const [x, z] = at;
       env.place(sprite, x, z, heightOf(sprite, env.rng()));
       env.claim(x, z, PROP_ROOM);
@@ -184,12 +208,12 @@ function plantTile(env: CoverEnv, kind: TileKind, kindIndex: number, biome: Biom
         const [ox, oz] = VIGNETTES[sprite];
         const x = tree[0] + side * ox;
         const z = tree[1] + oz;
-        if (env.distance(x, z) < -0.2) env.place(sprite, x, z, heightOf(sprite, env.rng()), { vignette: { seat: 0 } });
+        if (env.distance(x, z) < -0.2 && room(sprite, x, z)) env.place(sprite, x, z, heightOf(sprite, env.rng()), { vignette: { seat: 0 } });
         continue;
       }
       // (crabs keep to the beach)
       const at = spot(env, cx, cz, 0.7, ANIMAL_ROOM, (d) => d < -0.2 && !(sprite === 'crab' && d < -0.7));
-      if (at) env.place(sprite, at[0], at[1], heightOf(sprite, env.rng()));
+      if (at && room(sprite, at[0], at[1])) env.place(sprite, at[0], at[1], heightOf(sprite, env.rng()));
     }
   }
 }
