@@ -119,7 +119,7 @@ export class ShipModel {
   private readonly flag: Flag;
   private readonly rig: Array<[RigEnd, RigEnd]> = [];
   private readonly rigLines: THREE.LineSegments;
-  /** The end of the bowsprit (none on a junk). */
+  /** The end of the bowsprit (if she has one). */
   private readonly bowspritTip: THREE.Vector3 | null;
   private readonly wind: ClothWind = { fill: 0, luff: 0, side: 1, time: 0 };
   private readonly _a = new THREE.Vector3();
@@ -412,7 +412,8 @@ export class ShipModel {
   }
 
   update(dt: number, pose: ShipPose): void {
-    this.body.position.y = -0.05 + pose.bob;
+    // (on her waterline: y = 0 is the sea, every hull floats at its own draft)
+    this.body.position.y = pose.bob;
     this.body.rotation.set(pose.pitch, 0, pose.roll, 'YXZ');
     this.mastFold.update(dt);
     if (this.helm) this.helm.rotation.z = -pose.rudder * 2.4;

@@ -110,9 +110,9 @@ export interface ShipType {
   hull: HullSpec;
   /** The masts, from the bow aft. */
   masts: MastSpec[];
-  /** The bowsprit: its length beyond the stem and its steeve (rad above the horizontal); a junk has none. */
+  /** The bowsprit: its length beyond the stem and its steeve (rad above the horizontal). */
   bowsprit?: { length: number; steeve: number };
-  /** Head sails on the stays from the bowsprit to the foremast, from the outer jib in (none without a bowsprit). */
+  /** Head sails on the stays from the bowsprit to the foremast, from the outer jib in (none on a junk, or without a bowsprit). */
   jibs: string[];
   /** Flown from the head of the tallest mast. */
   flag: string;
@@ -138,8 +138,8 @@ export interface ShipType {
  *   ghost    a gaunt carrack: a towering narrow stern and a high forecastle over a deep waist, sides falling in
  *            steeply; four crooked masts, the mizzen sprung, torn sails, a lateen bonaventure, one green lantern
  *   navy     a long flush-decked frigate with two rows of guns and three square-rigged masts
- *   junk     a high swept-up square stern and a blunt bow with painted eyes; three unstayed masts with battened sails
- *            set fore and aft, the foremast raked forward, no bowsprit
+ *   junk     a high swept-up square stern and a narrow bow with painted eyes; three unstayed masts with battened sails
+ *            set fore and aft, the foremast raked forward, a short bowsprit over a narrow bow
  */
 export const SHIP_TYPES: ShipType[] = [
   {
@@ -152,9 +152,9 @@ export const SHIP_TYPES: ShipType[] = [
       helm: 0.285,
       sternSweep: 0.1, bowSweep: 0.05, crescent: 0.02, transom: 0.64, bowWidth: 0,
       plan: { aft: 0.32, fore: 0.58, entry: 0.75 }, tumblehome: 0.16,
-      guns: [{ y: 0.155, t0: 0.3, t1: 0.78, count: 7 }, { y: 0.275, t0: 0.4, t1: 0.74, count: 5 }],
+      guns: [{ y: 0.17, t0: 0.3, t1: 0.78, count: 7 }, { y: 0.285, t0: 0.4, t1: 0.74, count: 5 }],
       wood: { lower: 'plank-oak', wale: 'strake-ochre', upper: 'strake-crimson', deck: 'deck' },
-      wale: [0.1, 0.205], beakhead: true, figurehead: 'figurehead-lion', galleries: true, lanterns: 3, trim: '#c9973f',
+      wale: [0.115, 0.22], beakhead: true, figurehead: 'figurehead-lion', galleries: true, lanterns: 3, trim: '#c9973f',
     },
     masts: [
       { t: 0.71, height: 2.15, rig: 'square', sails: [{ sprite: 'sail-patched', width: 1.15, height: 0.8 }, { sprite: 'sail-plain', width: 0.85, height: 0.58 }] },
@@ -181,14 +181,14 @@ export const SHIP_TYPES: ShipType[] = [
     name: 'The Midnight Corsair',
     blurb: 'Long, low and black, raked masts and great dark sails, an iron ram under her serpent. The fastest thing on the water.',
     hull: {
-      draft: 0.19, main: 0.24, bulwark: 0.12,
-      quarter: { end: 0.26, height: 0.38 },
+      draft: 0.19, main: 0.29, bulwark: 0.12,
+      quarter: { end: 0.26, height: 0.43 },
       helm: 0.17,
       sternSweep: 0.03, bowSweep: 0.06, transom: 0.5, bowWidth: 0,
       plan: { aft: 0.22, fore: 0.42, entry: 1.25 }, tumblehome: 0.12,
-      guns: [{ y: 0.155, t0: 0.3, t1: 0.84, count: 9 }],
+      guns: [{ y: 0.2, t0: 0.3, t1: 0.84, count: 9 }],
       wood: { lower: 'plank-black', wale: 'strake-crimson', upper: 'plank-black', deck: 'deck' },
-      wale: [0.12, 0.2], beakhead: true, figurehead: 'figurehead-serpent', galleries: false, ram: true, lanterns: 2, trim: '#b08a3a',
+      wale: [0.16, 0.245], beakhead: true, figurehead: 'figurehead-serpent', galleries: false, ram: true, lanterns: 2, trim: '#b08a3a',
     },
     masts: [
       { t: 0.68, height: 2.35, rig: 'square', rake: 0.1, sails: [{ sprite: 'sail-shadow-1', width: 1.32, height: 1.05 }, { sprite: 'sail-shadow-2', width: 0.95, height: 0.62 }] },
@@ -226,7 +226,7 @@ export const SHIP_TYPES: ShipType[] = [
       { t: 0.86, height: 1.75, rig: 'square', rake: -0.04, lean: -0.07, sails: [{ sprite: 'sail-ghost-2', width: 0.95, height: 0.7 }, { sprite: 'sail-ghost-1', width: 0.7, height: 0.46 }] },
       { t: 0.57, height: 2.5, rig: 'square', lean: 0.045, sails: [{ sprite: 'sail-ghost-0', width: 1.3, height: 0.98 }, { sprite: 'sail-ghost-1', width: 0.92, height: 0.62 }] },
       { t: 0.4, height: 1.3, rig: 'square', rake: 0.05, lean: -0.05, sprung: true, sails: [{ sprite: 'sail-ghost-1', width: 0.88, height: 0.62 }] },
-      { t: 0.07, height: 1.3, rig: 'lateen', rake: 0.08, lean: 0.06, sails: [{ sprite: 'lateen-ghost', width: 0.85, height: 0.75, corners: { tack: [0.04, 0.05], head: [0.95, 0.97], clew: [0.95, 0.08] } }] },
+      { t: 0.07, height: 1.3, rig: 'lateen', rake: 0.08, lean: 0.06, sails: [{ sprite: 'lateen-ghost', width: 0.85, height: 0.75, corners: { tack: [0.04, 0.05], head: [0.04, 0.97], clew: [0.96, 0.06] } }] },
     ],
     bowsprit: { length: 0.7, steeve: 32 * DEG },
     jibs: ['jib-ghost-0', 'jib-ghost-1'],
@@ -250,9 +250,9 @@ export const SHIP_TYPES: ShipType[] = [
       helm: 0.1,
       sternSweep: 0.02, bowSweep: 0.03, transom: 0.6, bowWidth: 0,
       plan: { aft: 0.3, fore: 0.54, entry: 0.9 }, tumblehome: 0.1,
-      guns: [{ y: 0.11, t0: 0.2, t1: 0.82, count: 9 }, { y: 0.255, t0: 0.34, t1: 0.78, count: 6 }],
+      guns: [{ y: 0.16, t0: 0.2, t1: 0.82, count: 9 }, { y: 0.27, t0: 0.34, t1: 0.78, count: 6 }],
       wood: { lower: 'plank-navy', wale: 'strake-ochre', upper: 'plank-navy', deck: 'deck' },
-      wale: [0.065, 0.155], beakhead: true, figurehead: 'figurehead', galleries: true, lanterns: 2, trim: '#d8b04a',
+      wale: [0.11, 0.21], beakhead: true, figurehead: 'figurehead', galleries: true, lanterns: 2, trim: '#d8b04a',
     },
     masts: [
       { t: 0.72, height: 2.2, rig: 'square', sails: [{ sprite: 'sail-navy-1', width: 1.1, height: 0.82 }, { sprite: 'sail-navy-2', width: 0.82, height: 0.6 }] },
@@ -274,13 +274,13 @@ export const SHIP_TYPES: ShipType[] = [
   {
     id: 'junk',
     name: 'The Jade Junk',
-    blurb: 'An eastern war junk: a great swept-up stern, a blunt bow with painted eyes and battened sails like dragon fins.',
+    blurb: 'An eastern war junk: a great swept-up stern, a narrow bow with painted eyes and battened sails like dragon fins.',
     hull: {
       draft: 0.18, main: 0.27, bulwark: 0.12,
       quarter: { end: 0.3, height: 0.48 }, poop: { end: 0.14, height: 0.74 }, forecastle: { start: 0.86, height: 0.4 },
       helm: 0.225,
-      sternSweep: 0.2, bowSweep: 0.1, transom: 0.86, bowWidth: 0.42,
-      plan: { aft: 0.2, fore: 0.62, entry: 0.9 }, tumblehome: 0.06,
+      sternSweep: 0.2, bowSweep: 0.12, transom: 0.86, bowWidth: 0.12,
+      plan: { aft: 0.2, fore: 0.56, entry: 1.05 }, tumblehome: 0.06,
       guns: [{ y: 0.18, t0: 0.36, t1: 0.76, count: 5 }],
       wood: { lower: 'plank-oak', wale: 'strake-ochre', upper: 'plank-red', deck: 'deck' },
       wale: [0.12, 0.2], beakhead: false, galleries: false, eyes: true, lanterns: 2, trim: '#3f8a6a',
@@ -290,6 +290,7 @@ export const SHIP_TYPES: ShipType[] = [
       { t: 0.55, height: 2.65, rig: 'battened', sails: [{ sprite: 'sail-junk-0', width: 1.25, height: 1.8 }] },
       { t: 0.07, height: 1.6, rig: 'battened', rake: 0.04, sails: [{ sprite: 'sail-junk-2', width: 0.75, height: 1.05 }] },
     ],
+    bowsprit: { length: 0.6, steeve: 22 * DEG },
     jibs: [],
     flag: 'flag-junk',
     picture: 'hull-junk',

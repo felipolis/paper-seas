@@ -100,7 +100,8 @@
   },
   {
    "file": "26-sails-shadow.png",
-   "names": ["sail-shadow-0", "sail-shadow-1", "sail-shadow-2", "jib-shadow-0", "jib-shadow-1", "flag-shadow"]
+   "names": ["sail-shadow-0", "sail-shadow-1", "sail-shadow-2", "jib-shadow-0", "jib-shadow-1", "flag-shadow"],
+   "tears": 0.025
   },
   {
    "file": "27-sails-ghost.png",
@@ -116,7 +117,11 @@
   },
   {
    "file": "34-sails-lateen.png",
-   "names": ["lateen-galleon", "lateen-shadow", "lateen-ghost"]
+   "names": ["lateen-galleon", "lateen-shadow", null]
+  },
+  {
+   "file": "34-lateen-ghost.png",
+   "names": ["lateen-ghost"]
   },
   {
    "file": "30-captains.png",

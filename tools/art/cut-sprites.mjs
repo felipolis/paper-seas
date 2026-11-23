@@ -38,7 +38,7 @@ for (const sheet of config.sheets) {
   const bytes = readFileSync(resolve(root, config.source, sheet.file));
   const mime = bytes[0] === 0x89 ? 'image/png' : 'image/jpeg';
   const dataUrl = `data:${mime};base64,${bytes.toString('base64')}`;
-  let sprites = await page.evaluate(cutSheet, { dataUrl, crop: sheet.crop ?? [0, 0, 1, 1], white: sheet.white ?? 232, peel: sheet.peel ?? true, peelGrey: sheet.peelGrey ?? true, peelDepth: sheet.peelDepth, merge: sheet.merge ?? 0, key: sheet.key ?? config.key });
+  let sprites = await page.evaluate(cutSheet, { dataUrl, crop: sheet.crop ?? [0, 0, 1, 1], white: sheet.white ?? 232, peel: sheet.peel ?? true, peelGrey: sheet.peelGrey ?? true, peelDepth: sheet.peelDepth, merge: sheet.merge ?? 0, key: sheet.key ?? config.key, tears: sheet.tears ?? 0 });
   // per-piece cleanup: plain cream areas the generator left as card stock (an arch's opening, a patch of ground)
   for (const [k, name] of sheet.names.entries()) {
     // clean: { name: 'open' | 'enclosed' | 'ground' | 'rails' | 'holes' | 'sheet' } (see clearCream)
@@ -66,7 +66,7 @@ if (config.manifest !== false) writeFileSync(join(outDir, 'manifest.json'), JSON
 await browser.close();
 
 /** Runs in the page. */
-async function cutSheet({ dataUrl, crop, white, peel, peelGrey, peelDepth, merge, key }) {
+async function cutSheet({ dataUrl, crop, white, peel, peelGrey, peelDepth, merge, key, tears }) {
   const img = new Image();
   img.src = dataUrl;
   await img.decode();
@@ -121,6 +121,10 @@ async function cutSheet({ dataUrl, crop, white, peel, peelGrey, peelDepth, merge
     const hi = [0, 1, 2].filter((k) => keyed[k] > 128);
     const lo = [0, 1, 2].filter((k) => keyed[k] <= 128);
     const span = Math.min(...hi.map((k) => keyed[k])) - Math.max(0, ...lo.map((k) => keyed[k]));
+    const tint = (i) => Math.min(...hi.map((k) => data[i * 4 + k])) - Math.max(0, ...lo.map((k) => data[i * 4 + k]));
+    // torn cloth ("tears": a share of the key's span): slits too narrow to show the key cleanly come out as a dark mix
+    // of cloth and key; any pixel whose key tint reaches the share is the key showing through a tear: a hole
+    if (tears > 0) for (let i = 0; i < N; i++) if (tint(i) >= tears * span) [label[i], opacity[i]] = [BG, 0];
     const near4 = (i) => { const x = i % W; return [x > 0 ? i - 1 : -1, x < W - 1 ? i + 1 : -1, i >= W ? i - W : -1, i < N - W ? i + W : -1]; };
     const ring = new Uint8Array(N).fill(255);
     const queue = new Int32Array(N);
@@ -131,7 +135,6 @@ async function cutSheet({ dataUrl, crop, white, peel, peelGrey, peelDepth, merge
       if (ring[i] >= SPILL) continue;
       for (const j of near4(i)) if (j >= 0 && ring[j] === 255) { ring[j] = ring[i] + 1; queue[qt++] = j; }
     }
-    const tint = (i) => Math.min(...hi.map((k) => data[i * 4 + k])) - Math.max(0, ...lo.map((k) => data[i * 4 + k]));
     const line = [0, 0, 0];
     let lineN = 0;
     for (let q = 0; q < qt; q++) {
