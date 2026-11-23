@@ -481,13 +481,16 @@ def stilt_hut(name):
     sp = face("hut-front")["spans"]["bottom"]
     height = w / (sp[1] - sp[0]) * fh / fw
     hb = w / 2
-    # four posts at the corners (thin wood cards facing the front), the floor hinged on the front pair
+    # four posts at the corners (thin wood cards facing the front), the floor hinged on the front pair. Folded, the
+    # floor lies flat as the post's continuation (not down along it): its turn undoes the post's, so the walls riding
+    # on it sweep a quarter turn as they rise, not three (a post, the floor and the front wall all turn on parallel
+    # lines)
     posts = []
     for k, (x, z) in enumerate([(-hb + 0.05, hb - 0.04), (hb - 0.05, hb - 0.04), (-hb + 0.05, -hb + 0.04), (hb - 0.05, -hb + 0.04)]):
         posts.append(m.card(f"post{k}", None, "wood", rect_corners(V(x - 0.035, 0, z), V(0.07, 0, 0), V(0, stilt + 0.02, 0)), FULL,
                             (V(x, 0, z), V(1, 0, 0)), V(0, 0, -1), 0.04 * k))
     floor = m.card("floor", posts[0], "wood", rect_corners(V(-hb - 0.04, stilt, hb + 0.04), V(w + 0.08, 0, 0), V(0, 0, -w - 0.08)), FULL,
-                   (V(0, stilt, hb + 0.04), V(1, 0, 0)), V(0, -1, 0), 0.2)
+                   (V(0, stilt, hb + 0.04), V(1, 0, 0)), V(0, 1, 0), 0.2)
     fr, lf, rt, bk, top = box_walls(m, "", 0, 0, stilt, w, w, height, ("hut-front", "hut-side", "hut-side"), 0.3, parent=floor)
     rw, rh = face("hut-roof")["rect"][2:]
     # a thatched pyramid, overhanging the walls
