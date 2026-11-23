@@ -14,6 +14,12 @@ KEY set to the sheet's key colour: magenta `#FF00FF`, green `#00FF00` where a pi
 with two reference images attached: `assets-src/flow/00-style-sheets.jpg` (finished sheets of this set) and
 `00-style-oasis.jpg` (a frame of the skill's gallery, MIT licence).
 
+The waves came out with olive and green-teal layers (the style's palette names olive and sage), so three were redone
+one per sheet, blue only: the low swell (`06-waves-swell`) with the blue waves as its first reference, the big curl and
+the tall wave (`06-waves-curl`, `06-waves-tall`) repainted from their own old cards (first reference) in the swell's
+blues (second), the style's reference sentence read as "the first is the card to repaint, the second shows the colours
+to repaint it in". Only the small wave still comes from `06-waves`.
+
 ```bash
 npm run art:cut                                   # cut every sheet of tools/art/sprite-sheets.json into public/art
 node tools/art/crop-card.mjs <sheet> <out> <x0> <y0> <x1> <y1>   # crop by hand a card the cutter cannot separate

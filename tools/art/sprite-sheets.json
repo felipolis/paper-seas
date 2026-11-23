@@ -22,7 +22,19 @@
   },
   {
    "file": "06-waves.png",
-   "names": ["wave-0", "wave-2", "wave-3", "wave-5"]
+   "names": [null, null, "wave-3", null]
+  },
+  {
+   "file": "06-waves-curl.png",
+   "names": ["wave-0"]
+  },
+  {
+   "file": "06-waves-tall.png",
+   "names": ["wave-5"]
+  },
+  {
+   "file": "06-waves-swell.png",
+   "names": ["wave-2"]
   },
   {
    "file": "07-sails.png",
