@@ -27,14 +27,14 @@ src/
                      the camera-to-captain line they keep clear of (clear-line.ts)
   game/              voyage progress (discoveries, treasure)
   audio/             synthesised sound: felt-piano barcarolle (notes made in a worker), paper flaps, footsteps, sea
-tools/qa/            world QA: plays the dev build headless and checks the world
+tools/qa/            world QA (plays the dev build headless and checks the world) and the captains' clip check
 tools/media/         the README's screenshots (docs/media), taken headless from the dev build
 docs/                these pages and the screenshots
 assets-src/          generated art sources (Flow prompts and sheets) and audit pages
-tools/art/           sprite sheet cutter (cut-sprites: keeps and trims papertrails' cream die-cut edge for the game's
-                     sprites; peels the margin of the models' printed faces) and audit (audit-sprites: contact sheet)
+tools/art/           sprite sheet cutter (cut-sprites: keys the game's sprites out of their flat key colour; peels
+                     the margin of the models' printed faces) and audit (audit-sprites: contact sheet)
 public/art/          cut sprites + manifest (loaded at startup)
-public/models/       Blender-built models (models.glb, crew.glb, ship-*.glb), their printed atlas and textures
+public/models/       Blender-built models (models.glb, ship-*.glb), their printed atlas and textures
 tools/blender/       Blender build scripts (buildings, mountains, the pier and the skill's bridge: ramps and a crown
                      between sides leaning out; the ships; the crew)
 tools/ship/          exports the hull shape for the Blender build
@@ -61,12 +61,12 @@ What papertrails does, Paper Seas does the same way (its traveller is as tall as
   captain or the ship into papertrails' pencil plan of the unpainted book: full colour within 6.8, beyond 9.6 a pale
   cream wash keeping a quarter of its colour, pencil outlines and a little hatching (render/paper-material.ts).
 - **Never a blank back**: cards and model pieces are printed on both faces, so whatever way they fold, a print lies up.
-- **The art** (`assets-src/prompts`, `tools/art/cut-sprites.mjs`): every sprite is papertrails' kind of piece, a
-  die-cut sticker of layered felt and cut paper with stitched details and no ink outline, in a warm palette, with its
-  own printed cream die-cut edge: the cutter keeps the border the generator prints (`keepEdge`), measures it on each
-  piece and shaves or widens it to papertrails' measure for its kind (measured on its atlas, a share of the height:
-  rocks 3.4 %, bushes 3.2 %, stumps 2.1 %, most pieces 1.8 %, trees and ferns 1.5 %), in papertrails' cream (#fce6b6,
-  #fce4ad on greenery and rocks) with a crisp cut; pieces of one item cut apart by a narrow gap are joined (`merge`).
+- **The art** (`assets-src/prompts`, `tools/art/cut-sprites.mjs`): every sprite is the papercraft skill's kind of
+  piece (look.md section 3, image-gen.md): a printed layered paper collage in a warm palette, its layers with pale lips
+  on their lit side, bold ornaments (chevrons, zigzags, dots, scallops) on plants, cloth, wood and buildings, and the
+  cut edge printed with it: a thin dark warm-brown line at the silhouette and a pale highlight just inside it on the lit
+  side only, never an even cream sticker rim. The sheets are generated on a flat key colour and keyed out; pieces of
+  one item cut apart by a narrow gap are joined (`merge`).
 - **Cardstock** (`popup/card.ts`, `tools/blender/build_models.py`): every card is 0.016 thick (papertrails'
   cardThickness); its face is shaded from 0.787 at the hinge to full colour 0.21 above it (papertrails' contact
   shading, baked per vertex), the cards of a clump darker toward its back (0.69 to 1, its instance colour), its cut edge is the piece's

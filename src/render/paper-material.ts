@@ -66,6 +66,8 @@ export function setPageFocus(x: number, z: number): void {
 
 /** Per-instance attribute of a pencil-plan material (pencilPlan): 1 = the card lies flat, 0 = it stands. */
 export const PAPER_FLAT_ATTRIBUTE = 'aPaperFlat';
+/** Per-vertex 1 on a card's cut edge (its walls): the edge takes its vertex colour alone, not the print at the cut. */
+export const CARD_WALL_ATTRIBUTE = 'aCardWall';
 
 /**
  * papertrails' folded print (every piece of its folded tiles, cards, houses and hills alike, is printed flat on the
@@ -229,7 +231,7 @@ export function createPaperMaterial(o: PaperOptions = {}): THREE.MeshLambertMate
       .replace('#include <normal_fragment_maps>', FRAG_NORMAL)
       .replace('#include <lights_fragment_begin>', PAPER_LIGHTS_BEGIN);
   };
-  mat.customProgramCacheKey = () => 'paper-v7';
+  mat.customProgramCacheKey = () => 'paper-v8';
   return mat;
 }
 
@@ -239,6 +241,9 @@ const VERT_COMMON = /* glsl */ `#include <common>
 varying vec3 vPaperPos;
 varying vec3 vPaperNrm;
 varying float vPaperTone;
+// 1 on a card's cut edge (its walls, popup/card.ts): coloured by its vertex colour alone, not the print
+attribute float ${CARD_WALL_ATTRIBUTE};
+varying float vPaperWall;
 #ifdef PAPER_PENCIL
 #ifdef PAPER_PENCIL_OBJECT
 uniform float uPaperFlat;
@@ -271,6 +276,7 @@ const VERT_PROJECT = /* glsl */ `#include <project_vertex>
   float paperTn = paperVNoise( paperO.xz * 1.13 + paperO.y * 2.71 );
   paperTn = fract( paperTn + paperHash( vec2( paperId, 3.7 ) ) * step( 0.5, paperId ) );
   vPaperTone = paperTn * 2.0 - 1.0;
+  vPaperWall = ${CARD_WALL_ATTRIBUTE};
   #ifdef PAPER_PENCIL
     #ifdef PAPER_PENCIL_OBJECT
       vPaperFlat = uPaperFlat;
@@ -286,6 +292,7 @@ ${SHADOW_GLOBALS}
 varying vec3 vPaperPos;
 varying vec3 vPaperNrm;
 varying float vPaperTone;
+varying float vPaperWall;
 uniform vec3 uPaperBack;
 uniform float uPaperBackOn;
 uniform sampler2D uPaperFibreTex;
@@ -324,7 +331,9 @@ vec3 pageUnpainted( vec3 pr, vec2 wq, float wpx, float fpk ) {
   return mix( wash, vec3( 0.34, 0.29, 0.25 ), clamp( 0.5 * line + 0.2 * hatch, 0.0, 0.6 ) * ${f(BOOK.fadedInk)} );
 }`;
 
-const FRAG_MAP = /* glsl */ `#include <map_fragment>
+const FRAG_MAP = /* glsl */ `vec4 paperPreMap = diffuseColor;
+#include <map_fragment>
+if ( vPaperWall > 0.5 ) diffuseColor = paperPreMap;
 if ( !gl_FrontFacing && uPaperBackOn > 0.5 ) diffuseColor.rgb = uPaperBack;`;
 
 /** The fibre and the sheet's tone, after the print and the vertex colour (papertrails' FRAG_FIBRE). */

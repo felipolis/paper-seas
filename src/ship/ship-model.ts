@@ -34,11 +34,8 @@ import { MASTS, deckHeightAt, halfBeamAt, lanternSpots, sheer, zOf } from './hul
 const TYPE = activeShip();
 
 /** Head sail corners in texture space (tack, head, clew): every jib print is a right triangle, luff on the left. */
-const JIB_CORNERS = { tack: [0.06, 0.07] as [number, number], head: [0.09, 0.97] as [number, number], clew: [0.95, 0.08] as [number, number] };
-const mirror = ([u, v]: [number, number]): [number, number] => [1 - u, v];
-const JIB_SPRITES = TYPE.jibs.map((name) =>
-  TYPE.jibMirror ? { name, tack: mirror(JIB_CORNERS.tack), head: mirror(JIB_CORNERS.head), clew: mirror(JIB_CORNERS.clew) } : { name, ...JIB_CORNERS },
-);
+const JIB_CORNERS = { tack: [0.05, 0.06] as [number, number], head: [0.05, 0.96] as [number, number], clew: [0.95, 0.06] as [number, number] };
+const JIB_SPRITES = TYPE.jibs.map((name) => ({ name, ...JIB_CORNERS }));
 
 /** What the model needs from the simulation each frame. */
 export interface ShipPose {

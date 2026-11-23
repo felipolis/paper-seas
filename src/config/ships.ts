@@ -6,7 +6,7 @@
  * Each ship has its own structure (HullSpec: which decks and castles she has, how high, her plan and sweep, her gun
  * decks, cabins and carvings), built in Blender from paper and printed wood (public/models/ship-<id>.glb, by
  * tools/blender/build_ship.py on the shape exported from src/ship/hull-shape.ts), her own sails, flag and handling.
- * Each captain is a paper puppet cut like papertrails' traveller, built in Blender (tools/blender/build_crew.py -> public/models/crew.glb).
+ * Each captain is a small paper model of printed T-cards, built from its outfit (player/crew-model.ts).
  */
 import { DEG } from '../core/math';
 import { loadText, saveText } from '../core/storage';
@@ -114,8 +114,6 @@ export interface ShipType {
   bowsprit?: { length: number; steeve: number };
   /** Head sails on the stays from the bowsprit to the foremast, from the outer jib in (none without a bowsprit). */
   jibs: string[];
-  /** The jib prints have their luff on the right (mirrored corners). */
-  jibMirror?: boolean;
   /** Flown from the head of the tallest mast. */
   flag: string;
   /** Picture of her in the shipyard (a sprite). */
@@ -195,7 +193,7 @@ export const SHIP_TYPES: ShipType[] = [
     masts: [
       { t: 0.68, height: 2.35, rig: 'square', rake: 0.1, sails: [{ sprite: 'sail-shadow-1', width: 1.32, height: 1.05 }, { sprite: 'sail-shadow-2', width: 0.95, height: 0.62 }] },
       { t: 0.45, height: 2.85, rig: 'square', rake: 0.12, sails: [{ sprite: 'sail-shadow-0', width: 1.55, height: 1.2 }, { sprite: 'sail-shadow-1', width: 1.1, height: 0.74 }] },
-      { t: 0.07, height: 1.9, rig: 'lateen', rake: 0.14, sails: [{ sprite: 'lateen-shadow', width: 1.15, height: 0.9, corners: { tack: [0.05, 0.04], head: [0.06, 0.97], clew: [0.97, 0.05] } }] },
+      { t: 0.07, height: 1.9, rig: 'lateen', rake: 0.14, sails: [{ sprite: 'lateen-shadow', width: 1.15, height: 0.9, corners: { tack: [0.04, 0.05], head: [0.96, 0.97], clew: [0.97, 0.06] } }] },
     ],
     bowsprit: { length: 1.25, steeve: 10 * DEG },
     jibs: ['jib-shadow-0', 'jib-shadow-1'],
@@ -228,11 +226,10 @@ export const SHIP_TYPES: ShipType[] = [
       { t: 0.86, height: 1.75, rig: 'square', rake: -0.04, lean: -0.07, sails: [{ sprite: 'sail-ghost-2', width: 0.95, height: 0.7 }, { sprite: 'sail-ghost-1', width: 0.7, height: 0.46 }] },
       { t: 0.57, height: 2.5, rig: 'square', lean: 0.045, sails: [{ sprite: 'sail-ghost-0', width: 1.3, height: 0.98 }, { sprite: 'sail-ghost-1', width: 0.92, height: 0.62 }] },
       { t: 0.4, height: 1.3, rig: 'square', rake: 0.05, lean: -0.05, sprung: true, sails: [{ sprite: 'sail-ghost-1', width: 0.88, height: 0.62 }] },
-      { t: 0.07, height: 1.3, rig: 'lateen', rake: 0.08, lean: 0.06, sails: [{ sprite: 'lateen-ghost', width: 0.85, height: 0.75, corners: { tack: [0.04, 0.06], head: [0.04, 0.97], clew: [0.97, 0.06] } }] },
+      { t: 0.07, height: 1.3, rig: 'lateen', rake: 0.08, lean: 0.06, sails: [{ sprite: 'lateen-ghost', width: 0.85, height: 0.75, corners: { tack: [0.04, 0.05], head: [0.95, 0.97], clew: [0.95, 0.08] } }] },
     ],
     bowsprit: { length: 0.7, steeve: 32 * DEG },
     jibs: ['jib-ghost-0', 'jib-ghost-1'],
-    jibMirror: true,
     flag: 'flag-ghost',
     picture: 'hull-ghost',
     length: 2.6,
@@ -306,7 +303,7 @@ export const SHIP_TYPES: ShipType[] = [
   },
 ];
 
-/** How a captain's paper puppet is cut and coloured (tools/blender/build_crew.py). */
+/** How a captain's paper model is cut and coloured (player/crew-model.ts). */
 export interface Outfit {
   skin: string;
   /** A beard or a moustache cut from the hair's card, if any. */

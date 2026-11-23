@@ -1,482 +1,156 @@
 {
  "source": "assets-src/flow",
  "out": "public/art",
- "keepEdge": true,
- "edge": {
-  "width": 0.018,
-  "colour": "#fce6b6",
-  "natureColour": "#fce4ad",
-  "nature": "^(pine|cypress|tree-|palm|banana|mangrove|acacia|deadwood|bush-|grass-|fern-|rock-|crag-|stump|log|mushrooms|hibiscus|orchids|flowers-|tuft-|bird-of-paradise|cattails|papyrus)",
-  "kinds": [
-   {
-    "match": "^(bush-|hibiscus|orchids)",
-    "width": 0.032
-   },
-   {
-    "match": "^(rock-|crag-|pebbles)",
-    "width": 0.034
-   },
-   {
-    "match": "^(stump|log|woodpile)$",
-    "width": 0.021
-   },
-   {
-    "match": "^(fern-|cattails|papyrus|grass-|tuft-|flowers-|bird-of-paradise)",
-    "width": 0.0156
-   },
-   {
-    "match": "^(pine|cypress)(-\\d+)?$",
-    "width": 0.0144
-   },
-   {
-    "match": "^(tree-|palm|banana|mangrove|acacia|deadwood)",
-    "width": 0.0159
-   }
-  ]
- },
+ "key": "#ff00ff",
  "sheets": [
   {
    "file": "01-palms.png",
-   "names": [
-    "palm-0",
-    "palm-1",
-    "palm-2",
-    "palm-3",
-    "palm-4",
-    "palm-5"
-   ]
+   "names": ["palm-0", "palm-1", "palm-2", "palm-3", "palm-4", "palm-5"]
   },
   {
    "file": "03-rocks.png",
-   "names": [
-    "rock-spire",
-    "rock-slab",
-    "rock-boulder",
-    "rock-pile",
-    "rock-pillar",
-    "rock-stack",
-    "rock-big",
-    "rock-cairn"
-   ]
+   "names": ["rock-spire", "rock-slab", "rock-boulder", "rock-pile", "rock-pillar", "rock-stack", "rock-big", "rock-cairn"]
   },
   {
    "file": "04-landmarks.png",
-   "names": [
-    null,
-    null,
-    "skull-rock"
-   ]
-  },
-  {
-   "file": "05-props.png",
-   "names": [
-    "hut-stilts",
-    "hut-round",
-    null,
-    "chest",
-    "barrel",
-    "crates",
-    "flag-pole",
-    "pier-post"
-   ]
-  },
-  {
-   "file": "06-waves.png",
-   "names": [
-    "wave-0",
-    null,
-    "wave-2",
-    "wave-3",
-    null,
-    "wave-5"
-   ],
-   "peelDepth": 12
-  },
-  {
-   "file": "07-sails.png",
-   "names": [
-    "sail-emblem",
-    "sail-patched",
-    "sail-plain",
-    "jib-0",
-    "jib-1",
-    "flag"
-   ]
-  },
-  {
-   "file": "08-hull.png",
-   "names": [
-    "hull"
-   ],
-   "clean": {
-    "hull": "rails"
-   }
-  },
-  {
-   "file": "09-creatures.png",
-   "names": [
-    "whale",
-    "whale-tail",
-    "dolphin-0",
-    "dolphin-1",
-    "shark-fin",
-    "tentacle-0",
-    "tentacle-1",
-    "turtle"
-   ]
-  },
-  {
-   "file": "10-sky.png",
-   "names": [
-    "gull-up",
-    "gull-down",
-    "gull-glide",
-    "spout",
-    null,
-    null
-   ]
-  },
-  {
-   "file": "11-creatures2.png",
-   "names": [
-    "manta",
-    "jellyfish",
-    "octopus",
-    "serpent-head",
-    "serpent-hump",
-    "serpent-tail",
-    "fish-school",
-    "flying-fish"
-   ],
-   "merge": 0.015
-  },
-  {
-   "file": "12-flotsam.png",
-   "names": [
-    "barrel-float",
-    "bottle",
-    "buoy",
-    "wreck-mast",
-    "rowboat",
-    "merchant-ship",
-    "ghost-ship",
-    "crate-float"
-   ],
-   "clean": {
-    "merchant-ship": "rails"
-   }
-  },
-  {
-   "file": "13-island-props2.png",
-   "names": [
-    null,
-    "ruin-arch",
-    "tiki",
-    "pillars",
-    "banana",
-    null,
-    "shipwreck",
-    "waterfall"
-   ]
-  },
-  {
-   "file": "14-trees.png",
-   "names": [
-    "tree-broad",
-    "pine",
-    "tree-blossom",
-    "mangrove",
-    "cypress",
-    "acacia",
-    "palm-cluster",
-    "deadwood"
-   ]
-  },
-  {
-   "file": "36-trees-variants.png",
-   "names": [
-    "pine-1",
-    "pine-2",
-    "pine-3",
-    null,
-    "tree-broad-1",
-    "tree-broad-2",
-    "tree-blossom-1"
-   ]
-  },
-  {
-   "file": "37-cover-wide.png",
-   "names": [
-    "bush-red",
-    "bush-yellow",
-    "bush-pink",
-    "grass-0",
-    "grass-1",
-    "grass-2",
-    "flowers-white",
-    "flowers-yellow",
-    "tuft-flowers"
-   ],
-   "white": 248
-  },
-  {
-   "file": "38-ferns-compact.png",
-   "names": [
-    "fern-0",
-    "fern-1",
-    "fern-2"
-   ]
-  },
-  {
-   "file": "15-critters.png",
-   "names": [
-    "crab",
-    "parrot",
-    "monkey",
-    null,
-    "flamingo",
-    "pelican",
-    "iguana",
-    "toucan"
-   ]
-  },
-  {
-   "file": "16-terrain.png",
-   "names": [
-    null,
-    null,
-    null,
-    null,
-    null,
-    null,
-    null,
-    "sea-arch",
-    null
-   ]
-  },
-  {
-   "file": "17-village.png",
-   "names": [
-    null,
-    null,
-    null,
-    "windmill",
-    "market",
-    null,
-    "cannon",
-    null
-   ],
-   "merge": 0.008
-  },
-  {
-   "file": "22-hull-shadow.png",
-   "names": [
-    "hull-shadow"
-   ],
-   "clean": {
-    "hull-shadow": "rails"
-   }
-  },
-  {
-   "file": "23-hull-ghost.png",
-   "names": [
-    "hull-ghost"
-   ],
-   "clean": {
-    "hull-ghost": "rails"
-   }
-  },
-  {
-   "file": "24-hull-navy.png",
-   "names": [
-    "hull-navy"
-   ],
-   "clean": {
-    "hull-navy": "rails"
-   }
-  },
-  {
-   "file": "25-hull-junk.png",
-   "names": [
-    "hull-junk"
-   ],
-   "clean": {
-    "hull-junk": "rails"
-   }
-  },
-  {
-   "file": "26-sails-shadow.png",
-   "names": [
-    "sail-shadow-0",
-    "sail-shadow-1",
-    "sail-shadow-2",
-    "jib-shadow-0",
-    "jib-shadow-1",
-    "flag-shadow"
-   ],
-   "clean": {
-    "sail-shadow-0": "sheet",
-    "sail-shadow-1": "sheet",
-    "sail-shadow-2": "sheet",
-    "jib-shadow-0": "sheet",
-    "jib-shadow-1": "sheet",
-    "flag-shadow": "sheet"
-   }
-  },
-  {
-   "file": "27-sails-ghost.png",
-   "names": [
-    "sail-ghost-0",
-    "sail-ghost-1",
-    "sail-ghost-2",
-    "jib-ghost-0",
-    "jib-ghost-1",
-    "flag-ghost"
-   ],
-   "clean": {
-    "sail-ghost-0": "holes",
-    "sail-ghost-1": "holes",
-    "sail-ghost-2": "holes",
-    "jib-ghost-0": "holes",
-    "jib-ghost-1": "holes",
-    "flag-ghost": "holes"
-   }
-  },
-  {
-   "file": "28-sails-navy.png",
-   "names": [
-    "sail-navy-0",
-    "sail-navy-1",
-    "sail-navy-2",
-    "jib-navy-0",
-    "jib-navy-1",
-    "flag-navy"
-   ]
-  },
-  {
-   "file": "29-sails-junk.png",
-   "names": [
-    "sail-junk-0",
-    "sail-junk-1",
-    "sail-junk-2",
-    null,
-    null,
-    "flag-junk"
-   ]
-  },
-  {
-   "file": "34-sails-lateen.png",
-   "names": [
-    "lateen-galleon",
-    "lateen-shadow",
-    "lateen-ghost"
-   ],
-   "clean": {
-    "lateen-shadow": "sheet",
-    "lateen-ghost": "sheet"
-   }
-  },
-  {
-   "file": "30-captains.png",
-   "names": [
-    "captain-rogue",
-    "captain-scarlet",
-    "captain-oldsalt",
-    "captain-commodore",
-    "captain-bones",
-    "captain-wren",
-    "captain-lord",
-    "captain-cook"
-   ]
-  },
-  {
-   "file": "40-animals-farm.png",
-   "names": [
-    "duck-float",
-    "duck",
-    "hen",
-    "chick",
-    "goat",
-    "pig",
-    "cat",
-    "dog"
-   ]
-  },
-  {
-   "file": "41-animals-wild.png",
-   "names": [
-    "frog",
-    "rabbit",
-    "owl",
-    "hummingbird",
-    "tortoise",
-    "boar",
-    "gecko",
-    "heron"
-   ]
-  },
-  {
-   "file": "42-ground-props.png",
-   "names": [
-    "stump",
-    "log",
-    "mushrooms",
-    "coconuts",
-    "shells",
-    "pebbles",
-    "woodpile",
-    "hay"
-   ],
+   "names": ["skull-rock", "sea-arch", "windmill", null, "market", "cannon"],
    "merge": 0.02
   },
   {
+   "file": "05-props.png",
+   "names": ["hut-stilts", "hut-round", "crates", "chest", "flag-pole", "barrel", "pier-post"]
+  },
+  {
+   "file": "06-waves.png",
+   "names": ["wave-0", "wave-2", "wave-3", "wave-5"]
+  },
+  {
+   "file": "07-sails.png",
+   "names": ["sail-emblem", "sail-patched", "sail-plain", null, null]
+  },
+  {
+   "file": "07-jibs.png",
+   "names": ["jib-0", "jib-1", "flag"]
+  },
+  {
+   "file": "08-hull.png",
+   "names": ["hull"]
+  },
+  {
+   "file": "09-creatures.png",
+   "names": ["whale", "whale-tail", "dolphin-0", "dolphin-1", "shark-fin", "tentacle-0", "tentacle-1", "turtle"]
+  },
+  {
+   "file": "10-sky.png",
+   "names": ["gull-up", "gull-down", "gull-glide", "spout"]
+  },
+  {
+   "file": "11-creatures2.png",
+   "names": ["manta", "jellyfish", "octopus", "serpent-head", "serpent-hump", "serpent-tail", "fish-school", "flying-fish"]
+  },
+  {
+   "file": "12-flotsam.png",
+   "names": ["barrel-float", "bottle", "buoy", "wreck-mast", "rowboat", "merchant-ship", "ghost-ship", "crate-float"]
+  },
+  {
+   "file": "13-island-props2.png",
+   "names": ["ruin-arch", "tiki", "pillars", "banana", "shipwreck", "waterfall"]
+  },
+  {
+   "file": "14-trees.png",
+   "names": ["tree-broad", "pine", "tree-blossom", null, "cypress", "acacia", "palm-cluster", "deadwood"]
+  },
+  {
+   "file": "14-mangrove.png",
+   "names": ["mangrove"]
+  },
+  {
+   "file": "36-trees-variants.png",
+   "names": ["pine-1", "pine-2", "pine-3", "tree-broad-1", "tree-broad-2", "tree-blossom-1"]
+  },
+  {
+   "file": "37-cover-wide.png",
+   "names": ["bush-red", "bush-yellow", "bush-pink", "grass-0", "grass-1", "grass-2", "flowers-white", "flowers-yellow", "tuft-flowers"],
+   "key": "#00ff00",
+   "merge": 0.012
+  },
+  {
+   "file": "38-ferns-compact.png",
+   "names": ["fern-0", "fern-1", "fern-2"]
+  },
+  {
+   "file": "15-critters.png",
+   "names": ["crab", "parrot", "monkey", "flamingo", "pelican", "iguana", "toucan"]
+  },
+  {
+   "file": "22-hull-shadow.png",
+   "names": ["hull-shadow"]
+  },
+  {
+   "file": "23-hull-ghost.png",
+   "names": ["hull-ghost"]
+  },
+  {
+   "file": "24-hull-navy.png",
+   "names": ["hull-navy"]
+  },
+  {
+   "file": "25-hull-junk.png",
+   "names": ["hull-junk"]
+  },
+  {
+   "file": "26-sails-shadow.png",
+   "names": ["sail-shadow-0", "sail-shadow-1", "sail-shadow-2", "jib-shadow-0", "jib-shadow-1", "flag-shadow"]
+  },
+  {
+   "file": "27-sails-ghost.png",
+   "names": ["sail-ghost-0", "sail-ghost-1", "sail-ghost-2", "jib-ghost-0", "jib-ghost-1", "flag-ghost"]
+  },
+  {
+   "file": "28-sails-navy.png",
+   "names": ["sail-navy-0", "sail-navy-1", "sail-navy-2", "jib-navy-0", "jib-navy-1", "flag-navy"]
+  },
+  {
+   "file": "29-sails-junk.png",
+   "names": ["sail-junk-0", "sail-junk-1", "sail-junk-2", "flag-junk"]
+  },
+  {
+   "file": "34-sails-lateen.png",
+   "names": ["lateen-galleon", "lateen-shadow", "lateen-ghost"]
+  },
+  {
+   "file": "30-captains.png",
+   "names": ["captain-rogue", "captain-scarlet", "captain-oldsalt", "captain-commodore", "captain-bones", "captain-wren", "captain-lord", "captain-cook"]
+  },
+  {
+   "file": "40-animals-farm.png",
+   "names": ["duck-float", "duck", "hen", "chick", "goat", "pig", "cat", "dog"]
+  },
+  {
+   "file": "41-animals-wild.png",
+   "names": ["frog", "rabbit", "owl", "hummingbird", "tortoise", "boar", "gecko", "heron"]
+  },
+  {
+   "file": "42-ground-props.png",
+   "names": ["stump", "log", "mushrooms", "coconuts", "shells", "pebbles", "woodpile", "hay"]
+  },
+  {
    "file": "43-flowers-reeds.png",
-   "names": [
-    "hibiscus",
-    "orchids",
-    null,
-    null,
-    "cattails",
-    "papyrus",
-    null,
-    "bird-of-paradise"
-   ]
+   "names": ["hibiscus", "orchids", "cattails", "papyrus", "bird-of-paradise"],
+   "key": "#00ff00",
+   "merge": 0.004
   },
   {
    "file": "44-structures-a.png",
-   "names": [
-    "watchtower",
-    "well",
-    "bench",
-    "lantern-post",
-    "signpost",
-    "guidepost",
-    "fence-bamboo",
-    "fence-rail"
-   ]
+   "names": ["watchtower", "signpost", "well", "guidepost", "bench", "fence-bamboo", "fence-rail", "lantern-post"]
   },
   {
    "file": "45-structures-b.png",
-   "names": [
-    "tent",
-    "tent-striped",
-    "laundry",
-    "bunting",
-    "handcart",
-    "beehive",
-    "stall",
-    "campfire"
-   ]
+   "names": ["tent", "tent-striped", "laundry", "bunting", "handcart", "beehive", "stall", "campfire"]
   },
   {
    "file": "46-water.png",
-   "names": [
-    "spring",
-    "crag-0",
-    "crag-1",
-    "crag-2",
-    null
-   ]
+   "names": ["spring", "crag-0", "crag-1", "crag-2"]
   }
  ]
 }

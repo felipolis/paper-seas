@@ -191,7 +191,7 @@ export function groundMaterial(print: THREE.Texture, data: THREE.Texture, paths:
       .replace('#include <common>', `#include <common>\n${GROUND_COMMON}`)
       .replace('#include <normal_fragment_maps>', `${GROUND_FRAGMENT}\n#include <normal_fragment_maps>\n${GROUND_TILT}`);
   };
-  mat.customProgramCacheKey = () => 'paper-v7-ground-v3';
+  mat.customProgramCacheKey = () => 'paper-v8-ground-v3';
   return mat;
 }
 
@@ -214,7 +214,7 @@ export function landEdgeMaterial(): THREE.MeshLambertMaterial {
 diffuseColor.rgb *= mix(vec3(0.46, 0.33, 0.23), vec3(1.0), smoothstep(0.02, 0.42, texture2D(uSheet, vSheetUv).g));`,
       );
   };
-  mat.customProgramCacheKey = () => 'paper-v7-land-edge-v1';
+  mat.customProgramCacheKey = () => 'paper-v8-land-edge-v1';
   return mat;
 }
 

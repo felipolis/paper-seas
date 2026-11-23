@@ -4,9 +4,15 @@ How the printed cards, the Blender-built buildings, mountains, ships and captain
 
 ## The cards
 
-Every sprite starts as a sheet of die-cut stickers generated in Google Flow from a prompt in `assets-src/prompts`
-(`00-style-target` and `assets-src/flow/00-*.png` are the style references the sheets are generated against), saved in
-`assets-src/flow`, and is cut out into `public/art`:
+Every sprite starts as a sheet of die-cut paper cards generated in Google Flow (Nano Banana Pro), saved in
+`assets-src/flow`, and is cut out into `public/art`. The sheets follow the papercraft skill's look
+([xikhar/papercraft](https://github.com/xikhar/papercraft), `references/image-gen.md`): printed layered paper collage
+with lit-side lips and bold ornaments on plants, cloth, wood and buildings (stone, water and animals stay plain), a thin
+dark cut line with a pale highlight on its lit side, never felt, stitching or an even cream sticker rim. A prompt is its
+sheet's subject (`assets-src/prompts/NN-*.txt`) followed by the shared style (`assets-src/prompts/style.txt`, with
+KEY set to the sheet's key colour: magenta `#FF00FF`, green `#00FF00` where a piece is pink or purple), generated
+with two reference images attached: `assets-src/flow/00-style-sheets.jpg` (finished sheets of this set) and
+`00-style-oasis.jpg` (a frame of the skill's gallery, MIT licence).
 
 ```bash
 npm run art:cut                                   # cut every sheet of tools/art/sprite-sheets.json into public/art
@@ -15,8 +21,9 @@ node tools/art/audit-pages.mjs                    # large pages of every sprite 
 node tools/art/audit-sprites.mjs                  # one contact sheet of them all (assets-src/audit-contact.png)
 ```
 
-Each sheet entry names its cards in order (`null` for a piece the game does not use); the cutter's header comment
-describes its options (cream edge measure, merges, the `clean` modes that clear paper left inside a piece). The audit
+Each sheet entry names its cards in reading order (`null` for a piece the game does not use); the cutter's header
+comment describes its options (the key colour, `merge` for pieces of one item cut apart by a narrow gap, the white
+sheets' `clean` modes). A tall piece spanning both rows makes its sheet read as one row, left to right. The audit
 pages are generated and not kept in git.
 
 ## Buildings (Blender)
@@ -42,7 +49,6 @@ its printed windows light up at night.
 ```bash
 node tools/art/cut-sprites.mjs tools/art/ship-sheets.json   # printed wood, ship details, terrain swatches
 bash tools/ship/build-ships.sh                              # export each ship's shape, build it in Blender
-node tools/ship/export-crew.mjs && "C:/Program Files/Blender Foundation/Blender 5.3/blender.exe" -b --factory-startup -P tools/blender/build_crew.py
 ```
 
 Every ship has her own structure (`HullSpec` in `src/config/ships.ts`): which decks and castles she has (poop,
@@ -68,10 +74,15 @@ for the openings of a balustrade (rows of like openings, so a painted eye or str
 
 ## The captains
 
-The captains are paper puppets cut like papertrails' traveller (`tools/blender/build_crew.py`): flat cards with a
-thickness, each one flat colour by vertex colour with the paper's cream cut edge, a profile card crossed with a front
-card for the torso and the head (two dot eyes), thin profile cards for the legs and arms, stepped discs and cut cards
-for the hats, a lantern in the right hand; `src/player/puppet.ts` walks with papertrails' gait (legs and arms on the
+The captains are small paper models built in the game from their outfits (`src/player/crew-model.ts`), the papercraft
+skill's characters from cards (`references/mechanisms.md` section 12): every card a slab printed as a layered paper
+collage (`src/art/painters/paper-print.ts`: a lit top and darker foot, layers with a pale lip and a short shadow, the
+dark cut line with a pale highlight on its lit side), its back printed plain and its side the print's tone darkened.
+Every part is a T: a frontal card with a profile card wholly behind it, a step darker (the coat, the face with the hair
+on its back, the arms, the legs, the hat's crown on a level disc). Overlapping cards sit in their own layers, the arms
+hang beside the body, and what hangs below the waist (a long coat's tails, a robe, an apron) is cut in two and hung on
+the legs, so no card cuts into another: `node tools/qa/crew-clips.mjs` poses every captain standing, walking, turning
+and at the helm and lists any pair that does. `src/player/puppet.ts` walks with papertrails' gait (legs and arms on the
 step's phase, the torso and the head lagging it, the lean and roll springs, the lantern a lagging pendulum) and steers.
 
 ## Mountains

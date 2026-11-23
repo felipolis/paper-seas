@@ -1,27 +1,12 @@
 /**
- * The captains as paper puppets cut like papertrails' traveller (tools/blender/build_crew.py -> public/models/crew.glb):
- * flat cards printed in one colour each by vertex colour, a profile card crossed with a front card for the torso and
- * the head, thin profile cards for the legs and arms, a lantern in the right hand. Every part hangs on its joint and
- * moves by rotation only: papertrails' walk ashore (walk), steering at the helm (helm).
+ * The captains as small paper models (player/crew-model.ts: printed cards built as the papercraft skill's T-cards, a
+ * lantern in the right hand). Every part hangs on its joint and moves by rotation only: papertrails' walk ashore
+ * (walk), steering at the helm (helm).
  */
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { CAPTAINS } from '../config/ships';
 import { PLAYER } from '../config/player';
-import { createPaperMaterial } from '../render/paper-material';
-
-let crew: THREE.Object3D | null = null;
-
-export async function loadCrew(): Promise<void> {
-  crew = (await new GLTFLoader().loadAsync(`${import.meta.env.BASE_URL}models/crew.glb`)).scene;
-}
-
-/** papertrails' cardstock: one white paper material, the colour in the vertices; and the lantern's warm pane. */
-let paperMat: THREE.Material | null = null;
-let glowMat: THREE.Material | null = null;
-function material(name: string): THREE.Material {
-  if (name === 'glow') return (glowMat ??= new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffc35a').multiplyScalar(3), side: THREE.DoubleSide }));
-  return (paperMat ??= createPaperMaterial({ back: null, vertexColors: true }));
-}
+import { buildCaptain, type PartName } from './crew-model';
 
 const DEG = Math.PI / 180;
 /** papertrails' gait and lantern (config/player.js there). */
@@ -62,14 +47,13 @@ const WALK = {
   lanternMax: 28 * DEG,
 } as const;
 
-type PartName = 'body' | 'head' | 'leg_l' | 'leg_r' | 'arm_l' | 'arm_r' | 'lantern';
-const PARTS: PartName[] = ['body', 'head', 'leg_l', 'leg_r', 'arm_l', 'arm_r', 'lantern'];
-
 export class Puppet {
   readonly root = new THREE.Group();
   /** Hop, lean, twist and roll of the whole figure. */
   private readonly rig = new THREE.Group();
-  private readonly parts: Partial<Record<PartName, THREE.Object3D>> = {};
+  private readonly parts: Record<PartName, THREE.Object3D>;
+  /** Every card of the model (named; tools/qa/crew-clips.mjs checks them). */
+  readonly cards: THREE.Mesh[];
   private phase = 0;
   private t = Math.random() * 10;
   private gait = 0;
@@ -86,30 +70,18 @@ export class Puppet {
   private readonly legLength: number;
 
   constructor(id: string) {
-    if (!crew) throw new Error('crew not loaded');
-    const model = (crew.getObjectByName(`crew_${id}`) ?? crew.children[0]).clone(true);
-    model.position.set(0, 0, 0);
-    model.traverse((o) => {
-      const mesh = o as THREE.Mesh;
-      if (mesh.isMesh) {
-        mesh.material = material((mesh.material as THREE.Material).name);
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        return;
-      }
-      const key = o.name.replace(/^.*__/, '') as PartName;
-      if (PARTS.includes(key)) this.parts[key] = o;
-    });
-    this.rig.add(model);
+    const model = buildCaptain((CAPTAINS.find((c) => c.id === id) ?? CAPTAINS[0]).outfit);
+    this.parts = model.parts;
+    this.cards = model.cards;
+    this.rig.add(model.root);
     this.root.add(this.rig);
     this.root.updateMatrixWorld(true);
-    const hip = this.parts.leg_l?.getWorldPosition(new THREE.Vector3());
-    this.legLength = Math.max(0.05, hip ? hip.y - this.root.position.y : 0.2);
+    this.legLength = Math.max(0.05, this.parts.leg_l.getWorldPosition(new THREE.Vector3()).y - this.root.position.y);
   }
 
   /** The lantern is carried ashore only. */
   set lanternShown(on: boolean) {
-    if (this.parts.lantern) this.parts.lantern.visible = on;
+    this.parts.lantern.visible = on;
   }
 
   /**
@@ -177,15 +149,15 @@ export class Puppet {
     this.rig.position.y = W.hop * g * Math.abs(sinP);
     this.rig.rotation.set(this.lean + sway * 0.5 * breathe2, W.twist * g * sinP, this.roll + W.waddle * g * sinP + sway * breathe);
     // (a leg's forward angle turns its foot toward +z: a negative turn about its hip's x axis)
-    P.leg_l?.rotation.set(-this.legAngle(this.phase), 0, 0);
-    P.leg_r?.rotation.set(-this.legAngle(this.phase + Math.PI), 0, 0);
+    P.leg_l.rotation.set(-this.legAngle(this.phase), 0, 0);
+    P.leg_r.rotation.set(-this.legAngle(this.phase + Math.PI), 0, 0);
     const arm = W.arm * g * cosP;
     const armIdle = sway * 1.5 * breathe2;
-    P.arm_l?.rotation.set(arm * W.freeArm + armIdle, 0, 0);
-    P.arm_r?.rotation.set(-arm * W.holdArm - armIdle, 0, 0);
-    P.body?.rotation.set(W.torsoLag * g * Math.sin(this.phase * 2 - W.secondaryLag), 0, 0);
-    P.head?.rotation.set(W.nod * (g * Math.sin(this.phase * 2 - W.secondaryLag - W.hatLag) + idle * 0.5 * breathe), 0, 0);
-    P.lantern?.rotation.set(this.lanX, 0, this.lanZ);
+    P.arm_l.rotation.set(arm * W.freeArm + armIdle, 0, 0);
+    P.arm_r.rotation.set(-arm * W.holdArm - armIdle, 0, 0);
+    P.body.rotation.set(W.torsoLag * g * Math.sin(this.phase * 2 - W.secondaryLag), 0, 0);
+    P.head.rotation.set(W.nod * (g * Math.sin(this.phase * 2 - W.secondaryLag - W.hatLag) + idle * 0.5 * breathe), 0, 0);
+    P.lantern.rotation.set(this.lanX, 0, this.lanZ);
   }
 
   /**
@@ -205,12 +177,12 @@ export class Puppet {
   helm(dt: number, steer: number): void {
     this.t += dt;
     const P = this.parts;
-    P.arm_l?.rotation.set(-1.05 + steer * 0.25, 0, 0.25);
-    P.arm_r?.rotation.set(-1.05 - steer * 0.25, 0, -0.25);
-    P.leg_l?.rotation.set(0, 0, 0);
-    P.leg_r?.rotation.set(0, 0, 0);
-    P.body?.rotation.set(0, 0, 0);
-    P.head?.rotation.set(-0.05, -steer * 0.25 + Math.sin(this.t * 0.4) * 0.05, 0);
+    P.arm_l.rotation.set(-1.05 + steer * 0.25, 0, 0.25);
+    P.arm_r.rotation.set(-1.05 - steer * 0.25, 0, -0.25);
+    P.leg_l.rotation.set(0, 0, 0);
+    P.leg_r.rotation.set(0, 0, 0);
+    P.body.rotation.set(0, 0, 0);
+    P.head.rotation.set(-0.05, -steer * 0.25 + Math.sin(this.t * 0.4) * 0.05, 0);
     this.rig.position.y = 0;
     this.rig.rotation.set(0.04, 0, steer * 0.08 + Math.sin(this.t * 1.3) * 0.015);
   }

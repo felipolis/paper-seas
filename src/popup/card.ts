@@ -9,7 +9,7 @@
  */
 import * as THREE from 'three';
 import type { CardArt } from '../art/card-painter';
-import { createPaperMaterial, type PaperOptions } from '../render/paper-material';
+import { CARD_WALL_ATTRIBUTE, createPaperMaterial, type PaperOptions } from '../render/paper-material';
 import { contoursFromGrid, outlinesWithHoles } from '../world/contours';
 import type { Pt } from '../world/polyline';
 import { clamp } from '../core/math';
@@ -45,7 +45,7 @@ const EDGE_CORE = [0xf4, 0xe6, 0xc8].map((v) => v / 255);
 
 const edgeTones = new WeakMap<object, THREE.Color>();
 
-/** The colour of a print's side: the mean of its art (the cream border left out), as EDGE_UMBER says. Cached per image. */
+/** The colour of a print's side: the mean of its art, as EDGE_UMBER says. Cached per image. */
 function edgeColour(texture: THREE.Texture): THREE.Color {
   const image = texture.image as (CanvasImageSource & { width: number; height: number }) | undefined;
   const fallback = new THREE.Color('#4a4a3a');
@@ -62,9 +62,6 @@ function edgeColour(texture: THREE.Texture): THREE.Color {
   let r = 0, g = 0, b = 0, n = 0;
   for (let i = 0; i < d.length; i += 4) {
     if (d[i + 3] < 200) continue;
-    const mn = Math.min(d[i], d[i + 1], d[i + 2]);
-    const mx = Math.max(d[i], d[i + 1], d[i + 2]);
-    if (mn > 175 && mx - mn < 70) continue; // the cream die-cut border
     r += d[i]; g += d[i + 1]; b += d[i + 2]; n++;
   }
   if (!n) return fallback;
@@ -97,7 +94,7 @@ function paintVertices(g: THREE.BufferGeometry, ramp: number, edge: THREE.Color,
       c[i * 3 + 2] = edge.b;
       continue;
     }
-    const t = clamp(P.getY(i) / ramp, 0, 1);
+    const t = ramp > 0 ? clamp(P.getY(i) / ramp, 0, 1) : 1;
     c[i * 3] = c[i * 3 + 1] = c[i * 3 + 2] = FOOT_SHADE + (1 - FOOT_SHADE) * t * t * (3 - 2 * t);
   }
   g.setAttribute('color', new THREE.Float32BufferAttribute(c, 3));
@@ -108,15 +105,17 @@ export interface CardGeometryOptions {
   segmentsY?: number;
   /** The world height a unit-tall card is usually drawn at (its contact shading is measured in world units). */
   height?: number;
+  /** Shade the face toward its foot (default true: a card standing on the ground; a puppet's cards stand on nothing). */
+  contact?: boolean;
 }
 
 /** Upright plane card geometry: x across, y up, z = 0 (bottom edge on the hinge line). */
 export function cardGeometry(art: CardArt, o: CardGeometryOptions = {}): THREE.PlaneGeometry {
   const w = art.right - art.left;
   const h = art.top - art.bottom;
-  const ramp = FOOT_RAMP / (o.height ?? 1);
+  const ramp = o.contact === false ? 0 : FOOT_RAMP / (o.height ?? 1);
   // rows no further apart than the contact ramp, so the shading rises over it and not over the whole card
-  const g = new THREE.PlaneGeometry(w, h, o.segmentsX ?? 1, Math.max(o.segmentsY ?? 1, Math.min(8, Math.ceil(h / ramp))));
+  const g = new THREE.PlaneGeometry(w, h, o.segmentsX ?? 1, Math.max(o.segmentsY ?? 1, ramp ? Math.min(8, Math.ceil(h / ramp)) : 1));
   g.translate((art.left + art.right) / 2, (art.bottom + art.top) / 2, 0);
   paintVertices(g, ramp, edgeColour(art.texture));
   return g;
@@ -197,14 +196,14 @@ export function prewarmSilhouettes(arts: CardArt[]): void {
  * With unit = true the card is 1 unit tall (to be scaled per instance) and 1 unit deep (the instance's z scale is
  * then the thickness).
  */
-export function thickCardGeometry(art: CardArt, o: { flipX?: boolean; unit?: boolean; height?: number } = {}): THREE.BufferGeometry | null {
+export function thickCardGeometry(art: CardArt, o: { flipX?: boolean; unit?: boolean; height?: number; contact?: boolean } = {}): THREE.BufferGeometry | null {
   const loops = silhouette(art.texture);
   if (!loops) return null;
   const w = art.right - art.left;
   const hgt = art.top - art.bottom;
   const scale = o.unit ? 1 / hgt : 1;
   const depth = o.unit ? 1 : CARD_THICKNESS;
-  const key = `${(art.texture as THREE.Texture).uuid}|${art.left.toFixed(4)}|${art.right.toFixed(4)}|${art.bottom.toFixed(4)}|${art.top.toFixed(4)}|${o.flipX ? 1 : 0}|${o.unit ? 1 : 0}|${o.height ?? 1}`;
+  const key = `${(art.texture as THREE.Texture).uuid}|${art.left.toFixed(4)}|${art.right.toFixed(4)}|${art.bottom.toFixed(4)}|${art.top.toFixed(4)}|${o.flipX ? 1 : 0}|${o.unit ? 1 : 0}|${o.height ?? 1}|${o.contact === false ? 0 : 1}`;
   const cached = thickCache.get(key);
   if (cached) return cached;
   const toCard = (u: number, v: number) => new THREE.Vector2((art.left + (o.flipX ? 1 - u : u) * w) * scale, (art.bottom + v * hgt) * scale);
@@ -219,8 +218,8 @@ export function thickCardGeometry(art: CardArt, o: { flipX?: boolean; unit?: boo
   const y0 = art.bottom * scale;
   const y1 = art.top * scale;
   const zf = depth / 2;
-  const ramp = FOOT_RAMP / (o.height ?? 1);
-  const ym = Math.min(y1, y0 + ramp);
+  const ramp = o.contact === false ? 0 : FOOT_RAMP / (o.height ?? 1);
+  const ym = ramp ? Math.min(y1, y0 + ramp) : y0;
   const pos: number[] = [x0, y0, zf, x1, y0, zf, x1, ym, zf, x0, y0, zf, x1, ym, zf, x0, ym, zf, x0, ym, zf, x1, ym, zf, x1, y1, zf, x0, ym, zf, x1, y1, zf, x0, y1, zf];
   const faceVerts = pos.length / 3;
   const nrm: number[] = [];
@@ -243,7 +242,7 @@ export function thickCardGeometry(art: CardArt, o: { flipX?: boolean; unit?: boo
       generateTopUV(_g: THREE.ExtrudeGeometry, v: number[], a: number, b: number, c: number): THREE.Vector2[] {
         return [a, b, c].map((k) => uvAt(v[k * 3], v[k * 3 + 1]));
       },
-      // the edge shows the card's own colour: the print right where the wall stands (just inside its outline)
+      // (the walls take their vertex colour alone, CARD_WALL_ATTRIBUTE; their uv is the print where they stand)
       generateSideWallUV(_g: THREE.ExtrudeGeometry, v: number[], a: number, b: number, c: number, d: number): THREE.Vector2[] {
         return [a, b, c, d].map((k) => uvAt(v[k * 3], v[k * 3 + 1]));
       },
@@ -269,6 +268,9 @@ export function thickCardGeometry(art: CardArt, o: { flipX?: boolean; unit?: boo
   g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   paintVertices(g, ramp, edgeColour(art.texture), faceVerts);
+  const wall = new Float32Array(pos.length / 3);
+  wall.fill(1, faceVerts);
+  g.setAttribute(CARD_WALL_ATTRIBUTE, new THREE.Float32BufferAttribute(wall, 1));
   g.computeBoundingBox();
   g.computeBoundingSphere();
   thickCache.set(key, g);
@@ -291,8 +293,9 @@ export function thickMaterial<M extends THREE.Material>(print: M): M {
 /** An upright card mesh standing on its hinge line. flipX mirrors the print (a creature heading the other way). */
 export function createCard(art: CardArt, o: CardGeometryOptions & { material?: THREE.Material; flipX?: boolean; thin?: boolean } = {}): THREE.Mesh {
   const print = o.material ?? materialFor(art);
-  const thick = !o.thin && o.segmentsX === undefined && o.segmentsY === undefined && art.texture.image instanceof HTMLImageElement
-    ? thickCardGeometry(art, { flipX: o.flipX })
+  const image = art.texture.image;
+  const thick = !o.thin && o.segmentsX === undefined && o.segmentsY === undefined && (image instanceof HTMLImageElement || image instanceof HTMLCanvasElement)
+    ? thickCardGeometry(art, { flipX: o.flipX, contact: o.contact })
     : null;
   let mesh: THREE.Mesh;
   if (thick) {

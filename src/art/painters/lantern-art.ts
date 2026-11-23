@@ -21,7 +21,7 @@ export function lanternArt(): CardArt {
     const outline = new Path2D();
     outline.addPath(body);
     outline.addPath(cap);
-    art = painter.finish(outline, { border: 0, ink: 0.008, grain: 0 });
+    art = painter.finish(outline, { ink: 0.008, grain: 0 });
   }
   return art;
 }

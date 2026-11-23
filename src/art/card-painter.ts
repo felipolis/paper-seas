@@ -5,8 +5,7 @@
  * Every card is finished the same way, which is what makes the set read as one printed sheet:
  *   1. the art is filled and detailed by a painter (clipped to its outline where it wants)
  *   2. a light grain is printed over it
- *   3. a thin ink line traces the cut
- *   4. a cream die-cut margin is laid underneath, so each piece has the pale paper edge of a punched-out card
+ *   3. a thin ink line traces the cut (the dark cut edge; papercraft skill, look.md section 3)
  * Anything left transparent is cut away (the card material alpha-tests it).
  */
 import * as THREE from 'three';
@@ -26,14 +25,11 @@ export interface CardArt extends CardBounds {
 }
 
 export interface FinishOptions {
-  /** Width of the cream die-cut margin (card units). 0 = none. */
-  border?: number;
   /** Width of the ink cut line (card units). 0 = none. */
   ink?: number;
   /** Strength of the printed grain (0..1). */
   grain?: number;
   inkColor?: string;
-  borderColor?: string;
 }
 
 const MAX_PX = 2048;
@@ -47,14 +43,14 @@ export class CardPainter {
 
   /**
    * @param art   the rectangle the painter draws in (card units)
-   * @param pad   margin added around it for the die-cut border; the bottom is padded only if `padBottom`
+   * @param pad   margin added round it (but not under its hinge) so the cut line is not clipped
    */
-  constructor(art: CardBounds, options: { ppu?: number; pad?: number; padBottom?: boolean } = {}) {
+  constructor(art: CardBounds, options: { ppu?: number; pad?: number } = {}) {
     const pad = options.pad ?? 0.05;
     this.bounds = {
       left: art.left - pad,
       right: art.right + pad,
-      bottom: art.bottom - (options.padBottom ? pad : 0),
+      bottom: art.bottom,
       top: art.top + pad,
     };
     const w = this.bounds.right - this.bounds.left;
@@ -92,22 +88,13 @@ export class CardPainter {
     this.ctx.stroke(path);
   }
 
-  /** Finishes the card (grain, ink cut line, cream margin) and returns its texture. */
+  /** Finishes the card (grain, ink cut line) and returns its texture. */
   finish(outline: Path2D, options: FinishOptions = {}): CardArt {
-    const ctx = this.ctx;
-    const border = options.border ?? 0;
     const ink = options.ink ?? 0.014;
     const grain = options.grain ?? 0.5;
 
-    if (grain > 0) printGrain(this.canvas, ctx, 0.11 * grain);
+    if (grain > 0) printGrain(this.canvas, this.ctx, 0.11 * grain);
     if (ink > 0) this.stroke(outline, options.inkColor ?? PALETTE.ink, ink);
-    if (border > 0) {
-      ctx.save();
-      ctx.globalCompositeOperation = 'destination-over';
-      this.stroke(outline, options.borderColor ?? PALETTE.cutEdge, border * 2 + ink);
-      this.fill(outline, options.borderColor ?? PALETTE.cutEdge);
-      ctx.restore();
-    }
     return { ...this.bounds, texture: toTexture(this.canvas) };
   }
 }

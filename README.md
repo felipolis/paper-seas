@@ -20,7 +20,7 @@
 </p>
 
 The whole world is a pop-up book. Islands, villages, forests and the waves themselves fold up out of the page as your
-ship draws near and lie down flat again in its wake, every piece a die-cut card of felt and paper with a cream cut edge.
+ship draws near and lie down flat again in its wake, every piece a die-cut card of printed, layered paper with a thin dark cut edge.
 The sea goes on forever and no two voyages are the same: each one is drawn from a seed, so a place you sail back to is
 still there, just as you left it.
 
@@ -113,8 +113,9 @@ running dev server) drive Microsoft Edge headless; the model builds need Blender
 ## How it's made
 
 Paper Seas follows the look and the rules of [papertrails](https://github.com/xikhar/papertrails): every sprite is a
-die-cut card with a printed cream edge, the buildings, ships and mountains are real hinged paper models built in
-Blender, the ground is one flat sheet cut to the shore, and the light, shadows, haze and tilt-shift blur are paper's.
+die-cut card of layered paper with its cut edge printed, the buildings, ships and mountains are real hinged paper
+models built in Blender, the ground is one flat sheet cut to the shore, and the light, shadows, haze and tilt-shift blur
+are paper's.
 
 - [How it works](docs/how-it-works.md): the code's layout, every rule taken from papertrails (what stands up and when,
   biomes, collisions, light, life, the camera) and the world QA.
