@@ -300,9 +300,6 @@ export class Game {
     this.hud.update(dt, {
       sailSetting: ship.sailSetting,
       knots: Math.max(0, p.surge) * KNOTS_PER_UNIT,
-      heading: p.heading,
-      windX: ship.wind.x,
-      windZ: ship.wind.z,
       muted: this.sound.isMuted,
       onFoot: walking,
     });

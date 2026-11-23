@@ -22,7 +22,7 @@ src/
   ship/              hull shape, model, cloth (sails, flag), physics with inertia, controller
   camera/            diorama follow camera
   render/            renderer, lights, paper material, soft paper shadows (shadows.ts), post (tilt-shift, night grade)
-  ui/                HUD and pause menu (Esc)
+  ui/                the interface as paper: hint, prompt and discovery cards, pause menu, shipyard, chart
   life/              sea creatures and gulls, ambient bits (leaves, butterflies, motes, fireflies), chimney smoke,
                      the camera-to-captain line they keep clear of (clear-line.ts)
   game/              voyage progress (discoveries, treasure)
@@ -147,7 +147,11 @@ What papertrails does, Paper Seas does the same way (its traveller is as tall as
   degrees down; a still zone round the captain where it does not move, a soft zone that picks up his step, hard edges;
   after a moment of steady walking the window travels with him and leads; an exact critically damped spring; a slow
   tripod drift; the lens eases up or round when a building hides him.
-- **A quiet HUD**: one line of hints that fades as soon as you get under way; the ship's panel goes when ashore.
+- **No chrome** (the papercraft skill's paper-ui.md): no HUD panel; the sails, the flag and the wake show what the
+  ship is doing, and one line of hints fades once you get under way. What must be a screen is paper: every panel is a
+  card of the page's stock with its fibre (ui/paper-sheet.ts), the cut edge printed on it and a contact and a cast
+  shadow (ui/paper.css), buttons press like card, the menu, the shipyard and the chart slide up like a sheet, a discovery card slides down from above, the chart's explored print ends in a
+  torn edge, the cursor is hidden over the scene, and reduced motion makes every slide instant.
 - **Haze and depth of field** (`render/post.ts`): a subtle haze of one mid-tone colour, only far away (from 6.7 to 18.7
   units from the focus at a 17-unit framing, scaled with the focus distance; on foot ~9 to ~26 hero heights). The blur is a
   tilt-shift whose sharp band measures ~0.65 of the frame (the skill's measure.py focusHeight, its range 0.55-0.75): each pixel blurred by a mix of its

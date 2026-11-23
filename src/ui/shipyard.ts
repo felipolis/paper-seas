@@ -1,7 +1,8 @@
 /**
- * The shipyard (from the pause menu): a sheet of paper cards to pick the ship and the captain at the helm. Each
- * ship card shows its printed hull with its flag, its name, a line about her and her handling; each captain card
- * shows the figure. "Set sail" keeps the choice and reloads the voyage with it (the world and the voyage log stay).
+ * The shipyard (from the pause menu): a sheet of paper that slides up over the scene, with paper cards to pick the
+ * ship and the captain at the helm. Each ship card shows its printed hull with its flag, its name, a line about her
+ * and her handling; each captain card shows the figure. The chosen card stands up off the sheet with an inked pin on
+ * it; the others lie flat. "Set sail" keeps the choice and reloads the voyage with it (the world and the voyage log stay).
  */
 import './shipyard.css';
 import { CAPTAINS, SHIP_TYPES, activeCaptain, activeShip, chooseCrew } from '../config/ships';
@@ -20,12 +21,12 @@ export class Shipyard {
     const nimblest = Math.max(...SHIP_TYPES.map((s) => s.turnRate));
     const bar = (v: number) => `<span class="yard-bar"><i style="width:${Math.round(v * 100)}%"></i></span>`;
     this.root.innerHTML = `
-      <div class="yard-sheet" role="dialog" aria-label="Shipyard">
+      <div class="yard-sheet paper-card" role="dialog" aria-label="Shipyard">
         <div class="yard-title">The Shipyard</div>
         <div class="yard-sub">Choose your ship and the captain at her helm</div>
         <div class="yard-ships">
           ${SHIP_TYPES.map((s) => `
-            <button class="yard-ship" data-ship="${s.id}">
+            <button class="yard-ship paper-card" data-ship="${s.id}">
               <span class="yard-art"><img src="${art(s.picture)}" alt=""><img class="yard-flag" src="${art(s.flag)}" alt=""></span>
               <span class="yard-name">${s.name}</span>
               <span class="yard-blurb">${s.blurb}</span>
@@ -34,14 +35,14 @@ export class Shipyard {
         </div>
         <div class="yard-crew">
           ${CAPTAINS.map((c) => `
-            <button class="yard-captain" data-captain="${c.id}" title="${c.name}">
+            <button class="yard-captain paper-card" data-captain="${c.id}" title="${c.name}">
               <img src="${art(c.sprite)}" alt="">
               <span>${c.name}</span>
             </button>`).join('')}
         </div>
         <div class="yard-buttons">
-          <button data-act="back">Back</button>
-          <button data-act="sail" class="primary">Set sail</button>
+          <button class="paper-btn" data-act="back">Back</button>
+          <button class="paper-btn primary" data-act="sail">Set sail</button>
         </div>
       </div>`;
     parent.appendChild(this.root);

@@ -1,3 +1,5 @@
+// (first: the interface's paper base must come before every panel's own styles)
+import { installPaper } from './ui/paper-sheet';
 import { Game } from './app/game';
 import { loadSprites } from './art/sprites';
 import { loadPaperMaps } from './art/paper-maps';
@@ -12,6 +14,7 @@ declare global {
 }
 
 async function boot(): Promise<void> {
+  installPaper();
   await Promise.all([loadSprites(), loadPaperMaps()]);
   // (the models' paper material needs the cardstock maps)
   await Promise.all([loadModels(), loadShipMesh()]);

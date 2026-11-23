@@ -1,6 +1,7 @@
 /**
- * Pause menu (Esc): a paper card over the dimmed scene with the voyage log, sound and quality toggles, the
- * controls, and a fresh-voyage option. While it is open the world stops.
+ * Pause menu (Esc): a sheet of paper that slides up over the scene (the papercraft skill's sheet: from below, turned
+ * a little) with the voyage log, sound and quality toggles, the controls and a
+ * fresh-voyage option. While it is open the world stops.
  */
 import './menu.css';
 
@@ -30,17 +31,17 @@ export class Menu {
     this.root = document.createElement('div');
     this.root.className = 'menu';
     this.root.innerHTML = `
-      <div class="menu-card" role="dialog" aria-label="Paused">
+      <div class="menu-card paper-card" role="dialog" aria-label="Paused">
         <div class="menu-title">Paper Seas</div>
         <div class="menu-sub">The voyage is paused</div>
         <div class="menu-log"></div>
         <div class="menu-buttons">
-          <button data-act="resume">Set sail again</button>
-          <button data-act="yard">Shipyard: ship &amp; captain</button>
-          <button data-act="sound"></button>
-          <button data-act="quality"></button>
+          <button class="paper-btn primary" data-act="resume">Set sail again</button>
+          <button class="paper-btn" data-act="yard">Shipyard: ship &amp; captain</button>
+          <button class="paper-btn" data-act="sound"></button>
+          <button class="paper-btn" data-act="quality"></button>
           <div class="menu-seed">World seed <b class="menu-seed-now"></b></div>
-          <div class="menu-new"><input class="menu-seed-in" inputmode="numeric" placeholder="seed (empty = random)" maxlength="7"><button data-act="new" class="danger">New voyage</button></div>
+          <div class="menu-new"><input class="menu-seed-in" inputmode="numeric" placeholder="seed (empty = random)" maxlength="7"><button class="paper-btn" data-act="new">New voyage</button></div>
         </div>
         <div class="menu-keys">
           <span><b>W</b>/<b>S</b> sails</span><span><b>A</b>/<b>D</b> helm</span><span><b>Wheel</b> zoom</span>

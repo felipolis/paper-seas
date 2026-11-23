@@ -2,8 +2,8 @@
  * The voyage chart (E or Tab): a sheet of cream paper slides up over the diorama while the camera lifts away, and
  * the explored seas ink in from the ship outward.
  *
- *   explored land and sea   the printed tiles of Exploration (the game's teal sea, sand and page tone), feathered
- *                           into the paper where the fog begins
+ *   explored land and sea   the printed tiles of Exploration (the game's teal sea, sand and page tone), their edge
+ *                           torn where the fog begins (the papercraft skill's torn printed areas)
  *   stamps                  tiny die-cut copies of the game's own stickers laid over the print, few and far between:
  *                           waves on open sea, trees by biome, crags on the heights, the landmark of a stamped island
  *   marks                   the ship (pointing its heading), the dashed track sailed, names of discovered lands,
@@ -15,7 +15,7 @@
  * print sits in the paper.
  *
  * Nothing expensive happens per frame. The explored world is baked once into world-space regions (RC x RC cells:
- * tiles and the feathered fog edge) at two resolutions, re-baked only when a tile inside changes, and a frame just
+ * tiles and the torn fog edge) at two resolutions, re-baked only when a tile inside changes, and a frame just
  * places the regions on screen. The parchment and its frame are baked per resize. Stamps are cut from the sprites
  * once per size and re-cut only when the zoom changes their size.
  *
@@ -399,7 +399,7 @@ export class Chart {
     const ci0 = r.ri * RC;
     const cj0 = r.rj * RC;
 
-    // ---- fog mask: a soft disc per explored cell (own cells and the margin), blurred ----
+    // ---- fog mask: a disc per explored cell (own cells and the margin), blurred into one shape, its edge torn ----
     const M = this.maskCtx;
     const MS = this.maskCanvas.width;
     M.clearRect(0, 0, MS, MS);
@@ -419,7 +419,7 @@ export class Chart {
       r.glyphs = [];
       return;
     }
-    softenAlpha(M, MS, MS, MP);
+    tearAlpha(M, MS, MS, MP, (ci0 - MARGIN) * MP, (cj0 - MARGIN) * MP);
 
     // ---- the print: tiles of the explored cells and of their neighbours, assembled at their own resolution ----
     const P = this.printCanvas.getContext('2d')!;
@@ -1023,8 +1023,13 @@ function fibreTile(): HTMLCanvasElement {
   return tile;
 }
 
-/** Three box-blur passes over a canvas's alpha (a soft, organic fog edge without ctx.filter). */
-function softenAlpha(ctx: CanvasRenderingContext2D, w: number, h: number, r: number): void {
+/**
+ * The fog's edge, torn (the papercraft skill's paper-ui.md: printed areas end in torn edges, not soft fades): three
+ * box-blur passes merge the discs into one round shape, then its rim is nibbled by noise in world-fixed mask pixels
+ * (ox, oy: the mask's origin, so neighbouring regions tear alike) and cut almost hard; the upscale to the print softens
+ * it by a pixel or two.
+ */
+function tearAlpha(ctx: CanvasRenderingContext2D, w: number, h: number, r: number, ox: number, oy: number): void {
   if (w < 2 || h < 2 || r < 1) return;
   const img = ctx.getImageData(0, 0, w, h);
   let a = new Float32Array(w * h);
@@ -1050,10 +1055,26 @@ function softenAlpha(ctx: CanvasRenderingContext2D, w: number, h: number, r: num
     }
     a = out;
   }
+  // value noise in mask pixels: a fine nibble on a coarser wander
+  const noise = (x: number, y: number, cell: number, seed: number): number => {
+    const fx = x / cell;
+    const fy = y / cell;
+    const ix = Math.floor(fx);
+    const iy = Math.floor(fy);
+    const u = fx - ix;
+    const v = fy - iy;
+    const su = u * u * (3 - 2 * u);
+    const sv = v * v * (3 - 2 * v);
+    const top = hash01(seed, ix, iy) + (hash01(seed, ix + 1, iy) - hash01(seed, ix, iy)) * su;
+    const bottom = hash01(seed, ix, iy + 1) + (hash01(seed, ix + 1, iy + 1) - hash01(seed, ix, iy + 1)) * su;
+    return top + (bottom - top) * sv - 0.5;
+  };
   for (let i = 0; i < w * h; i++) {
-    // ease the ramp so the inside stays solid and only the rim fades
-    const v = clamp((a[i] / 255 - 0.32) / 0.55, 0, 1);
-    img.data[i * 4 + 3] = Math.round(v * v * (3 - 2 * v) * 255);
+    const x = (i % w) + ox;
+    const y = Math.floor(i / w) + oy;
+    const v = a[i] / 255 + 0.22 * noise(x, y, 7, 31) + 0.16 * noise(x, y, 2.2, 47);
+    const t = clamp((v - 0.42) / 0.08, 0, 1);
+    img.data[i * 4 + 3] = Math.round(t * t * (3 - 2 * t) * 255);
   }
   ctx.putImageData(img, 0, 0);
 }

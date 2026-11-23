@@ -7,30 +7,26 @@
   perspective: 1400px;
   pointer-events: none;
   z-index: 8;
-  background: rgba(30, 18, 10, 0);
-  transition: background 0.6s ease;
 }
 
 .chart.on {
   pointer-events: auto;
-  background: rgba(30, 18, 10, 0.28);
 }
 
-/* the sheet comes up from below the table, tipped back, and settles with a little overshoot */
+/* the sheet (the papercraft skill's): up from below the frame over 0.7 s, turned by -4 degrees, settling square; the
+   reverse to close; its cut edge and two shadows like every paper card */
 .chart-sheet {
   position: relative;
   width: min(1240px, calc(100vw - 48px));
   height: min(820px, calc(100vh - 48px));
-  border-radius: 4px 9px 5px 8px;
-  box-shadow: 6px 14px 0 rgba(42, 26, 16, 0.3), 0 30px 70px rgba(20, 10, 4, 0.55);
-  transform-origin: 50% 100%;
-  transform: translateY(115vh) rotateX(38deg) rotateZ(4deg);
-  transition: transform 0.55s cubic-bezier(0.55, 0, 0.8, 0.3);
+  border-radius: 3px 5px 4px 6px;
+  box-shadow: var(--cut), 2px 3px 0 var(--edge), var(--contact), 14px 22px 34px rgb(74 44 34 / 0.3);
+  transform: translateY(105vh) rotate(-4deg);
+  transition: transform 0.7s cubic-bezier(0.65, 0, 0.35, 1);
 }
 
 .chart.on .chart-sheet {
-  transform: translateY(0) rotateX(0) rotateZ(-0.7deg);
-  transition: transform 0.75s cubic-bezier(0.2, 1.25, 0.35, 1);
+  transform: rotate(-0.7deg);
 }
 
 .chart-canvas {
@@ -49,13 +45,13 @@
   position: absolute;
   right: 40px;
   bottom: 30px;
-  font: italic 15px 'IM Fell English', Georgia, serif;
-  color: #5a3a28;
+  font: italic 15px var(--serif);
+  color: rgb(90 58 40 / 0.86);
   pointer-events: none;
 }
 
 .chart-hint b {
-  color: #b9603f;
+  color: var(--accent);
   font-style: normal;
   font-weight: normal;
 }

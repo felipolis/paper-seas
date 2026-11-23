@@ -1,0 +1,101 @@
+/*
+ * The interface as paper (the papercraft skill's paper-ui.md): one ink, one page, one core, one accent; every panel a
+ * card of the page's stock (its fibre, ui/paper-sheet.ts) with the cut edge printed on it (a pale highlight on the lit
+ * side, a thin dark-brown line) and two shadows (a tight contact, a wide cast away from the light), never a cream band
+ * or a glow; buttons press like card; sheets slide in like paper (without the skill's shadow ahead of their leading
+ * edge: it read as a dark panel above them).
+ */
+:root {
+  --ink: #5a3a28;
+  --page: #efe0c2;
+  --page-lit: #f4ead6;
+  --core: #fbf6ea;
+  --accent: #a4512f;
+  --light: #ffc45a;
+  /* a card's thickness: a darker copy of its face, never white */
+  --edge: #d6bf94;
+  --cut: inset 1px 1px 0 rgb(251 246 234 / 0.75), 0 0 0 1px rgb(74 44 34 / 0.8), 1px 1px 0 1px rgb(74 44 34 / 0.8);
+  --contact: 2px 3px 2px rgb(74 44 34 / 0.45);
+  --cast: 10px 14px 22px rgb(74 44 34 / 0.22);
+  /* the page's fibre: a tile drawn at start-up (ui/paper-sheet.ts) */
+  --paper: none;
+  --serif: 'IM Fell English', Georgia, 'Times New Roman', serif;
+  --serif-sc: 'IM Fell English SC', 'IM Fell English', Georgia, 'Times New Roman', serif;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #b9a27e;
+}
+
+#scene {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  /* a game: the cursor is hidden over the scene (the sheets bring it back) */
+  cursor: none;
+}
+
+/* a card of the page's stock */
+.paper-card {
+  position: relative;
+  color: var(--ink);
+  background: var(--paper), var(--page);
+  border-radius: 3px 5px 4px 6px;
+  box-shadow: var(--cut), 1px 2px 0 var(--edge), var(--contact), var(--cast);
+}
+
+/* a card on a card: a smaller gap, a smaller shadow */
+.paper-card .paper-card {
+  --cast: 3px 5px 8px rgb(74 44 34 / 0.2);
+}
+
+.paper-label {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+}
+
+/* a button that presses like card: lifted a hair on hover, pressed flat onto the page by its own thickness */
+.paper-btn {
+  font: 19px/1.1 var(--serif);
+  color: var(--ink);
+  background: var(--paper), var(--page-lit);
+  border: 0;
+  border-radius: 3px 4px 3px 5px;
+  padding: 9px 14px;
+  cursor: pointer;
+  box-shadow: var(--cut), 1px 2px 0 var(--edge), var(--contact);
+  transition: transform 0.08s, box-shadow 0.08s;
+}
+
+.paper-btn:hover {
+  transform: translateY(-1px);
+}
+
+.paper-btn:active {
+  transform: translate(1px, 2px);
+  box-shadow: var(--cut), 0 0 0 var(--edge), 1px 1px 1px rgb(74 44 34 / 0.45);
+}
+
+.paper-btn:focus-visible {
+  outline: 2px dashed var(--ink);
+  outline-offset: 3px;
+}
+
+.paper-btn.primary {
+  color: var(--core);
+  background: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0s !important;
+    animation-duration: 0s !important;
+  }
+}
