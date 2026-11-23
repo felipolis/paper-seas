@@ -28,7 +28,7 @@ import type { Chimney } from '../life/smoke';
 import { ROAD_WIDTH } from './roads';
 import { Streams } from './streams';
 import type { Places } from './places';
-import { polylineDistance, segmentDistance, type Box, type Pt } from './polyline';
+import { overlaps, polylineDistance, segmentDistance, type Box, type Pt } from './polyline';
 import { heightOf } from '../config/flora';
 import { CROSS_PLANES, type Card, type CardField, type CardSpec } from './card-field';
 import { islandName } from './island-names';
@@ -201,6 +201,26 @@ function closestBetween(a: Segment[], b: Segment[]): [number, Segment] | null {
   return best;
 }
 
+/** The bounds of a set of segments, grown by pad. */
+function segmentsBox(segments: Segment[], pad: number): Box {
+  let x0 = Infinity;
+  let z0 = Infinity;
+  let x1 = -Infinity;
+  let z1 = -Infinity;
+  for (const [ax, az, bx, bz] of segments) {
+    x0 = Math.min(x0, ax, bx);
+    z0 = Math.min(z0, az, bz);
+    x1 = Math.max(x1, ax, bx);
+    z1 = Math.max(z1, az, bz);
+  }
+  return [x0 - pad, z0 - pad, x1 + pad, z1 + pad];
+}
+
+/** The segments that reach into the box. */
+function within(segments: Segment[], [x0, z0, x1, z1]: Box): Segment[] {
+  return segments.filter(([ax, az, bx, bz]) => Math.max(ax, bx) >= x0 && Math.min(ax, bx) <= x1 && Math.max(az, bz) >= z0 && Math.min(az, bz) <= z1);
+}
+
 /** Width of the lanes from a village square to its doors, and the square's radius (papertrails' road: 0.5). */
 const LANE_WIDTH = 0.36;
 const SQUARE_RADIUS = 0.95;
@@ -328,6 +348,8 @@ export class Terrain {
     const out: Segment[] = [];
     // (each piece's segments, for papertrails' closing below)
     const pieces: Segment[][] = [];
+    // what lies beyond r (and the closing's reach past it) changes nothing round the point
+    const reach: Box = [x - r - CLOSE, z - r - CLOSE, x + r + CLOSE, z + r + CLOSE];
     for (const c of this.chunks.values()) {
       // (only the chunks round the point)
       if (x < c.i * CHUNK - r - 2 || x > (c.i + 1) * CHUNK + r + 2 || z < c.j * CHUNK - r - 2 || z > (c.j + 1) * CHUNK + r + 2) continue;
@@ -353,15 +375,20 @@ export class Terrain {
         if (h.name === 'pier' || h.fold.progress < 0.6 || Math.abs(h.x - x) > r + 4 || Math.abs(h.z - z) > r + 4) continue;
         const foot: Segment[] = [];
         placeSegments(h.foot, h.x, h.z, h.yaw, foot);
-        pieces.push(foot);
+        // (only its walls within reach: a bridge's foot alone is hundreds of segments)
+        const near = within(foot, reach);
+        if (near.length) pieces.push(near);
       }
     }
     for (const p of pieces) out.push(...p);
     // papertrails' closing (world.js buildField there, closeRadius 0.2): a gap narrower than CLOSE between two pieces is
-    // filled, so no nook between them is left for the feet to be wedged in (the feet need more room than that to pass)
+    // filled, so no nook between them is left for the feet to be wedged in (the feet need more room than that to pass).
+    // Only the segments of each piece that come within CLOSE of the other's bounds can make such a gap.
+    const boxes = pieces.map((p) => segmentsBox(p, CLOSE));
     for (let a = 0; a < pieces.length; a++) {
       for (let b = a + 1; b < pieces.length; b++) {
-        const gap = closestBetween(pieces[a], pieces[b]);
+        if (!overlaps(boxes[a], boxes[b])) continue;
+        const gap = closestBetween(within(pieces[a], boxes[b]), within(pieces[b], boxes[a]));
         if (gap && gap[0] < CLOSE) out.push(gap[1]);
       }
     }
