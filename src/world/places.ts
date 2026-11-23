@@ -4,7 +4,7 @@
  * layout. A chunk asks for what reaches its square; whichever chunk asks first, the answer is the same.
  */
 import { MAX_LINK, MAX_RUINS_LINK, ROUTE_PAD, onRoad, routeRoad, type Road } from './roads';
-import { SITE_CELL, layoutOf, siteIn, type Layout, type Site } from './sites';
+import { SITE_CELL, laidOutBefore, layoutOf, siteIn, type Layout, type Site } from './sites';
 import { Streams } from './streams';
 import { overlaps, type Box } from './polyline';
 import type { LandField } from './land';
@@ -108,12 +108,17 @@ export class Places {
     return [...out.values()];
   }
 
-  /** The layout of a site (its buildings and props keep off every road round it and off the streams). */
+  /**
+   * The layout of a site (its buildings and props keep off every road round it, off the streams and off the ground of
+   * the neighbouring sites laid out before it, so two villages close together never build on the same spot).
+   */
   layout(s: Site): Layout {
     let l = this.layouts.get(s.id);
     if (!l) {
       const roads = this.roadsNear([s.x - LAYOUT_REACH, s.z - LAYOUT_REACH, s.x + LAYOUT_REACH, s.z + LAYOUT_REACH]);
-      l = layoutOf(this.land, { road: (x, z, r) => roads.some((road) => onRoad(road, x, z, r)), water: (x, z, r) => this.streams.waterAt(x, z, r) }, s);
+      // (the order is strict, so this never comes back round to s)
+      const claimed = this.sitesNear(s.x, s.z, 2 * LAYOUT_REACH).filter((o) => laidOutBefore(o, s)).flatMap((o) => this.layout(o).claims);
+      l = layoutOf(this.land, { road: (x, z, r) => roads.some((road) => onRoad(road, x, z, r)), water: (x, z, r) => this.streams.waterAt(x, z, r), claimed }, s);
       this.layouts.set(s.id, l);
     }
     return l;

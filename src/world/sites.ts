@@ -2,7 +2,8 @@
  * Where people live, as a pure function of the seed (so every chunk a village reaches agrees on it): one site at most
  * per chunk square. On the coast a fishing village or a port town, well inland now and then a hamlet; here and there
  * old ruins. A site's layout (its buildings round the square, its props, its piers, the lanes branching from the square to
- * every door) is worked out from the site alone, keeping clear of the roads that reach it and of the streams.
+ * every door) is worked out from the site, keeping clear of the roads that reach it, of the streams and of the ground
+ * already claimed by the neighbouring sites laid out before it (sitesInOrder).
  */
 import { WORLD } from '../config/world';
 import { hash01, hash2, mulberry32 } from '../core/rng';
@@ -39,6 +40,17 @@ export interface Site {
   jungle: boolean;
 }
 
+/** Ground a layout holds: a circle [x, z, r] round its square and each of its buildings, piers and props. */
+export type Claim = [number, number, number];
+
+/** Neighbouring sites are laid out in this order (a port before a village, a village before a hamlet, then by id). */
+const KIND_ORDER: Record<SiteKind, number> = { port: 0, village: 1, hamlet: 2, ruins: 3 };
+
+/** True if site a is laid out before site b (b keeps clear of a's ground). */
+export function laidOutBefore(a: Site, b: Site): boolean {
+  return (KIND_ORDER[a.kind] - KIND_ORDER[b.kind] || a.id - b.id) < 0;
+}
+
 export interface Placed {
   name: string;
   x: number;
@@ -59,12 +71,18 @@ export interface Layout {
   /** Lanes to each door and pier, branching from the square and from one another. */
   lanes: Pt[][];
   box: Box;
+  /** The ground it holds (a neighbour laid out after it keeps clear of it). */
+  claims: Claim[];
 }
 
-/** What sites and layouts keep clear of: true if a road / a stream comes within r of (x, z). */
+/**
+ * What sites and layouts keep clear of: true if a road / a stream comes within r of (x, z); the ground the
+ * neighbouring sites laid out before this one hold.
+ */
 export interface Avoid {
   road(x: number, z: number, r: number): boolean;
   water(x: number, z: number, r: number): boolean;
+  claimed: readonly Claim[];
 }
 
 /** True if a stream comes within r of (x, z). */
@@ -98,9 +116,10 @@ export function layoutOf(land: LandField, avoid: Avoid, site: Site): Layout {
   const buildings: Placed[] = [];
   const props: Placed[] = [];
   const piers: Placed[] = [];
-  const taken: Array<[number, number, number]> = [[site.x, site.z, 1.0]];
+  const taken: Claim[] = [[site.x, site.z, 1.0]];
+  const clear = (x: number, z: number, r: number, claims: readonly Claim[]) => claims.every(([tx, tz, tr]) => Math.hypot(tx - x, tz - z) > tr + r);
   const free = (x: number, z: number, r: number) =>
-    taken.every(([tx, tz, tr]) => Math.hypot(tx - x, tz - z) > tr + r) && !avoid.road(x, z, r) && !avoid.water(x, z, r);
+    clear(x, z, r, taken) && clear(x, z, r, avoid.claimed) && !avoid.road(x, z, r) && !avoid.water(x, z, r);
   const stops: Pt[] = [];
   const place = (name: string, rMin: number, rMax: number, dMin: number, dMax: number, tries: number): boolean => {
     const info = modelInfo(name)!;
@@ -134,7 +153,7 @@ export function layoutOf(land: LandField, avoid: Avoid, site: Site): Layout {
       taken.push([x, z, 0.5]);
       props.push({ name: sprite, x, z, yaw: 0 });
     }
-    return finish(site, buildings, props, piers, []);
+    return finish(site, buildings, props, piers, [], taken);
   }
 
   // the houses round the square, their fronts turned roughly toward the camera
@@ -221,7 +240,7 @@ export function layoutOf(land: LandField, avoid: Avoid, site: Site): Layout {
     }
   }
   vignettes(site, buildings, props, rng, (x, z) => land.distance(x, z) < -0.3 && free(x, z, 0.06));
-  return finish(site, buildings, props, piers, lanes);
+  return finish(site, buildings, props, piers, lanes, taken);
 }
 
 /**
@@ -290,7 +309,7 @@ function vignettes(site: Site, buildings: Placed[], props: Placed[], rng: () => 
 /** papertrails' vignette chances: village / house cat on a piece, at the door, a dog at the cart, hens at the yard. */
 const VIG = { on: 1, onHamlet: 0.55, door: 0.7, doorHamlet: 1, dog: 0.7, hens: 0.7, sink: 0.03 };
 
-function finish(site: Site, buildings: Placed[], props: Placed[], piers: Placed[], lanes: Pt[][]): Layout {
+function finish(site: Site, buildings: Placed[], props: Placed[], piers: Placed[], lanes: Pt[][], claims: Claim[]): Layout {
   const pts: Pt[] = [[site.x, site.z], ...[...buildings, ...props, ...piers].map((p): Pt => [p.x, p.z]), ...lanes.flat()];
-  return { site, buildings, props, piers, lanes, box: boundsOf(pts, 2.5) };
+  return { site, buildings, props, piers, lanes, box: boundsOf(pts, 2.5), claims };
 }
