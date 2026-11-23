@@ -90,7 +90,7 @@ const OWL: Percher = { b: 'perch', idle: ['stand'], speed: 0, step: 1, hop: 0, r
 
 interface Kind {
   sp: Species;
-  /** Which way the print looks: 1 right, -1 left, 0 straight out (it never needs to turn). */
+  /** Which way the print looks (checked by eye on the cut sprites; again whenever they are regenerated): 1 right, -1 left, 0 straight out (it never needs to turn). */
   art: 1 | -1 | 0;
   /** Placed on the water: it floats (papertrails' 'w' flag). */
   float?: boolean;
@@ -102,7 +102,7 @@ const CRITTERS: Record<string, Kind> = {
   parrot: { sp: SONGBIRD, art: 1 },
   toucan: { sp: SONGBIRD, art: 1 },
   pelican: { sp: WADER, art: 1 },
-  flamingo: { sp: WADER, art: 1 },
+  flamingo: { sp: WADER, art: -1 },
   iguana: { sp: LIZARD, art: 1 },
   duck: { sp: DUCK, art: 1 },
   'duck-float': { sp: DUCK, art: 1, float: true },
@@ -115,11 +115,11 @@ const CRITTERS: Record<string, Kind> = {
   cat: { sp: CAT, art: 0 },
   owl: { sp: OWL, art: 0 },
   dog: { sp: DOG, art: 1 },
-  rabbit: { sp: RABBIT, art: 1 },
+  rabbit: { sp: RABBIT, art: -1 },
   frog: { sp: FROG, art: 0 },
   boar: { sp: FOX, art: 1 },
   gecko: { sp: LIZARD, art: 0 },
-  hummingbird: { sp: SONGBIRD, art: 1 },
+  hummingbird: { sp: SONGBIRD, art: -1 },
 };
 
 /** papertrails' reaction radii: heads up, scatter (peck), wag (dog), slide (bank duck), shuffle (graze). */

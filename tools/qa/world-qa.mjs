@@ -7,7 +7,7 @@
 // lets the land stand up, and checks:
 //   holes      land points with no ground under them (a gap in the paper)
 //   floating   standing cards and models whose base hangs over lower ground or water
-//   wet        land cards standing in the sea
+//   wet        land cards standing in the sea; buildings with any corner of their base in the sea (every loaded one)
 //   overlap    cards standing on a road, a lane or a stream; buildings overlapping each other
 //   bridges    a road crossing a stream with no standing bridge
 //   stuck      the captain unable to move in any direction (blocked ahead is fine; blocked all round is not)
@@ -67,6 +67,7 @@ async function checkWorld() {
   const step = (n) => { for (let i = 0; i < n; i++) g.step(1 / 60); };
   const key = (code, down) => window.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', { code }));
   const SEA_CARDS = new Set(['flamingo', 'sea-arch', 'rock-spire']);
+  const wetSeen = new Set();
   // (cards that belong on a river's water: a duck afloat, and the mound and back crag of the river_source in its pool)
   const STREAM_CARDS = new Set(['duck-float', 'spring', 'crag-0']);
   const manifest = await (await fetch('/art/manifest.json')).json();
@@ -176,6 +177,13 @@ async function checkWorld() {
         if (!STREAM_CARDS.has(card.sprite) && streams.some((s) => onLine(s.pts, card.x, card.z, 0.3))) add('overlap', card.x, card.z, `${card.sprite} in a stream`);
       }
       for (const h of c.houses) {
+        if (h.name !== 'pier' && h.name !== 'bridge') {
+          // (every loaded building, standing or folded: the ends of its footprint's walls on the drawn land)
+          const cs = Math.cos(h.yaw);
+          const sn = Math.sin(h.yaw);
+          const wet = h.foot.some(([ax, az, bx, bz]) => [[ax, az], [bx, bz]].some(([u, v]) => T.distanceAt(h.x + u * cs + v * sn, h.z - u * sn + v * cs) > 0));
+          if (wet && !wetSeen.has(h)) { wetSeen.add(h); add('wet', h.x, h.z, `${h.name} with a corner in the sea`); }
+        }
         if (!near(h.x, h.z, 8) || h.fold.progress < 0.9) continue;
         buildings++;
         if (h.name === 'pier' || h.name === 'bridge') continue;

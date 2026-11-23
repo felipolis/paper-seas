@@ -445,6 +445,44 @@ export class Terrain {
     return out;
   }
 
+  /**
+   * Push-out for a circle of radius r at (x, z) against the standing piers (the ship moors alongside one, never sails
+   * through it): each pier is its deck's rectangle; the circle is pushed off its nearest side. Null when clear.
+   */
+  pierPush(x: number, z: number, r: number): { dx: number; dz: number; nx: number; nz: number } | null {
+    for (const c of this.chunks.values()) {
+      for (const p of c.decks) {
+        if (p.kind !== 'pier' || p.building.fold.progress < 0.5 || Math.hypot(p.x - x, p.z - z) > r + p.half + p.halfW) continue;
+        // in the pier's frame: u along it, v across it
+        const ox = x - p.x;
+        const oz = z - p.z;
+        const u = ox * p.dx + oz * p.dz;
+        const v = ox * p.dz - oz * p.dx;
+        const cu = Math.max(-p.half, Math.min(p.half, u));
+        const cv = Math.max(-p.halfW, Math.min(p.halfW, v));
+        let du = u - cu;
+        let dv = v - cv;
+        let dist = Math.hypot(du, dv);
+        if (dist >= r) continue;
+        if (dist < 1e-6) {
+          // the centre is on the deck: out by the nearest side
+          const outU = p.half - Math.abs(u);
+          const outV = p.halfW - Math.abs(v);
+          if (outV < outU) [du, dv, dist] = [0, Math.sign(v) || 1, -outV];
+          else [du, dv, dist] = [Math.sign(u) || 1, 0, -outU];
+        }
+        const l = Math.hypot(du, dv) || 1;
+        const nu = du / l;
+        const nv = dv / l;
+        const nx = nu * p.dx + nv * p.dz;
+        const nz = nu * p.dz - nv * p.dx;
+        const depth = r - dist;
+        return { dx: nx * depth, dz: nz * depth, nx, nz };
+      }
+    }
+    return null;
+  }
+
   /** Points along every standing pier near (x, z) (to step ashore onto one from the ship). */
   piersNear(x: number, z: number, r: number): Array<[number, number]> {
     const out: Array<[number, number]> = [];
@@ -818,7 +856,19 @@ export class Terrain {
       // the villages and ruins, bridges and springs that stand in this square
       for (const l of layouts) {
         if (!own(l.site.x, l.site.z)) continue;
-        for (const b of l.buildings) this.addBuilding(chunk, b.name, b.x, heightAt(b.x, b.z), b.z, b.yaw);
+        // (the layout chose its spots by the land's approximate shore distance; a building stands only if every corner
+        // of its base is on the ground as drawn, so none ever stands in the sea)
+        const footOnLand = (b: { name: string; x: number; z: number; yaw: number }) => {
+          const info = modelInfo(b.name)!;
+          const c = Math.cos(b.yaw);
+          const sn = Math.sin(b.yaw);
+          return [[-1, -1], [1, -1], [1, 1], [-1, 1], [0, 0]].every(([u, v]) => {
+            const lu = (u * info.width) / 2;
+            const lv = (v * info.depth) / 2;
+            return sampleAt(shore, b.x + lu * c + lv * sn, b.z - lu * sn + lv * c) < -0.08;
+          });
+        };
+        for (const b of l.buildings) if (footOnLand(b)) this.addBuilding(chunk, b.name, b.x, heightAt(b.x, b.z), b.z, b.yaw);
         for (const p of l.props) add(p.name, p.x, p.z, p.height, p.flip, p.vignette ? 0 : 10, { vignette: p.vignette });
         for (const p of l.piers) {
           // standing on the beach at its shore end

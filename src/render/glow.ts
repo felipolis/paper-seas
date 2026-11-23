@@ -6,6 +6,8 @@ import * as THREE from 'three';
 import { PALETTE } from '../config/palette';
 
 const glowing = new Set<THREE.MeshLambertMaterial>();
+/** How much of a material's windows can show their light (a folded building's lie flat on the page: dark). */
+const lit = new WeakMap<THREE.Material, number>();
 let level = 0;
 /** Emissive strength of lit windows at full night (bright enough for the bloom to halo them). */
 const WINDOW_GLOW = 9;
@@ -28,6 +30,14 @@ export function glowLike(copy: THREE.Material, source: THREE.Material): void {
   m.addEventListener('dispose', () => glowing.delete(m));
 }
 
+/** Lights a glowing material's windows by this share (0 dark .. 1 all): a building lights up as it stands up. */
+export function setGlowShare(mat: THREE.Material, share: number): void {
+  const m = mat as THREE.MeshLambertMaterial;
+  if (!m.emissiveMap || lit.get(m) === share) return;
+  lit.set(m, share);
+  m.emissiveIntensity = level * WINDOW_GLOW * share;
+}
+
 /** Registers a plain emissive material (lantern cards) to follow the night level. */
 export function registerGlow(mat: THREE.MeshLambertMaterial): void {
   glowing.add(mat);
@@ -37,5 +47,5 @@ export function registerGlow(mat: THREE.MeshLambertMaterial): void {
 export function setGlowLevel(v: number): void {
   if (Math.abs(v - level) < 1e-3) return;
   level = v;
-  for (const m of glowing) m.emissiveIntensity = m.emissiveMap ? level * WINDOW_GLOW : 0.15 + level * 1.6;
+  for (const m of glowing) m.emissiveIntensity = m.emissiveMap ? level * WINDOW_GLOW * (lit.get(m) ?? 1) : 0.15 + level * 1.6;
 }

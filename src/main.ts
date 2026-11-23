@@ -21,6 +21,16 @@ async function boot(): Promise<void> {
   const canvas = document.querySelector<HTMLCanvasElement>('#scene')!;
   const game = new Game(canvas, document.body);
   game.start();
+  // the loading card (index.html) lifts away once the first frames are drawn
+  const loading = document.getElementById('loading');
+  if (loading) {
+    const lift = () => {
+      if (game.frames < 3) return requestAnimationFrame(lift);
+      loading.classList.add('gone');
+      loading.addEventListener('transitionend', (e) => e.target === loading && loading.remove());
+    };
+    requestAnimationFrame(lift);
+  }
   if (import.meta.env.DEV) window.game = game;
 }
 

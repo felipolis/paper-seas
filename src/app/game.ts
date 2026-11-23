@@ -292,7 +292,8 @@ export class Game {
     this.dayNight.update(dt, !!keys?.isDown('KeyT'));
     this.sound.update(p.x, p.z);
     this.time += dt;
-    this.distanceMap.update(p.x, p.z);
+    // (round what the camera looks at: the captain ashore, else the ship)
+    this.distanceMap.update(this.view.focus.x, this.view.focus.z);
     this.sea.follow(this.view.focus.x, this.view.focus.z);
     this.sea.setDistanceMap(this.distanceMap);
     this.sea.update(this.time, this.view.distance, this.view.focus.x, this.view.focus.z);

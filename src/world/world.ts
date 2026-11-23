@@ -129,8 +129,12 @@ export class World {
     return this.terrain.distanceAt(x, z) > SHALLOWS + margin;
   }
 
-  /** Push-out for a circle of radius r at (x, z) against the shore, or null when clear. */
+  /** Push-out for a circle of radius r at (x, z) against the shore and the standing piers, or null when clear. */
   collide(x: number, z: number, r: number): ShorePush | null {
+    return this.terrain.pierPush(x, z, r) ?? this.shorePush(x, z, r);
+  }
+
+  private shorePush(x: number, z: number, r: number): ShorePush | null {
     // the same numbers the ground was drawn from: what you see is what you hit
     const d = this.terrain.distanceAt(x, z);
     const depth = r - d;

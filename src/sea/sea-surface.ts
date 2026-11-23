@@ -51,8 +51,10 @@ float gSeaMirrorW;
 
 float shoreDist(vec2 p) {
   vec2 uv = (p - uDistInfo.xy) / uDistInfo.z;
-  if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) return 12.0;
-  return texture2D(uDist, uv).r;
+  // (open sea past the window's edge, eased in over its last 10 units so its edge never shows as a seam)
+  float edge = min(min(uv.x, uv.y), min(1.0 - uv.x, 1.0 - uv.y)) * uDistInfo.z;
+  if (edge <= 0.0) return 12.0;
+  return mix(12.0, texture2D(uDist, uv).r, smoothstep(0.0, 10.0, edge));
 }
 
 vec3 seaColour(vec2 p) {
@@ -161,7 +163,7 @@ diffuseColor.rgb *= 1.0 - gSeaMirrorW;`)
         .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
 totalEmissiveRadiance += gSeaMirror * gSeaMirrorW;`);
     };
-    material.customProgramCacheKey = () => 'sea-v4';
+    material.customProgramCacheKey = () => 'sea-v5';
     this.mesh = new THREE.Mesh(geometry, material);
     this.mesh.receiveShadow = true;
     this.mesh.renderOrder = -1;

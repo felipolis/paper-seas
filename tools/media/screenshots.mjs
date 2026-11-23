@@ -43,7 +43,7 @@ for (const scene of SCENES.filter((s) => !only.length || only.includes(s.name)))
   // (the chart and the shipyard open on CSS transitions, in real time: the chart has settled and no transition runs)
   if (scene.ui === 'chart') await page.waitForFunction(() => window.game.chartSettled);
   if (scene.ui) await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running'));
-  await page.addStyleTag({ content: '.hud { display: none !important; }' });
+  await page.addStyleTag({ content: '.hud, #loading { display: none !important; }' });
   await page.screenshot({ path: join(out, `${scene.name}.jpg`), type: 'jpeg', quality: 88 });
   console.log(`docs/media/${scene.name}.jpg`);
   await page.close();
@@ -57,14 +57,22 @@ function stage(sc) {
   const L = g.world.land;
   const s = g.ship.physics;
   const [tx, tz] = sc.at;
-  // open water 1.8-3.5 off the shore, below the place on screen
-  let spot = null;
-  for (let r = 1; r < 90 && !spot; r += 0.5) {
+  // open water 1.8-3.5 off the shore, below the place on screen, and clear of every pier (the ship is held there, past
+  // her collisions): the candidates in order, the first whose surroundings, once built, have no pier within reach
+  const candidates = [];
+  for (let r = 1; r < 90 && candidates.length < 40; r += 0.5) {
     for (let a = 0; a < 64; a++) {
       const x = tx + Math.cos((a / 64) * 6.283) * r;
       const z = tz + Math.sin((a / 64) * 6.283) * r;
-      if (z < tz && L.distance(x, z) > 1.8 && L.distance(x, z) < 3.5) { spot = [x, z]; break; }
+      if (z < tz && L.distance(x, z) > 1.8 && L.distance(x, z) < 3.5) { candidates.push([x, z]); break; }
     }
+  }
+  const HULL = 1.6;
+  let spot = candidates[0];
+  for (const [x, z] of candidates) {
+    g.moveShip(x, z);
+    for (let i = 0; i < 30; i++) g.step(1 / 60);
+    if (!g.world.terrain.pierPush(x, z, HULL)) { spot = [x, z]; break; }
   }
   const hold = () => { s.x = spot[0]; s.z = spot[1]; s.vx = s.vz = 0; };
   // (simulated time, not waiting: TOUR_STEPS per point of a tour, STAND_STEPS for the place to rise and settle,

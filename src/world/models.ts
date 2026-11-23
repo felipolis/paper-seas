@@ -14,7 +14,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { FoldGroup } from '../popup/fold-group';
 import { createPaperMaterial, paperCopy, pencilPlan, setPaperFlat } from '../render/paper-material';
-import { addGlowMap } from '../render/glow';
+import { addGlowMap, setGlowShare } from '../render/glow';
 import { footSegments, hullSegments, type Segment } from './blockers';
 import { tintMaterial } from '../render/biome-tint';
 import type { Biome } from './land';
@@ -234,7 +234,12 @@ export function buildModel(name: string, x: number, y: number, z: number, yaw: n
     fold.add(b, { foldAngle: f.foldAngle, delay: f.delay, size: f.size, seed: (i * 0.618034 + x * 0.37 + z * 0.73) % 1, wobble: 0.7, lift: 0.006 * (depth + 1) + 0.012 * f.layer, parent });
   });
   fold.snap(0);
-  mesh.onBeforeRender = () => setPaperFlat(paper, 1 - fold.progress);
+  mesh.onBeforeRender = () => {
+    setPaperFlat(paper, 1 - fold.progress);
+    // (its windows light up only as it stands: folded flat they lie dark on the page)
+    const up = Math.min(1, Math.max(0, (fold.progress - 0.6) / 0.35));
+    setGlowShare(paper, up * up * (3 - 2 * up));
+  };
   return {
     root: mesh,
     fold,

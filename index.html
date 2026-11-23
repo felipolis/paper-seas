@@ -10,8 +10,136 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English&family=IM+Fell+English+SC&display=swap" rel="stylesheet" />
+    <!--
+      The loading card, inline so it shows before any script: a paper boat rocking over two rows of cut-paper waves
+      that slide past, on a card of the page's stock (the interface's paper, src/ui/paper.css). src/main.ts lifts it
+      away once the first frame is drawn.
+    -->
+    <style>
+      #loading {
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(ellipse at 50% 45%, #9fc9cf 0%, #7ab0b8 55%, #5f949c 100%);
+        transition: opacity 0.6s ease 0.1s;
+      }
+      #loading.gone {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #loading .card {
+        position: relative;
+        width: 220px;
+        padding: 18px 20px 16px;
+        text-align: center;
+        color: #5a3a28;
+        background: #efe0c2;
+        border-radius: 3px 5px 4px 6px;
+        box-shadow: inset 1px 1px 0 rgb(251 246 234 / 0.75), 0 0 0 1px rgb(74 44 34 / 0.8), 1px 1px 0 1px rgb(74 44 34 / 0.8),
+          1px 2px 0 #d6bf94, 2px 3px 2px rgb(74 44 34 / 0.45), 10px 14px 22px rgb(74 44 34 / 0.22);
+        transform: rotate(-1.2deg);
+        transition: transform 0.6s cubic-bezier(0.65, 0, 0.35, 1);
+      }
+      #loading.gone .card {
+        transform: translateY(-40px) rotate(-4deg);
+      }
+      /* the stage: three stacked layers, each an element of its own animated by transform alone, so the browser runs
+         them on its compositor and they keep moving while the game builds its world on the main thread */
+      #loading .stage {
+        position: relative;
+        width: 180px;
+        height: 104px;
+        margin: 0 auto;
+        overflow: hidden;
+      }
+      #loading .layer {
+        position: absolute;
+        top: 0;
+        left: 0;
+        will-change: transform;
+      }
+      #loading .layer svg {
+        display: block;
+      }
+      #loading .waves-back {
+        width: 360px;
+        animation: loading-slide 3.2s linear infinite;
+      }
+      #loading .waves-front {
+        width: 360px;
+        animation: loading-slide 2.1s linear infinite reverse;
+      }
+      #loading .boat {
+        width: 180px;
+        transform-origin: 90px 70px;
+        animation: loading-rock 2.4s ease-in-out infinite;
+      }
+      #loading .title {
+        margin-top: 8px;
+        font: 26px/1 'IM Fell English SC', 'IM Fell English', Georgia, serif;
+        color: #a4512f;
+      }
+      #loading .line {
+        margin-top: 6px;
+        font: italic 14px 'IM Fell English', Georgia, serif;
+        color: rgb(90 58 40 / 0.86);
+      }
+      #loading .dots span {
+        display: inline-block;
+        will-change: opacity;
+        animation: loading-dot 1.4s ease-in-out infinite;
+      }
+      #loading .dots span:nth-child(2) {
+        animation-delay: 0.2s;
+      }
+      #loading .dots span:nth-child(3) {
+        animation-delay: 0.4s;
+      }
+      @keyframes loading-rock {
+        0%, 100% { transform: translateY(0) rotate(-6deg); }
+        50% { transform: translateY(-5px) rotate(6deg); }
+      }
+      @keyframes loading-slide {
+        from { transform: translateX(0); }
+        to { transform: translateX(-60px); }
+      }
+      @keyframes loading-dot {
+        0%, 100% { opacity: 0.2; }
+        40% { opacity: 1; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #loading *, #loading { animation: none !important; transition: none !important; }
+      }
+    </style>
   </head>
   <body>
+    <div id="loading" role="status" aria-label="Loading Paper Seas">
+      <div class="card">
+        <div class="stage" aria-hidden="true">
+          <!-- the back row of waves, sliding left (twice as wide as the stage, sliding one wave length: a seamless loop) -->
+          <div class="layer waves-back"><svg viewBox="0 0 360 104" width="360" height="104"><path d="M0 78 q15 -16 30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0 V104 H0 Z" fill="#6aa6b0" stroke="#4a2812" stroke-width="1.4" stroke-linejoin="round" /><path d="M0 78 q15 -16 30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0" fill="none" stroke="#fbf6ea" stroke-width="1.6" stroke-linecap="round" transform="translate(0 2.5)" opacity="0.8" /></svg></div>
+          <!-- the boat: a folded paper hull, a mast, two sails and a pennant, rocking -->
+          <div class="layer boat">
+            <svg viewBox="0 0 180 104" width="180" height="104">
+              <path d="M58 64 L122 64 L110 80 L70 80 Z" fill="#a4512f" stroke="#4a2812" stroke-width="1.6" stroke-linejoin="round" />
+              <path d="M60 64 L120 64 L118 67 L62 67 Z" fill="#d9a441" />
+              <path d="M89 64 V20" stroke="#4a2812" stroke-width="2.2" stroke-linecap="round" />
+              <path d="M91 22 Q112 38 108 60 L91 60 Z" fill="#efe0c2" stroke="#4a2812" stroke-width="1.4" stroke-linejoin="round" />
+              <path d="M87 26 Q72 42 74 60 L87 60 Z" fill="#f4ead6" stroke="#4a2812" stroke-width="1.4" stroke-linejoin="round" />
+              <path d="M93 30 Q104 40 103 52" fill="none" stroke="#fbf6ea" stroke-width="1.4" stroke-linecap="round" />
+              <path d="M89 20 L100 16 L89 13 Z" fill="#a4512f" stroke="#4a2812" stroke-width="1.1" stroke-linejoin="round" />
+            </svg>
+          </div>
+          <!-- the front row, sliding right, over the boat's hull -->
+          <div class="layer waves-front"><svg viewBox="0 0 360 104" width="360" height="104"><path d="M0 88 q15 -14 30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0 V104 H0 Z" fill="#4f8e9a" stroke="#4a2812" stroke-width="1.4" stroke-linejoin="round" /><path d="M0 88 q15 -14 30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0" fill="none" stroke="#fbf6ea" stroke-width="1.6" stroke-linecap="round" transform="translate(0 2.5)" opacity="0.75" /></svg></div>
+        </div>
+        <div class="title">Paper Seas</div>
+        <div class="line">Folding the sea<span class="dots"><span>.</span><span>.</span><span>.</span></span></div>
+      </div>
+    </div>
     <canvas id="scene"></canvas>
     <script type="module" src="/src/main.ts"></script>
   </body>
