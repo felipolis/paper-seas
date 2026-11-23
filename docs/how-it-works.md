@@ -27,7 +27,7 @@ src/
                      the camera-to-captain line they keep clear of (clear-line.ts)
   game/              voyage progress (discoveries, treasure)
   audio/             synthesised sound: felt-piano barcarolle (notes made in a worker), paper flaps, footsteps, sea
-tools/qa/            world QA (plays the dev build headless and checks the world) and the captains' clip check
+tools/qa/            world QA (plays the dev build headless and checks the world), the captains' and the models' clip checks
 tools/media/         the README's screenshots (docs/media), taken headless from the dev build
 docs/                these pages and the screenshots
 assets-src/          generated art sources (Flow prompts and sheets) and audit pages
@@ -125,7 +125,10 @@ What papertrails does, Paper Seas does the same way (its traveller is as tall as
   autumn colours and blossom petals that settle and fade, drifting dust, butterflies with hinged wings, fireflies over
   the banks at night, rain with splash rings and soft mist in the pine woods, flocks of birds crossing in a V with their
   shadows on the ground, chimney smoke by day, gulls circling spots of their own (nothing follows the ship: left behind, a gull shrinks
-  away and comes back over a spot ahead), sea encounters now and then (9-18 s apart, two at most); every bit fades where it would cross the camera's
+  away and comes back over a spot ahead), sea encounters now and then (9-18 s apart, two at most), each environment of the
+  sea with its own few kinds (the skill's 3-5 per environment, config/life.ts zones: turtles, jellyfish, fish and
+  octopuses in coastal water; dolphins, flying fish, mantas and passing ships on the open sea; whales, sharks, the
+  kraken and the serpent in the deep, where no gull flies); every bit fades where it would cross the camera's
   line to the captain. Animals live as papertrails' do: they idle and walk about their home (a paper hop and roll per
   step), hens peck, goats graze, cats nap, ducks float in slow arcs on the streams; near the captain they freeze, then
   bound, dart, flutter or shuffle off and make a new home there; at night grazers stand still and pets doze. They
@@ -164,4 +167,15 @@ What papertrails does, Paper Seas does the same way (its traveller is as tall as
 `node tools/qa/world-qa.mjs <seeds>` (with `npm run dev` running) visits settlements and the wild interior of each
 seed, puts the captain ashore and checks for holes in the paper, floating or wet cards and models, cards on roads,
 lanes and streams, overlapping buildings, roads crossing streams without a bridge, the captain stuck or held up
-walking a road, and a world with too little open sea. It prints each issue with its position and exits 1 if any.
+walking a road, and a world with too little open sea; and every loaded building or height with a corner of its base in
+the sea. It prints each issue with its position and exits 1 if any.
+
+`node tools/qa/crew-clips.mjs` poses every captain standing, walking, turning and at the helm and lists any two of
+their cards that cut into each other; `node tools/qa/model-clips.mjs [model...]` does the same for every Blender-built
+model while it unfolds and once it stands (pieces that pass through each other in the first moments of the pop-up,
+and the slotted joints of posts, chimneys and crossed ridges at rest).
+
+Nothing that moves draws on Math.random: sea life, smoke, the weather and the captain's idle breath each draw from a
+seeded stream of the voyage (core/rng.ts `stream`), so the same seed and the same input give the same frames. The
+plants that come in several printed variants (broad and blossom trees, ferns, grass, bushes: 4-5 each) are drawn
+among them card by card (config/flora.ts `variantOf`).

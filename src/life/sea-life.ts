@@ -12,12 +12,17 @@ import * as THREE from 'three';
 import { LIFE } from '../config/life';
 import { DEG, clamp } from '../core/math';
 import { bus } from '../core/events';
-import { pickWeighted } from '../core/rng';
+import { pickWeighted, stream } from '../core/rng';
 import { FoldGroup } from '../popup/fold-group';
 import { createCard } from '../popup/card';
 import { spriteArt } from '../art/sprites';
 import type { ClearLine } from './clear-line';
 import { mirrorFor } from '../art/facing';
+
+type EncounterKind = 'dolphins' | 'whale' | 'turtle' | 'shark' | 'kraken' | 'manta' | 'jellyfish' | 'octopus' | 'serpent' | 'fishSchool' | 'flyingFish' | 'ship';
+
+/** This module's seeded randomness (core/rng.ts stream). */
+const random = stream('sea-life');
 
 /** Open water test (set by SeaLife): every creature keeps to it, and nothing that moves ever crosses land. */
 let water: (x: number, z: number, margin: number) => boolean = () => true;
@@ -43,8 +48,8 @@ export interface ShipState {
 function popCard(name: string, height: number, flip: boolean, fold: FoldGroup, delay = 0): THREE.Group {
   const hinge = new THREE.Group();
   hinge.add(createCard(spriteArt(name, { height }), { flipX: flip }));
-  hinge.rotation.y = (Math.random() - 0.5) * 10 * DEG;
-  fold.add(hinge, { size: height, seed: Math.random(), delay, wobble: 1.4 });
+  hinge.rotation.y = (random() - 0.5) * 10 * DEG;
+  fold.add(hinge, { size: height, seed: random(), delay, wobble: 1.4 });
   return hinge;
 }
 
@@ -83,7 +88,7 @@ class Whale implements Encounter {
     this.tail = new THREE.Group();
     this.tailSway.add(createCard(spriteArt('whale-tail', { height: 1.2 }), { flipX: flip }));
     this.tail.add(this.tailSway);
-    this.tailFold.add(this.tail, { size: 1.2, seed: Math.random(), wobble: 1.6 });
+    this.tailFold.add(this.tail, { size: 1.2, seed: random(), wobble: 1.6 });
     this.group.add(this.body, this.spout, this.tail);
   }
 
@@ -153,7 +158,7 @@ class Shark implements Encounter {
   private readonly fold = new FoldGroup();
   private readonly fins: THREE.Group[];
   private t = 0;
-  private readonly phase = Math.random() * Math.PI * 2;
+  private readonly phase = random() * Math.PI * 2;
 
   constructor(private readonly cx: number, private readonly cz: number) {
     // two hinged fins (one mirrored) on the same spot: the visible one matches the swimming direction
@@ -192,13 +197,13 @@ class Kraken implements Encounter {
       const a = (i / n) * Math.PI * 2 + 0.4;
       const hinge = new THREE.Group();
       hinge.position.set(Math.cos(a) * 1.1, 0, Math.sin(a) * 0.8);
-      hinge.rotation.y = (Math.random() - 0.5) * 16 * DEG;
+      hinge.rotation.y = (random() - 0.5) * 16 * DEG;
       const sway = new THREE.Group();
-      sway.add(createCard(spriteArt(i % 2 ? 'tentacle-1' : 'tentacle-0', { height: 1.05 + 0.25 * Math.random() })));
+      sway.add(createCard(spriteArt(i % 2 ? 'tentacle-1' : 'tentacle-0', { height: 1.05 + 0.25 * random() })));
       hinge.add(sway);
       this.sways.push(sway);
       this.group.add(hinge);
-      this.fold.add(hinge, { size: 1.2, seed: Math.random(), delay: i / n, wobble: 1.6 });
+      this.fold.add(hinge, { size: 1.2, seed: random(), delay: i / n, wobble: 1.6 });
     }
     this.fold.setTarget(1);
     bus.emit('creature', { kind: 'kraken', x, z });
@@ -318,16 +323,16 @@ class Jellies implements Encounter {
 
   constructor(x: number, z: number) {
     this.group.position.set(x, 0.006, z);
-    const n = 3 + Math.floor(Math.random() * 3);
+    const n = 3 + Math.floor(random() * 3);
     for (let i = 0; i < n; i++) {
       const hinge = new THREE.Group();
-      hinge.position.set((Math.random() - 0.5) * 2.4, 0, (Math.random() - 0.5) * 1.6);
+      hinge.position.set((random() - 0.5) * 2.4, 0, (random() - 0.5) * 1.6);
       const bob = new THREE.Group();
-      bob.add(createCard(spriteArt('jellyfish', { height: 0.6 + Math.random() * 0.25 }), { flipX: Math.random() < 0.5 }));
+      bob.add(createCard(spriteArt('jellyfish', { height: 0.6 + random() * 0.25 }), { flipX: random() < 0.5 }));
       hinge.add(bob);
       this.bobs.push(bob);
       this.group.add(hinge);
-      this.fold.add(hinge, { size: 0.45, seed: Math.random(), delay: i / n, wobble: 1.8 });
+      this.fold.add(hinge, { size: 0.45, seed: random(), delay: i / n, wobble: 1.8 });
     }
     this.fold.setTarget(1);
   }
@@ -368,7 +373,7 @@ class Serpent implements Encounter {
       hinge.position.set((i - 1.5) * 1.05 * dir, 0, (i % 2) * 0.12);
       hinge.add(createCard(spriteArt(name, { height: h }), { flipX: flip }));
       this.group.add(hinge);
-      this.fold.add(hinge, { size: h, seed: Math.random(), delay: i / 3, wobble: 1.3 });
+      this.fold.add(hinge, { size: h, seed: random(), delay: i / 3, wobble: 1.3 });
     });
     this.fold.setTarget(1);
     bus.emit('creature', { kind: 'kraken', x, z });
@@ -424,7 +429,7 @@ class Gull {
   private readonly frames: THREE.Mesh[];
   /** -1..1: which way the card faces (eased: the paper flip). */
   private face = 1;
-  private angle = Math.random() * Math.PI * 2;
+  private angle = random() * Math.PI * 2;
   private readonly radius: number;
   private readonly height: number;
   private readonly speed: number;
@@ -432,7 +437,7 @@ class Gull {
   private readonly cx: number[] = [0, 0];
   private placed = false;
   private out = 0;
-  private t = Math.random() * 10;
+  private t = random() * 10;
 
   constructor() {
     // every frame turned to face right; turning round, the card flips like papertrails' animals (its width eased through 0)
@@ -442,9 +447,9 @@ class Gull {
       this.node.add(m);
       return m;
     });
-    this.radius = LIFE.gullRadius[0] + Math.random() * (LIFE.gullRadius[1] - LIFE.gullRadius[0]);
-    this.height = LIFE.gullHeight[0] + Math.random() * (LIFE.gullHeight[1] - LIFE.gullHeight[0]);
-    this.speed = (0.35 + Math.random() * 0.25) * (Math.random() < 0.5 ? 1 : -1);
+    this.radius = LIFE.gullRadius[0] + random() * (LIFE.gullRadius[1] - LIFE.gullRadius[0]);
+    this.height = LIFE.gullHeight[0] + random() * (LIFE.gullHeight[1] - LIFE.gullHeight[0]);
+    this.speed = (0.35 + random() * 0.25) * (random() < 0.5 ? 1 : -1);
   }
 
   /** shown: 0..1, how far this gull is out (it shrinks away); clear: the shared clear line. */
@@ -454,8 +459,8 @@ class Gull {
     const far = !this.placed || Math.hypot(ship.x - this.cx[0], ship.z - this.cx[1]) > LIFE.gullRange;
     this.out += ((far ? 0 : 1) - this.out) * (1 - Math.exp(-dt * 1.5));
     if (far && this.out < 0.02) {
-      const ahead = LIFE.gullAhead[0] + Math.random() * (LIFE.gullAhead[1] - LIFE.gullAhead[0]);
-      const side = (Math.random() - 0.5) * 6;
+      const ahead = LIFE.gullAhead[0] + random() * (LIFE.gullAhead[1] - LIFE.gullAhead[0]);
+      const side = (random() - 0.5) * 6;
       this.cx[0] = ship.x + ship.fx * ahead - ship.fz * side;
       this.cx[1] = ship.z + ship.fz * ahead + ship.fx * side;
       this.placed = true;
@@ -485,11 +490,13 @@ export class SeaLife {
   private readonly gulls: Gull[] = [];
   private timer = 4;
   private readonly ship: ShipState = { x: 0, z: 0, vx: 0, vz: 0, fx: 0, fz: -1 };
-  /** The share of the gulls out (1 by day, NIGHT_GULLS by night), eased. */
+  /** The share of the gulls out (1 by day, NIGHT_GULLS by night, none out in the deep), eased. */
   private flock = 1;
 
   constructor(
     private readonly isOpenWater: (x: number, z: number, margin: number) => boolean,
+    /** Signed distance to the nearest shore (positive at sea): which of LIFE.zones the ship is in. */
+    private readonly shoreDistance: (x: number, z: number) => number,
     private readonly isNight: () => boolean,
     private readonly clearLine: ClearLine,
   ) {
@@ -504,7 +511,8 @@ export class SeaLife {
   update(dt: number, ship: ShipState): void {
     Object.assign(this.ship, ship);
     // at night most of them roost (papertrails keeps 0.35 of its birds): they go by rank, the last first
-    this.flock += ((this.isNight() ? NIGHT_GULLS : 1) - this.flock) * (1 - Math.exp(-dt * 0.5));
+    const zone = this.zone();
+    this.flock += ((zone.gulls ? (this.isNight() ? NIGHT_GULLS : 1) : 0) - this.flock) * (1 - Math.exp(-dt * 0.5));
     this.gulls.forEach((g, i) => g.update(dt, this.ship, clamp((this.flock * this.gulls.length - i) / 0.6, 0, 1), this.clearLine));
     for (let i = this.encounters.length - 1; i >= 0; i--) {
       const e = this.encounters[i];
@@ -516,41 +524,47 @@ export class SeaLife {
     }
     this.timer -= dt;
     if (this.timer <= 0) {
-      this.timer = LIFE.spawnInterval[0] + Math.random() * (LIFE.spawnInterval[1] - LIFE.spawnInterval[0]);
+      this.timer = LIFE.spawnInterval[0] + random() * (LIFE.spawnInterval[1] - LIFE.spawnInterval[0]);
       if (this.encounters.length < LIFE.maxActive) this.spawn();
     }
   }
 
-  /** Spawns an encounter now, picked by the weights of LIFE. */
+  /** The sea's environment where the ship is (LIFE.zones). */
+  private zone(): (typeof LIFE.zones)[number] {
+    const d = this.shoreDistance(this.ship.x, this.ship.z);
+    return LIFE.zones.find((z) => d < z.until) ?? LIFE.zones[LIFE.zones.length - 1];
+  }
+
+  /** Spawns an encounter now, picked by the weights of the ship's environment. */
   private spawn(): boolean {
     const s = this.ship;
-    const [kind] = pickWeighted(Object.entries(LIFE.weights) as Array<[keyof typeof LIFE.weights, number]>, ([, w]) => w, Math.random());
-    const side = Math.random() < 0.5 ? 1 : -1;
+    const [kind] = pickWeighted(Object.entries(this.zone().weights) as Array<[EncounterKind, number]>, ([, w]) => w, random());
+    const side = random() < 0.5 ? 1 : -1;
     if (kind === 'dolphins') return this.add(new Leapers(DOLPHINS, side));
     if (kind === 'fishSchool') return this.add(new Leapers(FISH_SCHOOL, side));
     if (kind === 'flyingFish') return this.add(new Leapers(FLYING_FISH, side));
     if (kind === 'ship') {
       // far out to one side, crossing the view
-      const a = Math.atan2(s.fz, s.fx) + side * (Math.PI / 2 + (Math.random() - 0.5) * 0.8);
-      const d = 8 + Math.random() * 3;
+      const a = Math.atan2(s.fz, s.fx) + side * (Math.PI / 2 + (random() - 0.5) * 0.8);
+      const d = 8 + random() * 3;
       const x = s.x + Math.cos(a) * d;
       const z = s.z + Math.sin(a) * d;
-      const dir = Math.random() < 0.5 ? 1 : -1;
+      const dir = random() < 0.5 ? 1 : -1;
       for (let k = 0; k <= 16; k++) if (!this.isOpenWater(x + dir * k, z, 1.2)) return false;
-      return this.add(new PassingShip(x, z, dir, this.isNight() && Math.random() < 0.7));
+      return this.add(new PassingShip(x, z, dir, this.isNight() && random() < 0.7));
     }
     // somewhere ahead-ish of the ship, in open water
     for (let attempt = 0; attempt < 8; attempt++) {
       // off to one side and a little ahead: inside the sharp band of the lens, not up in the blurred distance
-      const a = Math.atan2(s.fz, s.fx) + side * (0.55 + Math.random() * 0.9);
-      const d = LIFE.spawnDistance[0] + Math.random() * (LIFE.spawnDistance[1] - LIFE.spawnDistance[0]);
+      const a = Math.atan2(s.fz, s.fx) + side * (0.55 + random() * 0.9);
+      const d = LIFE.spawnDistance[0] + random() * (LIFE.spawnDistance[1] - LIFE.spawnDistance[0]);
       const x = s.x + Math.cos(a) * d;
       const z = s.z + Math.sin(a) * d;
       if (!this.isOpenWater(x, z, kind === 'kraken' || kind === 'shark' ? 2.5 : 1.5)) continue;
-      const dir = Math.random() < 0.5 ? 1 : -1;
+      const dir = random() < 0.5 ? 1 : -1;
       if (kind === 'whale') return this.add(new Whale(x, z, dir));
-      if (kind === 'turtle') return this.add(new Swimmer(x, z, dir * 0.35, (Math.random() - 0.5) * 0.2, 'turtle', 0.6, 8));
-      if (kind === 'manta') return this.add(new Swimmer(x, z, dir * 0.6, (Math.random() - 0.5) * 0.3, 'manta', 0.62, 8));
+      if (kind === 'turtle') return this.add(new Swimmer(x, z, dir * 0.35, (random() - 0.5) * 0.2, 'turtle', 0.6, 8));
+      if (kind === 'manta') return this.add(new Swimmer(x, z, dir * 0.6, (random() - 0.5) * 0.3, 'manta', 0.62, 8));
       if (kind === 'octopus') return this.add(new Swimmer(x, z, dir * 0.08, 0, 'octopus', 0.75, 6));
       if (kind === 'jellyfish') return this.add(new Jellies(x, z));
       if (kind === 'serpent') return this.add(new Serpent(x, z, dir));

@@ -1,7 +1,11 @@
 /**
  * Deterministic randomness. The world is a pure function of (seed, position): nothing in world generation
- * may use Math.random, so a place always looks the same however you sail back to it.
+ * may use Math.random, so a place always looks the same however you sail back to it. What moves (sea life, smoke,
+ * the weather, the captain's idle breath, a sound's start in its loop) draws from a seeded stream of its own (stream()),
+ * so the same voyage and the same input give the same frames (the papercraft skill's motion.md: no unseeded random
+ * in anything that moves). Only a new voyage's own seed is drawn at random (config/seed.ts).
  */
+import { VOYAGE_SEED } from '../config/seed';
 
 /** 32-bit integer hash of (seed, a, b). */
 export function hash2(seed: number, a: number, b: number): number {
@@ -62,4 +66,11 @@ export class Rng {
     return this.next() < p;
   }
 
+}
+
+/** A seeded stream of [0, 1) numbers for one part of the game (name), drawn from the voyage's seed. */
+export function stream(name: string): () => number {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = Math.imul(h ^ name.charCodeAt(i), 0x01000193);
+  return mulberry32(hash2(VOYAGE_SEED, h, 0x5eed));
 }

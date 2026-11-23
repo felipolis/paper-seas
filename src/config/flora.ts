@@ -18,6 +18,10 @@ export const HEIGHT: Record<string, [number, number]> = {
   'tree-broad-2': [1.0, 1.25],
   'tree-blossom': [0.95, 1.15],
   'tree-blossom-1': [1.0, 1.2],
+  'tree-broad-3': [1.0, 1.25],
+  'tree-broad-4': [0.85, 1.05],
+  'tree-blossom-2': [0.95, 1.15],
+  'tree-blossom-3': [1.0, 1.2],
   acacia: [1.0, 1.2],
   mangrove: [1.0, 1.2],
   banana: [0.8, 1.0],
@@ -38,10 +42,14 @@ export const HEIGHT: Record<string, [number, number]> = {
   'bush-red': [0.36, 0.44],
   'bush-pink': [0.36, 0.44],
   'bush-yellow': [0.36, 0.44],
+  'bush-coral': [0.36, 0.44],
+  'bush-plum': [0.36, 0.44],
   // (papertrails' ferns: 0.33-0.46)
   'fern-0': [0.33, 0.46],
   'fern-1': [0.33, 0.46],
   'fern-2': [0.33, 0.46],
+  'fern-3': [0.33, 0.46],
+  'fern-4': [0.33, 0.46],
   // flowers and reeds (papertrails: flowers and tufts half the traveller, reeds a little more)
   hibiscus: [0.34, 0.42],
   orchids: [0.28, 0.34],
@@ -63,6 +71,8 @@ export const HEIGHT: Record<string, [number, number]> = {
   'grass-0': [0.19, 0.22],
   'grass-1': [0.19, 0.22],
   'grass-2': [0.19, 0.22],
+  'grass-3': [0.19, 0.22],
+  'grass-4': [0.19, 0.22],
   // rocks
   'rock-boulder': [0.26, 0.34],
   'rock-slab': [0.3, 0.4],
@@ -145,6 +155,25 @@ export function heightOf(sprite: string, r: number): number {
   const h = HEIGHT[sprite];
   if (!h) throw new Error(`no height for "${sprite}"`);
   return ((h[0] + h[1]) / 2) * (1 + SIZE_VARY * (2 * r - 1));
+}
+
+/**
+ * The kinds printed in several variants (the papercraft skill: 4-6 seeded variants per kind, no stamped repeats). A
+ * tile's lists name a kind by any of its members; each card it plants is drawn among all of them (variantOf).
+ */
+const VARIANTS: readonly (readonly string[])[] = [
+  ['tree-broad', 'tree-broad-1', 'tree-broad-2', 'tree-broad-3', 'tree-broad-4'],
+  ['tree-blossom', 'tree-blossom-1', 'tree-blossom-2', 'tree-blossom-3'],
+  ['fern-0', 'fern-1', 'fern-2', 'fern-3', 'fern-4'],
+  ['grass-0', 'grass-1', 'grass-2', 'grass-3', 'grass-4'],
+  ['bush-red', 'bush-yellow', 'bush-pink', 'bush-coral', 'bush-plum'],
+];
+const FAMILY = new Map(VARIANTS.flatMap((family) => family.map((name) => [name, family] as const)));
+
+/** One of the variants of the sprite's kind for a random r in [0, 1) (the sprite itself if it has none). */
+export function variantOf(sprite: string, r: number): string {
+  const family = FAMILY.get(sprite);
+  return family ? family[Math.floor(r * family.length) % family.length] : sprite;
 }
 
 /** How far a kind's height varies about the middle of its range (+-). */

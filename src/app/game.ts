@@ -97,7 +97,7 @@ export class Game {
     this.view = new FollowCamera(canvas.clientWidth / Math.max(1, canvas.clientHeight), (ox, oy, oz, dx, dy, dz, len) => this.world.terrain.sightBlocked(ox, oy, oz, dx, dy, dz, len));
     const openWater = (x: number, z: number, m: number) => this.world.isOpenWater(x, z, m);
     this.waves = new WaveField(openWater);
-    this.life = new SeaLife(openWater, () => this.dayNight.lanterns > 0.5, this.clearLine);
+    this.life = new SeaLife(openWater, (x, z) => this.world.terrain.distanceAt(x, z), () => this.dayNight.lanterns > 0.5, this.clearLine);
     this.flotsam = new Flotsam(openWater);
     this.marvels = new Marvels(openWater);
     this.walkWorld = {

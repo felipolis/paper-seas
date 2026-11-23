@@ -4,11 +4,19 @@ export const LIFE = {
   spawnInterval: [9, 18] as [number, number],
   /** At most this many encounters at once. */
   maxActive: 2,
-  /** Relative chance of each encounter. */
-  weights: {
-    dolphins: 0.16, whale: 0.1, turtle: 0.09, shark: 0.08, kraken: 0.04, manta: 0.08, jellyfish: 0.09, octopus: 0.05,
-    serpent: 0.04, fishSchool: 0.1, flyingFish: 0.09, ship: 0.08,
-  },
+  /**
+   * The sea's environments, by the ship's distance from the nearest shore (the papercraft skill's living world: 3-5
+   * kinds of life chosen for each environment, never one list everywhere): the encounters of each, as relative chances,
+   * and whether its gulls fly there (they keep within sight of land). The last reaches out to the deep.
+   */
+  zones: [
+    // coastal water: the shallows' small life, gulls overhead
+    { until: 7, gulls: true, weights: { turtle: 0.25, jellyfish: 0.25, fishSchool: 0.3, octopus: 0.2 } },
+    // the open sea: what crosses it, gulls still about
+    { until: 16, gulls: true, weights: { dolphins: 0.35, flyingFish: 0.25, manta: 0.2, ship: 0.2 } },
+    // the deep, out of sight of land: the great and the strange
+    { until: Infinity, gulls: false, weights: { whale: 0.35, shark: 0.3, kraken: 0.18, serpent: 0.17 } },
+  ],
   /** Encounters appear this far from the ship (world units), on the side it is heading to. */
   spawnDistance: [4, 6.5] as [number, number],
   /**

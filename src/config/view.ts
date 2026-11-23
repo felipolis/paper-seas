@@ -163,7 +163,7 @@ export const NIGHT = {
   fade: { start: 2.75, end: 10.8, amount: 0.9, color: '#0e1a44' },
   background: '#070a24',
 
-  exposure: 0.95,
+  exposure: 1.0,
   bloom: 0.3,
   bloomThreshold: 1.25,
   spill: 7.5,
@@ -172,7 +172,8 @@ export const NIGHT = {
   shadowLift: 0.04,
   saturation: 1.12,
   contrast: 1.18,
-  vignette: 0.12,
+  // (mild, as by day: a heavy one took the corners near black, measure.py cornerCentre)
+  vignette: 0.06,
   vignetteColor: '#0a0c24',
   aoTint: '#081030',
   greenPull: 0.3,

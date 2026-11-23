@@ -156,6 +156,23 @@
   {
    "file": "46-water.png",
    "names": ["spring", "crag-0", "crag-1", "crag-2"]
+  },
+  {
+   "file": "47-plants-more.png",
+   "names": ["tree-broad-3", "tree-blossom-3", "tree-broad-4", "fern-3", "fern-4", "tree-blossom-2", "grass-3", "grass-4"]
+  },
+  {
+   "file": "48-bushes-more.png",
+   "names": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    "bush-coral",
+    "bush-plum"
+   ],
+   "key": "#00ff00"
   }
  ]
 }

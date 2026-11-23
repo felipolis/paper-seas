@@ -32,7 +32,7 @@ import { polylineDistance, segmentDistance, type Box, type Pt } from './polyline
 import { heightOf } from '../config/flora';
 import { CROSS_PLANES, type Card, type CardField, type CardSpec } from './card-field';
 import { islandName } from './island-names';
-import { buildModel, modelInfo, type Building, type ModelInfo } from './models';
+import { buildModel, modelFoot, modelInfo, type Building, type ModelInfo } from './models';
 import type { IslandSpec } from './island-layout';
 import { WORLD } from '../config/world';
 import { Critters } from './critters';
@@ -173,7 +173,7 @@ const C = {
  * Symmetric trees are two cards slotted together (a crossed pop-up). Only where the print is symmetric about its
  * trunk: a leaning palm, a palm cluster or a twisted dead tree would not cross cleanly, so they stay single cards.
  */
-const CROSSED = new Set(['palm-1', 'pine', 'pine-1', 'pine-2', 'cypress', 'tree-broad', 'tree-broad-1', 'tree-broad-2', 'tree-blossom', 'tree-blossom-1', 'mangrove', 'acacia', 'banana']);
+const CROSSED = new Set(['palm-1', 'pine', 'pine-1', 'pine-2', 'cypress', 'tree-broad', 'tree-broad-1', 'tree-broad-2', 'tree-broad-3', 'tree-broad-4', 'tree-blossom', 'tree-blossom-1', 'tree-blossom-2', 'tree-blossom-3', 'mangrove', 'acacia', 'banana']);
 /** papertrails' crossed cards turn only this share of the camera-facing cards' jitter (world.js cardJ). */
 const CROSS_JITTER = 0.6;
 
@@ -748,12 +748,15 @@ export class Terrain {
       };
       // every card faces the camera give or take yawJitter degrees (papertrails: 14)
       // (a land card never hangs over the water: both ends of its base, on every plane, stand on the land)
+      // the true shore distance, the one the ground, the feet and the checks all read: this chunk's own grid, and past
+      // its edge the neighbouring chunk's (a village or a landmark may reach beyond the chunk that builds it)
+      const inGrid = (x: number, z: number) => x >= gx0 && x <= gx0 + n * CELL && z >= gz0 && z <= gz0 + n * CELL;
+      const shoreAt = (x: number, z: number) => (inGrid(x, z) ? sampleAt(shore, x, z) : this.distanceAt(x, z));
       const onLand = (sprite: string, x: number, z: number, height: number, yaw: number, cross: boolean) => {
         const info = spriteInfo(sprite);
         const half = (height * info.w) / info.h / 2;
         for (const a of cross ? CROSS_PLANES.map((p) => yaw + p) : [yaw]) {
-          // (measured on the true shore distance, the one the ground, the feet and the checks all read)
-          for (const k of [-1, 1]) if (sampleAt(shore, x + Math.cos(a) * half * k, z - Math.sin(a) * half * k) > -0.05) return false;
+          for (const k of [-1, 1]) if (shoreAt(x + Math.cos(a) * half * k, z - Math.sin(a) * half * k) > -0.05) return false;
         }
         return true;
       };
@@ -809,6 +812,14 @@ export class Terrain {
         for (const lane of l.lanes) claimLine(lane, () => LANE_WIDTH / 2 + 0.06);
       }
 
+      // A model stands only where every wall of its base is on the ground as drawn (the layouts chose their spots by the
+      // land's approximate shore distance), so no building or height ever stands in the sea
+      const footOnLand = (name: string, x: number, z: number, yaw: number) => {
+        const c = Math.cos(yaw);
+        const sn = Math.sin(yaw);
+        return modelFoot(name).every(([ax, az, bx, bz]) => [[ax, az], [bx, bz]].every(([u, v]) => shoreAt(x + u * c + v * sn, z - u * sn + v * c) < -0.08));
+      };
+
       // big scenery on the high ground (coarse grid)
       for (let gz = z0 + 4.5; gz < z1; gz += 9) {
         for (let gx = x0 + 4.5; gx < x1; gx += 9) {
@@ -825,8 +836,10 @@ export class Terrain {
             const foot = Math.max(info.width, info.depth) * 0.5;
             // (mountains keep apart: a range of single ridges with ground between them, never a wall)
             if (!free(x, z, foot * 1.4)) return false;
+            const yaw = (rng() - 0.5) * 0.35;
+            if (!footOnLand(name, x, z, yaw)) return false;
             taken.push([x, z, foot]);
-            this.addBuilding(chunk, name, x, heightAt(x, z), z, (rng() - 0.5) * 0.35);
+            this.addBuilding(chunk, name, x, heightAt(x, z), z, yaw);
             yards.push([x, z, foot + 0.3]);
             return true;
           };
@@ -854,23 +867,13 @@ export class Terrain {
       yield;
 
       // the villages and ruins, bridges and springs that stand in this square
+      // (each piece of a village is built by the square it stands in, not the one its centre is in: its spot is then read
+      // on this square's own ground)
       for (const l of layouts) {
-        if (!own(l.site.x, l.site.z)) continue;
-        // (the layout chose its spots by the land's approximate shore distance; a building stands only if every corner
-        // of its base is on the ground as drawn, so none ever stands in the sea)
-        const footOnLand = (b: { name: string; x: number; z: number; yaw: number }) => {
-          const info = modelInfo(b.name)!;
-          const c = Math.cos(b.yaw);
-          const sn = Math.sin(b.yaw);
-          return [[-1, -1], [1, -1], [1, 1], [-1, 1], [0, 0]].every(([u, v]) => {
-            const lu = (u * info.width) / 2;
-            const lv = (v * info.depth) / 2;
-            return sampleAt(shore, b.x + lu * c + lv * sn, b.z - lu * sn + lv * c) < -0.08;
-          });
-        };
-        for (const b of l.buildings) if (footOnLand(b)) this.addBuilding(chunk, b.name, b.x, heightAt(b.x, b.z), b.z, b.yaw);
-        for (const p of l.props) add(p.name, p.x, p.z, p.height, p.flip, p.vignette ? 0 : 10, { vignette: p.vignette });
+        for (const b of l.buildings) if (own(b.x, b.z) && footOnLand(b.name, b.x, b.z, b.yaw)) this.addBuilding(chunk, b.name, b.x, heightAt(b.x, b.z), b.z, b.yaw);
+        for (const p of l.props) if (own(p.x, p.z)) add(p.name, p.x, p.z, p.height, p.flip, p.vignette ? 0 : 10, { vignette: p.vignette });
         for (const p of l.piers) {
+          if (!own(p.x, p.z)) continue;
           // standing on the beach at its shore end
           const dx = Math.sin(p.yaw);
           const dz = Math.cos(p.yaw);
@@ -947,8 +950,10 @@ export class Terrain {
           const z = z0 + 1 + rng() * (CHUNK - 2);
           const dd = sampleAt(dist, x, z);
           if (dd > dMax || dd < dMin || terraceAt(x, z) > 1 || !free(x, z, foot)) continue;
+          const yaw = (rng() - 0.5) * 0.6;
+          if (!footOnLand(name, x, z, yaw)) continue;
           taken.push([x, z, foot]);
-          this.addBuilding(chunk, name, x, heightAt(x, z), z, (rng() - 0.5) * 0.6);
+          this.addBuilding(chunk, name, x, heightAt(x, z), z, yaw);
           yards.push([x, z, foot + YARD]);
           break;
         }
@@ -984,9 +989,12 @@ export class Terrain {
       // signature landmarks of stamped islands whose centre lies in this chunk
       for (const s of land.islandsNear((x0 + x1) / 2, (z0 + z1) / 2, CHUNK)) {
         if (s.x < x0 || s.x >= x1 || s.z < z0 || s.z >= z1) continue;
-        this.landmark(s, add, sampleAt, dist, taken, free, rng, (name, x, z) => {
-          this.addBuilding(chunk, name, x, heightAt(x, z), z, (rng() - 0.5) * 0.8);
+        this.landmark(s, add, shoreAt, taken, free, rng, (name, x, z) => {
+          const yaw = (rng() - 0.5) * 0.8;
+          if (!footOnLand(name, x, z, yaw)) return false;
+          this.addBuilding(chunk, name, x, heightAt(x, z), z, yaw);
           yards.push([x, z, 1.2]);
+          return true;
         });
       }
       yield;
@@ -1037,12 +1045,13 @@ export class Terrain {
   private landmark(
     s: IslandSpec,
     add: (sprite: string, x: number, z: number, height: number, flip?: boolean, yawJitter?: number) => void,
-    sampleAt: (a: Float32Array, x: number, z: number) => number,
-    dist: Float32Array,
+    /** The drawn shore distance (past this chunk's own grid too: a landmark may stand beyond its centre's chunk). */
+    shoreAt: (x: number, z: number) => number,
     taken: Array<[number, number, number]>,
     free: (x: number, z: number, r: number) => boolean,
     rng: () => number,
-    place: (name: string, x: number, z: number) => void,
+    /** Stands a model there, unless its base would reach the sea (false). */
+    place: (name: string, x: number, z: number) => boolean,
   ): void {
     const sig: Partial<Record<IslandSpec['kind'], Array<[string, number]>>> = {
       skull: [['skull-rock', 1.55], ['flag-pole', 1.05]],
@@ -1056,10 +1065,11 @@ export class Terrain {
       for (let a = 0; a < 30; a++) {
         const x = s.x + (rng() - 0.5) * s.shape.extent;
         const z = s.z + (rng() - 0.5) * s.shape.extent - 0.5;
-        if (sampleAt(dist, x, z) > -Math.max(0.6, h * 0.35) || !free(x, z, h * 0.5)) continue;
+        if (shoreAt(x, z) > -Math.max(0.6, h * 0.35) || !free(x, z, h * 0.5)) continue;
+        if (modelInfo(sprite)) {
+          if (!place(sprite, x, z)) continue;
+        } else add(sprite, x, z, h, rng() < 0.5, 5);
         taken.push([x, z, h * 0.5]);
-        if (modelInfo(sprite)) place(sprite, x, z);
-        else add(sprite, x, z, h, rng() < 0.5, 5);
         break;
       }
     }

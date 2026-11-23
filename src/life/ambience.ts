@@ -17,7 +17,7 @@
  */
 import * as THREE from 'three';
 import { AMBIENT } from '../config/life';
-import { hash01 } from '../core/rng';
+import { hash01, stream } from '../core/rng';
 import { createPaperMaterial } from '../render/paper-material';
 import { LAND_TOP, type Biome } from '../world/land';
 import type { ClearLine } from './clear-line';
@@ -26,6 +26,9 @@ import { LifeFrame, randomTable } from './life-frame';
 import { Bits } from './paper-bits';
 import { Weather } from './weather';
 import { smoothstep, TAU, mixRange } from '../core/math';
+
+/** This module's seeded randomness (core/rng.ts stream). */
+const random = stream('ambience');
 
 export interface AmbienceWorld {
   /** Signed distance to the coast (negative inland). */
@@ -141,7 +144,7 @@ const glowTex = (inner: string, outer: string) =>
   });
 
 function roamers(n: number): Roamer[] {
-  return Array.from({ length: n }, () => ({ home: false, hx: 0, hz: 0, wet: false, sought: false, r: Array.from({ length: 6 }, Math.random) }));
+  return Array.from({ length: n }, () => ({ home: false, hx: 0, hz: 0, wet: false, sought: false, r: Array.from({ length: 6 }, random) }));
 }
 
 function landing(n: number): Landing {
@@ -214,8 +217,8 @@ export class Ambience {
   /** A random point over land within radius of (fx, fz), at least `inland` from the coast, or null. */
   private spot(fx: number, fz: number, inland: number, radius = RADIUS): [number, number] | null {
     for (let a = 0; a < 6; a++) {
-      const r = Math.sqrt(Math.random()) * radius;
-      const ang = Math.random() * TAU;
+      const r = Math.sqrt(random()) * radius;
+      const ang = random() * TAU;
       const x = fx + Math.cos(ang) * r;
       const z = fz + Math.sin(ang) * r;
       if (this.world.distance(x, z) < -inland) return [x, z];
@@ -340,7 +343,7 @@ export class Ambience {
     o.wet = false;
     o.sought = false;
     // staggered, so a new stretch of land fills gradually
-    if (Math.random() > dt * 1.5) return false;
+    if (random() > dt * 1.5) return false;
     const s = this.spot(fx, fz, inland);
     if (!s) return false;
     [o.hx, o.hz] = s;

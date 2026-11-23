@@ -7,6 +7,10 @@ import * as THREE from 'three';
 import { CAPTAINS } from '../config/ships';
 import { PLAYER } from '../config/player';
 import { buildCaptain, type PartName } from './crew-model';
+import { stream } from '../core/rng';
+
+/** This module's seeded randomness (core/rng.ts stream). */
+const random = stream('puppet');
 
 const DEG = Math.PI / 180;
 /** papertrails' gait and lantern (config/player.js there). */
@@ -55,7 +59,7 @@ export class Puppet {
   /** Every card of the model (named; tools/qa/crew-clips.mjs checks them). */
   readonly cards: THREE.Mesh[];
   private phase = 0;
-  private t = Math.random() * 10;
+  private t = random() * 10;
   private gait = 0;
   private lean = 0;
   private leanV = 0;

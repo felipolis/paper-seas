@@ -81,6 +81,18 @@ export async function loadModels(base = `${import.meta.env.BASE_URL}models/`): P
   }
 }
 
+/** A model's footprint: the walls of its base on the ground (model space, scaled), as a building's `foot`. */
+export function modelFoot(name: string): Segment[] {
+  const proto = prototypes.get(name);
+  if (!proto) throw new Error(`model "${name}" not loaded`);
+  return proto.foot;
+}
+
+/** The names of every loaded model (the construction clip check, tools/qa/model-clips.ts). */
+export function modelNames(): string[] {
+  return [...prototypes.keys()];
+}
+
 /** The heights (mountains, outcrops) are solid masses: their whole footprint blocks, not only their walls. */
 const SOLID = /^(ridge|outcrop)-/;
 

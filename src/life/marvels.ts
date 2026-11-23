@@ -11,13 +11,16 @@
  */
 import * as THREE from 'three';
 import { bus } from '../core/events';
-import { hash01 } from '../core/rng';
+import { hash01, stream } from '../core/rng';
 import { FoldGroup } from '../popup/fold-group';
 import { createCard } from '../popup/card';
 import { spriteArt } from '../art/sprites';
 import { WORLD } from '../config/world';
 import { mirrorFor } from '../art/facing';
 import { cellKey } from '../core/grid';
+
+/** This module's seeded randomness (core/rng.ts stream). */
+const random = stream('marvels');
 
 /** World hashes are salted with the voyage seed: every voyage places its own villages, ruins, chests... */
 const SEED = WORLD.seed;
@@ -32,7 +35,7 @@ const ATLANTIS_REACH = 9;
 function card(name: string, height: number, fold: FoldGroup, delay: number, flip = false): THREE.Group {
   const hinge = new THREE.Group();
   hinge.add(createCard(spriteArt(name, { height }), { flipX: flip }));
-  fold.add(hinge, { size: height, seed: Math.random(), delay, wobble: 1.2 });
+  fold.add(hinge, { size: height, seed: random(), delay, wobble: 1.2 });
   return hinge;
 }
 
@@ -151,9 +154,9 @@ class KrakenGarden {
   constructor(x: number, z: number) {
     this.group.position.set(x, 0.006, z);
     for (let i = 0; i < 9; i++) {
-      const a = (i / 9) * Math.PI * 2 + Math.random() * 0.3;
-      const r = 2 + Math.random() * 4.5;
-      const c = card(i % 2 ? 'tentacle-1' : 'tentacle-0', 1.2 + Math.random() * 0.7, this.fold, i / 9, Math.random() < 0.5);
+      const a = (i / 9) * Math.PI * 2 + random() * 0.3;
+      const r = 2 + random() * 4.5;
+      const c = card(i % 2 ? 'tentacle-1' : 'tentacle-0', 1.2 + random() * 0.7, this.fold, i / 9, random() < 0.5);
       c.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
       this.group.add(c);
     }
@@ -242,9 +245,9 @@ export class Marvels {
     // the Phantom Galleon, once a night around midnight
     const midnight = hour > 23.5 || hour < 1;
     if (midnight && !this.phantom && this.phantomNight !== this.days) {
-      const side = Math.random() < 0.5 ? 1 : -1;
+      const side = random() < 0.5 ? 1 : -1;
       const px = x - side * 9;
-      const pz = z - 5 - Math.random() * 3;
+      const pz = z - 5 - random() * 3;
       if (this.water(px, pz, 2)) {
         this.phantomNight = this.days;
         this.phantom = new Phantom(px, pz, side);
@@ -258,10 +261,10 @@ export class Marvels {
     }
 
     // the Leviathan: by night, very rarely
-    if (night && !this.leviathan && Math.random() < dt / 600) {
-      const side = Math.random() < 0.5 ? 1 : -1;
+    if (night && !this.leviathan && random() < dt / 600) {
+      const side = random() < 0.5 ? 1 : -1;
       const lx = x - side * 10;
-      const lz = z + (Math.random() - 0.5) * 6;
+      const lz = z + (random() - 0.5) * 6;
       if (this.water(lx, lz, 3)) {
         this.leviathan = new Leviathan(lx, lz, side);
         this.group.add(this.leviathan.group);

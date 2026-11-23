@@ -13,7 +13,7 @@
  */
 import { WORLD } from '../config/world';
 import { pickWeighted } from '../core/rng';
-import { ANIMALS, TILES, heightOf, type TileKind } from '../config/flora';
+import { ANIMALS, TILES, heightOf, variantOf, type TileKind } from '../config/flora';
 import { fbm, valueNoise } from './noise';
 import { CELL } from './reveal';
 import type { Biome } from './land';
@@ -150,7 +150,7 @@ function plantTile(env: CoverEnv, kind: TileKind, kindIndex: number, biome: Biom
     const corners = sample(env, SPOTS, between(env, kind.tall.count));
     for (const [k, [sx, sz]] of corners.entries()) {
       // (the leading species stands first, the others of the list after it)
-      const species = k === 0 || list.length === 1 ? lead : others();
+      const species = variantOf(k === 0 || list.length === 1 ? lead : others(), env.rng());
       const x = cx + sx * (CORNER + (env.rng() - 0.5) * 2 * CORNER_JITTER);
       const z = cz + sz * (CORNER + (env.rng() - 0.5) * 2 * CORNER_JITTER);
       const h = heightOf(species, env.rng());
@@ -182,7 +182,7 @@ function plantTile(env: CoverEnv, kind: TileKind, kindIndex: number, biome: Biom
       const size = Math.min(pickWeighted(CLUMP_SIZES, (e) => e[1], env.rng())[0], kind.clumps.species.length);
       const species = new Set<string>();
       while (species.size < size) species.add(next());
-      const cards = [...species].map((sprite) => ({ sprite, height: heightOf(sprite, env.rng()) })).sort((a, b) => b.height - a.height);
+      const cards = [...species].map((kind) => variantOf(kind, env.rng())).map((sprite) => ({ sprite, height: heightOf(sprite, env.rng()) })).sort((a, b) => b.height - a.height);
       const side = env.rng() < 0.5 ? -1 : 1;
       for (const [m, { sprite, height }] of cards.entries()) {
         if (env.distance(x, z) < -0.12 && !env.blocked(x, z, COVER_ROOM)) {

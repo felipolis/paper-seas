@@ -14,7 +14,10 @@ import { Music } from './music';
 import { PaperVoices } from './paper-voices';
 import { makeLimiterCurve } from './paper-synth';
 import { clamp, smoothstep } from '../core/math';
-import { hash2, mulberry32 } from '../core/rng';
+import { hash2, mulberry32, stream } from '../core/rng';
+
+/** This module's seeded randomness (core/rng.ts stream). */
+const random = stream('sound');
 
 /** The audio graph, made at the player's first key or click (browsers start sound only after a gesture). */
 interface AudioGraph {
@@ -172,7 +175,7 @@ export class Sound {
     const pan = ctx.createStereoPanner();
     pan.pan.value = p.pan * AUDIO.panWidth;
     src.connect(f).connect(env).connect(pan).connect(g.fx);
-    src.start(at, Math.random() * 2, o.attack + o.decay + 0.05);
+    src.start(at, random() * 2, o.attack + o.decay + 0.05);
   }
 
   /** A whale breathing out: a soft rising breath. */

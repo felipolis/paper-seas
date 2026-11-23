@@ -6,6 +6,10 @@
 import * as THREE from 'three';
 import { createPaperMaterial } from '../render/paper-material';
 import type { ClearLine } from './clear-line';
+import { stream } from '../core/rng';
+
+/** This module's seeded randomness (core/rng.ts stream). */
+const random = stream('smoke');
 
 const EMITTERS = 10;
 const PER_EMITTER = 4;
@@ -116,7 +120,7 @@ export class Smoke {
       for (const c of near) {
         if (!this.seen.has(c.key)) {
           this.seen.set(c.key, this.t);
-          this.next.set(c.key, this.t + START[0] + Math.random() * (START[1] - START[0]));
+          this.next.set(c.key, this.t + START[0] + random() * (START[1] - START[0]));
         }
         if (this.t >= this.next.get(c.key)!) {
           this.emit(c.at);
@@ -155,9 +159,9 @@ export class Smoke {
   }
 
   private emit(at: THREE.Vector3): void {
-    const k = Math.random() < 0.5 ? 0 : 1;
+    const k = random() < 0.5 ? 0 : 1;
     const f = this.puffs[k].find((x) => !x.alive);
     if (!f) return;
-    Object.assign(f, { alive: true, age: 0, x: at.x, y: at.y + 0.02, z: at.z, spin: Math.random() * 6.28, seed: Math.random() });
+    Object.assign(f, { alive: true, age: 0, x: at.x, y: at.y + 0.02, z: at.z, spin: random() * 6.28, seed: random() });
   }
 }
