@@ -120,23 +120,31 @@ export function groundData(x0: number, z0: number, size: number, shapes: GroundS
 
 /**
  * Draws the contact patch of the chunk's standing pieces into its data texture (A): a soft disc under each, its radius
- * a share of the piece's width. props: [x, z, width] in world units.
+ * a share of the piece's width. props: [x, z, width] in world units. The discs are drawn crisp as one shape and blurred
+ * once (a canvas filter blurs every fill on its own: one per piece cost a chunk ~70 ms).
  */
 export function addContact(tex: THREE.DataTexture, x0: number, z0: number, props: ReadonlyArray<[number, number, number]>): void {
   const px = tex.image.width;
+  const discs = document.createElement('canvas');
+  discs.width = discs.height = px;
+  const dc = discs.getContext('2d')!;
+  dc.fillStyle = '#fff';
+  dc.beginPath();
+  for (const [x, z, w] of props) {
+    const r = w * CONTACT.reach * DATA_PPU;
+    const cx = (x - x0) * DATA_PPU;
+    const cz = (z - z0) * DATA_PPU;
+    dc.moveTo(cx + r, cz);
+    dc.ellipse(cx, cz, r, r * 0.7, 0, 0, Math.PI * 2);
+  }
+  dc.fill();
   const c = document.createElement('canvas');
   c.width = c.height = px;
   const ctx = c.getContext('2d', { willReadFrequently: true })!;
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, px, px);
   ctx.filter = `blur(${(CONTACT.blur * DATA_PPU).toFixed(2)}px)`;
-  ctx.fillStyle = '#fff';
-  for (const [x, z, w] of props) {
-    const r = w * CONTACT.reach * DATA_PPU;
-    ctx.beginPath();
-    ctx.ellipse((x - x0) * DATA_PPU, (z - z0) * DATA_PPU, r, r * 0.7, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
+  ctx.drawImage(discs, 0, 0);
   const src = ctx.getImageData(0, 0, px, px).data;
   const data = tex.image.data as Uint8Array;
   for (let j = 0; j < px; j++) for (let i = 0; i < px; i++) data[((px - 1 - j) * px + i) * 4 + 3] = src[(j * px + i) * 4];

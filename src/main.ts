@@ -15,9 +15,9 @@ declare global {
 
 async function boot(): Promise<void> {
   installPaper();
-  await Promise.all([loadSprites(), loadPaperMaps()]);
-  // (the models' paper material needs the cardstock maps)
-  await Promise.all([loadModels(), loadShipMesh()]);
+  // everything downloads at once; the models' paper material waits only for the cardstock maps
+  const maps = loadPaperMaps();
+  await Promise.all([loadSprites(), maps, loadModels(maps), loadShipMesh()]);
   const canvas = document.querySelector<HTMLCanvasElement>('#scene')!;
   const game = new Game(canvas, document.body);
   game.start();

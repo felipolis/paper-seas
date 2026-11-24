@@ -68,12 +68,16 @@ const SCALE: Record<string, number> = { hut: 0.72, tavern: 0.85, chapel: 0.72, f
 const prototypes = new Map<string, Prototype>();
 let material: THREE.MeshLambertMaterial | null = null;
 
-/** Loads the models and their atlas (once, at startup). */
-export async function loadModels(base = `${import.meta.env.BASE_URL}models/`): Promise<void> {
+/**
+ * Loads the models and their atlas (once, at startup); paperMaps: the cardstock maps their paper material is printed
+ * with (art/paper-maps.ts loadPaperMaps), loading meanwhile.
+ */
+export async function loadModels(paperMaps: Promise<void>, base = `${import.meta.env.BASE_URL}models/`): Promise<void> {
   const [gltf, atlas, glow] = await Promise.all([
     new GLTFLoader().loadAsync(`${base}models.glb`),
     new THREE.TextureLoader().loadAsync(`${base}atlas.png`),
     new THREE.TextureLoader().loadAsync(`${base}atlas-glow.png`),
+    paperMaps,
   ]);
   // glTF texture coordinates address the image from the top
   atlas.flipY = false;
