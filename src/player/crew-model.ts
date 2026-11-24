@@ -434,11 +434,17 @@ function buildHead(head: Node, o: Outfit, s: number, skin: string): void {
   // (z, y) from the head's joint; (x, y) from the neck
   const zy = (pts: readonly Pt[]): Pt[] => pts.map(([z, y]) => [pz + z, neck + y * s] as Pt);
   const xy = (pts: readonly Pt[]): Pt[] => pts.map(([x, y]) => [x * k, neck + y * s] as Pt);
-  const hair = bones ? o.skin : o.hair;
   // the neck (from its joint up: the collar stands below it)
   head.side('neck', zy([[-0.026, 0.001], [0.021, 0.001], [0.021, 0.032], [-0.026, 0.032]]), 0, 0.014, { front: tone(skin, -0.08) });
-  // the face: papertrails' ten-sided card, its back the hair
   const faceZ = pz + 0.011;
+  const brim = neck + 0.16 * s;
+  if (bones) {
+    buildSkull(head, o.skin, faceZ, zy, xy);
+    buildHat(head, o, s, brim, pz - 0.008);
+    return;
+  }
+  const hair = o.hair;
+  // the face: papertrails' ten-sided card, its back the hair
   const onFace = faceZ + 0.006 + INK;
   const face = xy([[0.067, 0.08], [0.054, 0.12], [0.021, 0.145], [-0.021, 0.145], [-0.054, 0.12], [-0.067, 0.08], [-0.054, 0.039], [-0.021, 0.014], [0.021, 0.014], [0.054, 0.039]]);
   head.front('face', face, faceZ, 0.012, { front: skin, back: hair });
@@ -451,15 +457,11 @@ function buildHead(head: Node, o: Outfit, s: number, skin: string): void {
         : o.hairdo
           ? [[0.069, 0.062], [0.084, 0.068], [0.072, 0.084]]
           : [[0.069, 0.06], [0.091, 0.068], [0.074, 0.087]];
-  head.side('head side', zy(bones ? [[-0.064, 0.03], [0.019, 0.004], [0.06, 0.02], [0.07, 0.06], [0.066, 0.113], [0.031, 0.143], [-0.029, 0.149], [-0.07, 0.119], [-0.083, 0.077]] : [[-0.064, 0.03], [0.019, 0.013], [0.055, 0.03], ...nose, [0.064, 0.113], [0.031, 0.143], [-0.029, 0.149], [-0.07, 0.119], [-0.083, 0.077]]), 0, 0.014, { front: skin });
+  head.side('head side', zy([[-0.064, 0.03], [0.019, 0.013], [0.055, 0.03], ...nose, [0.064, 0.113], [0.031, 0.143], [-0.029, 0.149], [-0.07, 0.119], [-0.083, 0.077]]), 0, 0.014, { front: skin });
   // the eyes: small cards on the face and on both sides of the profile
   const eyeY = 0.077;
   for (const side of [1, -1]) {
     const tag = side > 0 ? 'l' : 'r';
-    if (bones) {
-      head.front(`socket ${tag}`, xy(box(side * 0.014, 0.07, side * 0.036, 0.098)), onFace, INK, { front: GAPS, edge: GAPS });
-      continue;
-    }
     head.front(`eye ${tag}`, xy(box(side * 0.019, eyeY, side * 0.033, eyeY + 0.017)), onFace, INK, { front: EYE, edge: EYE });
     head.side(`eye side ${tag}`, zy(box(0.038, eyeY, 0.052, eyeY + 0.017)), side * (0.007 + INK), INK, { front: EYE, edge: EYE });
     // lashes: a small flick off the eye's outer corner
@@ -471,15 +473,41 @@ function buildHead(head: Node, o: Outfit, s: number, skin: string): void {
     }
   }
   if (marks.has('freckles')) for (const [fx, fy] of [[-0.03, 0.06], [-0.022, 0.054], [-0.038, 0.054], [0.03, 0.06], [0.022, 0.054], [0.038, 0.054]]) head.front(`freckle ${fx} ${fy}`, xy(box(fx - 0.002, fy - 0.002, fx + 0.002, fy + 0.002)), onFace, INK, { front: tone(skin, -0.35), edge: tone(skin, -0.35) });
-  if (bones) {
-    head.front('nose hole', xy([[-0.007, 0.05], [0.007, 0.05], [0, 0.066]]), onFace, INK, { front: GAPS, edge: GAPS });
-    head.front('teeth', xy(box(-0.03, 0.022, 0.03, 0.034)), onFace, INK, { front: GAPS, edge: GAPS });
-    for (let i = -2; i <= 2; i++) head.front(`tooth ${i}`, xy(box(i * 0.012 - 0.0045, 0.024, i * 0.012 + 0.0045, 0.032)), onFace + INK + 0.0002, INK, { front: o.skin, edge: o.skin });
-  } else {
-    buildHair(head, o, faceZ, zy, xy, hair);
-    buildWhiskers(head, o, faceZ, xy, zy, hair, skin, marks.has('lips'));
+  buildHair(head, o, faceZ, zy, xy, hair);
+  buildWhiskers(head, o, faceZ, xy, zy, hair, skin, marks.has('lips'));
+  buildHat(head, o, s, brim, pz - 0.008);
+}
+
+/**
+ * A skull, built as the faces are: a round cranium card pinched at the cheekbones, its profile slotted through it (flush
+ * with its front, so nothing stands across the nose), a jaw card in front of it with a grin of teeth; big round
+ * sockets, an upturned heart of a nose, hollows under the cheekbones, a crack at the temple.
+ */
+function buildSkull(head: Node, bone: string, faceZ: number, zy: (p: readonly Pt[]) => Pt[], xy: (p: readonly Pt[]) => Pt[]): void {
+  const hollow = '#2a1e16';
+  const dark = { front: hollow, edge: hollow };
+  const onFace = faceZ + 0.006 + INK;
+  head.front('skull', xy([[0.07, 0.095], [0.066, 0.124], [0.046, 0.146], [0.016, 0.154], [-0.016, 0.154], [-0.046, 0.146], [-0.066, 0.124], [-0.07, 0.095], [-0.063, 0.066], [-0.05, 0.05], [-0.034, 0.04], [0.034, 0.04], [0.05, 0.05], [0.063, 0.066]]), faceZ, 0.012, { front: bone, back: tone(bone, -0.08) });
+  head.side('skull side', zy([[-0.05, 0.04], [-0.072, 0.056], [-0.086, 0.09], [-0.078, 0.126], [-0.044, 0.15], [0, 0.156], [0.011, 0.15], [0.011, 0.04], [0, 0.03], [-0.03, 0.032]]), 0, 0.014, { front: tone(bone, -0.04) });
+  for (const side of [1, -1]) {
+    const tag = side > 0 ? 'l' : 'r';
+    head.front(`socket ${tag}`, xy(disc(0.0155, 0.0165, 8, side * 0.024, 0).map(([x, y]) => [x, -y + 0.084] as Pt)), onFace, INK, dark);
+    // the socket seen from the side, the hollow under the cheekbone, the ear's hole
+    head.side(`socket side ${tag}`, zy(disc(0.008, 0.012, 6, 0.002, 0).map(([z, y]) => [z, -y + 0.084] as Pt)), side * (0.007 + INK), INK, dark);
+    head.front(`cheek ${tag}`, xy([[side * 0.062, 0.066], [side * 0.044, 0.062], [side * 0.04, 0.048], [side * 0.05, 0.05]]), onFace, INK, { front: tone(bone, -0.22), edge: tone(bone, -0.22) });
+    head.side(`ear hole ${tag}`, zy(disc(0.007, 0.008, 6, -0.036, 0).map(([z, y]) => [z, -y + 0.07] as Pt)), side * (0.007 + INK), INK, dark);
   }
-  buildHat(head, o, s, neck + 0.16 * s, pz - 0.008);
+  head.front('nose hole', xy([[0, 0.068], [0.0085, 0.054], [0.0045, 0.049], [0, 0.053], [-0.0045, 0.049], [-0.0085, 0.054]]), onFace, INK, dark);
+  head.front('crack', xy([...[[0.042, 0.136], [0.05, 0.122], [0.045, 0.112], [0.053, 0.098]].map(([x, y]) => [x + 0.0015, y] as Pt), ...[[0.053, 0.098], [0.045, 0.112], [0.05, 0.122], [0.042, 0.136]].map(([x, y]) => [x - 0.0015, y] as Pt)]), onFace, INK, dark);
+  // the jaw, a card in front of the cranium, its grin: a dark gap and a row of teeth on it
+  const jawZ = faceZ + 0.006 + 0.0005 + CARD / 2;
+  const onJaw = jawZ + CARD / 2 + INK;
+  head.front('jaw', xy([[-0.039, 0.046], [0.039, 0.046], [0.037, 0.02], [0.022, 0.005], [-0.022, 0.005], [-0.037, 0.02]]), jawZ, CARD, { front: tone(bone, -0.05), back: tone(bone, -0.12) });
+  head.front('grin', xy(box(-0.031, 0.021, 0.031, 0.037)), onJaw, INK, dark);
+  for (let i = 0; i < 6; i++) {
+    const x = -0.028 + i * 0.0112;
+    head.front(`tooth ${i}`, xy(box(x, 0.0235, x + 0.0088, 0.0345)), onJaw + INK + 0.0002, INK, { front: tone(bone, 0.25), edge: tone(bone, 0.25) });
+  }
 }
 
 /**
@@ -493,13 +521,16 @@ function buildHair(head: Node, o: Outfit, faceZ: number, zy: (p: readonly Pt[]) 
   // (a long cut ends just above the neck's joint, clear of the collar and the shoulders)
   const low = curls ? 0.022 : 0.034;
   const wavy = (x0: number, x1: number, y: number, n: number): Pt[] => Array.from({ length: n + 1 }, (_, i) => [x0 + ((x1 - x0) * i) / n, y + (curls && i % 2 ? 0.012 : 0)] as Pt);
-  head.side('hair side', zy(long
+  // under a bandana the hair stops at the band's foot at the front and under the cap behind, never poking through
+  const bandana = o.hat === 'bandana';
+  const tuck = (pts: readonly Pt[]): Pt[] => (bandana ? pts.map(([u, y]) => [u, Math.min(y, u > -0.03 ? 0.116 : 0.156)] as Pt) : [...pts]);
+  head.side('hair side', zy(tuck(long
     ? [[-0.05, 0.07], [-0.019, 0.101], [0.031, 0.121], [0.064, 0.113], [0.074, 0.139], [0.019, 0.17], [-0.04, 0.17], [-0.1, 0.139], [-0.122, 0.1], ...wavy(-0.12, -0.04, low, 6)]
-    : [[-0.091, 0.042], [-0.046, 0.056], [-0.019, 0.101], [0.031, 0.121], [0.064, 0.113], [0.074, 0.139], [0.019, 0.17], [-0.04, 0.17], [-0.091, 0.139], [-0.112, 0.113], [-0.095, 0.092], [-0.117, 0.068]]), 0, 0.025, { front: hair });
+    : [[-0.091, 0.042], [-0.046, 0.056], [-0.019, 0.101], [0.031, 0.121], [0.064, 0.113], [0.074, 0.139], [0.019, 0.17], [-0.04, 0.17], [-0.091, 0.139], [-0.112, 0.113], [-0.095, 0.092], [-0.117, 0.068]])), 0, 0.025, { front: hair });
   head.front('hair back', xy(long
     ? [[-0.06, 0.13], [-0.09, 0.1], ...wavy(-0.092, 0.092, low, 10), [0.09, 0.1], [0.06, 0.13], [0.036, 0.16], [-0.036, 0.16]]
     : [[-0.06, 0.124], [-0.083, 0.096], [-0.066, 0.065], [-0.058, 0.033], [-0.025, 0.024], [0.005, 0.011], [0.032, 0.028], [0.068, 0.044], [0.071, 0.081], [0.081, 0.109], [0.055, 0.129], [0.036, 0.16], [-0.002, 0.155], [-0.042, 0.157]]), pz - 0.033, 0.014, { front: tone(hair, -0.08), back: hair });
-  head.front('fringe', xy([[-0.062, 0.112], [0.062, 0.112], [0.05, 0.13], [0.021, 0.147], [-0.021, 0.147], [-0.05, 0.13]]), faceZ + 0.006 + LAYER / 2 + 0.0005, LAYER, { front: hair });
+  head.front('fringe', xy(tuck([[-0.062, 0.112], [0.062, 0.112], [0.05, 0.13], [0.021, 0.147], [-0.021, 0.147], [-0.05, 0.13]])), faceZ + 0.006 + LAYER / 2 + 0.0005, LAYER, { front: hair });
   if (long) {
     // a lock beside each cheek, between the face and the hair behind
     for (const side of [1, -1]) {
@@ -613,7 +644,8 @@ function buildHat(head: Node, o: Outfit, s: number, brim: number, cz: number): v
       const y1 = brim - 0.008;
       const bandZ = head.pivot.z + 0.011;
       head.front('bandana band', box(-0.072, y0, 0.072, y1), bandZ, BAND, { front: c, back: tone(c, -0.08) });
-      head.side('bandana band side', box(cz - 0.112, y0, cz + 0.082, y1), 0, BAND + 0.012, { front: c });
+      // (its front end inside the brow band, so it never shows on the forehead)
+      head.side('bandana band side', box(cz - 0.112, y0, bandZ - 0.004, y1), 0, BAND + 0.012, { front: c });
       if (o.dots) {
         for (const [dx, dy] of [[-0.05, 0.012], [-0.024, 0.022], [0, 0.01], [0.024, 0.022], [0.05, 0.012]]) {
           head.front(`dot ${dx}`, disc(0.0045, 0.0045, 6).map(([x, y]) => [x + dx, -y + y0 + dy * s] as Pt), bandZ + BAND / 2 + INK, INK, { front: o.dots, edge: o.dots });
