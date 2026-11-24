@@ -133,12 +133,12 @@ export class LandField {
     return this.distance(x, z) < 0 ? LAND_TOP : 0;
   }
 
-  /** Biome weights at a land point. */
   /** The biome of the land a point belongs to, the coast's fringe taking the one inland of it (never 'beach'). */
   biomeInland(x: number, z: number): Biome {
     return this.biome(x, z, Math.min(-2, this.distance(x, z)));
   }
 
+  /** The biome at a point (d: its shore distance): the beach along the coast, else by moisture and cold. */
   biome(x: number, z: number, d = this.distance(x, z)): Biome {
     if (d > -1.1) return 'beach';
     const wet = fbm(SEED + 113, x / 34, z / 34, 3);

@@ -452,32 +452,38 @@ export function synthFlap(out: Float32Array, sr: number, P: FlapVoice & { tick: 
   return finish(out, n, sr, T, up ? F.attackUp : F.attackDown, 0.0055, F.tailFrom, F.refCrest, F.peakKnee, F.loudNorm, F.normLo, F.normHi);
 }
 
+/**
+ * What the hull's knock and a footstep share, written to the scratch buffers over n samples of a sound T long: a
+ * decaying noise bed (scrA), the tap itself, two grains, and `scuffs` scuff grains over the first `spread` of it
+ * (scrB); fs scales the grains' lengths (a higher pitch, shorter grains).
+ */
+function tap(n: number, sr: number, T: number, fs: number, noise: () => number, rng: Rng, scuffs: number, spread: number): void {
+  const kBed = Math.exp(-1 / ((T / 4.6) * sr));
+  let env = 1;
+  for (let i = 0; i < n; i++) {
+    scrA[i] = noise() * env;
+    env *= kBed;
+  }
+  addGrain(scrB, n, sr, 0.0006 + rng() * 0.0008, 1, (0.0005 + rng() * 0.0006) / fs);
+  addGrain(scrB, n, sr, 0.0018 + rng() * 0.0016, 0.5 + rng() * 0.3, (0.0004 + rng() * 0.0006) / fs);
+  for (let k = 0; k < scuffs; k++) {
+    const t = 0.003 + rng() * T * spread;
+    addGrain(scrB, n, sr, t, (0.12 + 0.3 * rng()) * Math.exp((-t / T) * 3), (0.0002 + rng() * 0.0006) / fs);
+  }
+}
+
 /** Synthesises the hull's wooden knock on a shore (strength 0..1 darkens and lengthens it a little). */
 export function synthKnock(out: Float32Array, sr: number, strength: number, rng: Rng): number {
   const K = AUDIO.knock;
   const T = K.dur * (0.85 + 0.3 * strength);
   const n = Math.min(out.length - 2, Math.ceil((T + 0.008) * sr));
   scratch(n);
-  const bed = scrA;
-  const gr = scrB;
-  const kn = scrC;
   const noise = makeNoise(rng);
   seedGrains(rng);
   const fs = 0.85 + rng() * 0.2 - strength * 0.12;
-  const kBed = Math.exp(-1 / ((T / 4.6) * sr));
-  let env = 1;
-  for (let i = 0; i < n; i++) {
-    bed[i] = noise() * env;
-    env *= kBed;
-  }
-  addGrain(gr, n, sr, 0.0006 + rng() * 0.0008, 1, (0.0005 + rng() * 0.0006) / fs);
-  addGrain(gr, n, sr, 0.0018 + rng() * 0.0016, 0.5 + rng() * 0.3, (0.0004 + rng() * 0.0006) / fs);
-  for (let k = 0; k < 3; k++) {
-    const t = 0.003 + rng() * T * 0.5;
-    addGrain(gr, n, sr, t, (0.12 + 0.3 * rng()) * Math.exp((-t / T) * 3), (0.0002 + rng() * 0.0006) / fs);
-  }
-  addGrain(kn, n, sr, 0.0008, K.knock, 0.006);
-  shape(out, n, bed, gr, kn, {
+  tap(n, sr, T, fs, noise, rng, 3, 0.5);
+  addGrain(scrC, n, sr, 0.0008, K.knock, 0.006);
+  shape(out, n, scrA, scrB, scrC, {
     bed: biquad('bp', K.bedHz * fs, K.bedQ, sr),
     gBed: K.bedGain,
     res: K.resHz.map((f, k) => biquad('bp', f * fs * (0.92 + rng() * 0.16), K.resQ[k], sr)),
@@ -520,30 +526,15 @@ export function synthStep(out: Float32Array, sr: number, P: StepVoice, rng: Rng)
   const S = AUDIO.step;
   const V = S.surfaces[P.surface];
   const T = P.dur;
+  const fs = P.pitch;
   const n = Math.min(out.length - 2, Math.ceil((T + 0.008) * sr));
   scratch(n);
-  const bed = scrA;
-  const gr = scrB;
-  const kn = scrC;
   const noise = makeNoise(rng);
   seedGrains(rng);
-  const fs = P.pitch;
-  const kBed = Math.exp(-1 / ((T / 4.6) * sr));
-  let env = 1;
-  for (let i = 0; i < n; i++) {
-    bed[i] = noise() * env;
-    env *= kBed;
-  }
-  // the tap itself
-  addGrain(gr, n, sr, 0.0006 + rng() * 0.0008, 1, (0.0005 + rng() * 0.0006) / fs);
-  addGrain(gr, n, sr, 0.0018 + rng() * 0.0016, 0.5 + rng() * 0.3, (0.0004 + rng() * 0.0006) / fs);
-  // scuff grains
-  for (let k = 0; k < V.grains; k++) {
-    const t = 0.003 + rng() * T * 0.6;
-    addGrain(gr, n, sr, t, (0.12 + 0.3 * rng()) * Math.exp((-t / T) * 3), (0.0002 + rng() * 0.0006) / fs);
-  }
-  if (V.knock > 0) addGrain(kn, n, sr, 0.0008, V.knock, 0.003);
-  shape(out, n, bed, gr, V.knock > 0 ? kn : null, {
+  // the tap, and scuff grains (more on grass)
+  tap(n, sr, T, fs, noise, rng, V.grains, 0.6);
+  if (V.knock > 0) addGrain(scrC, n, sr, 0.0008, V.knock, 0.003);
+  shape(out, n, scrA, scrB, V.knock > 0 ? scrC : null, {
     bed: biquad('bp', V.bedHz * fs, V.bedQ, sr),
     gBed: V.bedGain,
     res: V.resHz.map((f, k) => biquad('bp', f * fs * (0.92 + rng() * 0.16), V.resQ[k], sr)),

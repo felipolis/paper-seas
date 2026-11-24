@@ -4,27 +4,17 @@
  * over their page colour (ui/paper.css).
  */
 import './paper.css';
+import { mulberry32 } from '../core/rng';
 
 const SIZE = 384;
 const PAGE = '#efe0c2';
-
-function rng(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 /** Draws the tile and installs it as --paper (each mark drawn at its wrapped copies too, so the tile is seamless). */
 export function installPaper(seed = 7): void {
   const c = document.createElement('canvas');
   c.width = c.height = SIZE;
   const g = c.getContext('2d')!;
-  const r = rng(seed);
+  const r = mulberry32(seed);
   const u = SIZE / 100;
   g.fillStyle = PAGE;
   g.fillRect(0, 0, SIZE, SIZE);

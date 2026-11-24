@@ -36,7 +36,7 @@ tools/art/           sprite sheet cutter (cut-sprites: keys the game's sprites o
 public/art/          cut sprites + manifest (loaded at startup)
 public/models/       Blender-built models (models.glb, ship-*.glb), their printed atlas and textures
 tools/blender/       Blender build scripts (buildings, mountains, the pier and the skill's bridge: ramps and a crown
-                     between sides leaning out; the ships; the crew)
+                     between sides leaning out; the ships)
 tools/ship/          exports the hull shape for the Blender build
 assets-src/models/   cut and painted faces of the models, the atlas layout (atlas.json), the dome outlines (domes.json)
 ```

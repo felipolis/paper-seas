@@ -33,12 +33,13 @@ import { hexRgb, clamp } from '../core/math';
 import { hash01, mulberry32 } from '../core/rng';
 import { bus } from '../core/events';
 import { spriteImage } from '../art/sprites';
+import { mix } from '../art/painters/paper-print';
 
 const INK = PALETTE.ink;
 /** papertrails' accent (its north point and pin head): a terracotta red. */
 const RED = '#b9603f';
 /** The sheet: halfway between the game's kraft and its cut edge (papertrails' page cream). */
-const PAPER = mixHex(PALETTE.kraft, PALETTE.cutEdge, 0.5);
+const PAPER = mix(PALETTE.kraft, PALETTE.cutEdge, 0.5);
 const SERIF = "'IM Fell English', Georgia, serif";
 const REVEAL_TIME = 0.9;
 /** Region side in cells. */
@@ -146,12 +147,6 @@ function rgba(hex: string, a: number): string {
   return `rgba(${r}, ${g}, ${b}, ${a})`;
 }
 
-function mixHex(a: string, b: string, t: number): string {
-  const p = hexRgb(a);
-  const q = hexRgb(b);
-  return `#${p.map((v, k) => Math.round(v + (q[k] - v) * t).toString(16).padStart(2, '0')).join('')}`;
-}
-
 export class Chart {
   private readonly root: HTMLElement;
   private readonly canvas: HTMLCanvasElement;
@@ -206,10 +201,6 @@ export class Chart {
       const r = this.regions.get(cellKey(regionOf(keyI(k)), regionOf(keyJ(k))));
       if (r) r.dirty = true;
     };
-    exploration.onReset = () => {
-      this.regions.clear();
-      this.indexed.clear();
-    };
 
     this.canvas.addEventListener('pointerdown', (e) => {
       this.drag = { x: e.clientX, y: e.clientY, vx: this.vx, vz: this.vz };
@@ -221,7 +212,7 @@ export class Chart {
       this.vx = this.drag.vx - (e.clientX - this.drag.x) * k;
       this.vz = this.drag.vz - (e.clientY - this.drag.y) * k;
     });
-    this.canvas.addEventListener('pointerup', () => { this.drag = null; });
+    for (const end of ['pointerup', 'pointercancel', 'lostpointercapture'] as const) this.canvas.addEventListener(end, () => { this.drag = null; });
     this.canvas.addEventListener('wheel', (e) => {
       e.preventDefault();
       this.targetSpan = Math.min(700, Math.max(35, this.targetSpan * (e.deltaY > 0 ? 1.18 : 1 / 1.18)));
@@ -262,7 +253,7 @@ export class Chart {
     this.t = 0;
     this.resize();
     this.root.classList.add('on');
-    bus.emit('sails', { level: -1 });
+    bus.emit('chart', { open: true });
   }
 
   close(): void {
@@ -271,7 +262,7 @@ export class Chart {
     this.held.clear();
     this.drag = null;
     this.root.classList.remove('on');
-    bus.emit('sails', { level: -1 });
+    bus.emit('chart', { open: false });
   }
 
   update(dt: number): void {
@@ -394,6 +385,7 @@ export class Chart {
 
   private bake(r: Region): void {
     r.dirty = false;
+    r.used = this.frame;
     const ex = this.exploration;
     const cells = ex.cells;
     const ci0 = r.ri * RC;
@@ -427,14 +419,12 @@ export class Chart {
     for (let j = cj0; j < cj0 + RC; j++) {
       for (let i = ci0; i < ci0 + RC; i++) {
         const k = cellKey(i, j);
-        let tile: HTMLCanvasElement | undefined;
-        if (cells.has(k)) tile = ex.tiles.get(k);
-        else {
+        if (!cells.has(k)) {
           let near = false;
           for (let dj = -1; dj <= 1 && !near; dj++) for (let di = -1; di <= 1 && !near; di++) near = cells.has(cellKey(i + di, j + dj));
           if (!near) continue;
-          tile = ex.requestTile(k);
         }
+        const tile = ex.requestTile(k);
         if (tile) P.drawImage(tile, (i - ci0) * TILE_PX, (j - cj0) * TILE_PX);
       }
     }
@@ -466,7 +456,7 @@ export class Chart {
         const k = cellKey(i, j);
         const info = ex.info.get(k);
         if (!info || !cells.has(k)) continue;
-        const kind = this.stampOf(k, i, j, info);
+        const kind = this.stampOf(i, j, info);
         if (kind >= 0) glyphs.push((i + 0.25 + 0.5 * hash01(1, i, j)) * CELL, (j + 0.3 + 0.5 * hash01(2, i, j)) * CELL, kind);
       }
     }
@@ -494,11 +484,11 @@ export class Chart {
   }
 
   /** The stamp of an explored cell (-1 for none). */
-  private stampOf(k: number, i: number, j: number, info: CellInfo): number {
+  private stampOf(i: number, j: number, info: CellInfo): number {
     const landmark = info.island ? LANDMARK[info.island] : undefined;
     if (landmark !== undefined && info.land > 0.3) return landmark;
     const ex = this.exploration;
-    const around = [k + 65536, k - 65536, k + 1, k - 1];
+    const around = [cellKey(i + 1, j), cellKey(i - 1, j), cellKey(i, j + 1), cellKey(i, j - 1)];
     if (!around.every((n) => ex.cells.has(n))) return -1;
     const roll = hash01(4, i, j);
     if (info.land < 0.05) {
@@ -625,7 +615,7 @@ export class Chart {
         c.lineTo(Math.cos(a + (side * Math.PI) / 2) * w, Math.sin(a + (side * Math.PI) / 2) * w);
         c.lineTo(0, 0);
         c.closePath();
-        c.fillStyle = k === 0 ? (side > 0 ? RED : mixHex(RED, PAPER, 0.45)) : side > 0 ? INK : PAPER;
+        c.fillStyle = k === 0 ? (side > 0 ? RED : mix(RED, PAPER, 0.45)) : side > 0 ? INK : PAPER;
         c.fill();
         c.stroke();
       }

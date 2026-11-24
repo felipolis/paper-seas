@@ -9,7 +9,7 @@
  */
 import * as THREE from 'three';
 import type { CardArt } from '../art/card-painter';
-import { CARD_WALL_ATTRIBUTE, createPaperMaterial, type PaperOptions } from '../render/paper-material';
+import { CARD_WALL_ATTRIBUTE, createPaperMaterial } from '../render/paper-material';
 import { contoursFromGrid, outlinesWithHoles } from '../world/contours';
 import type { Pt } from '../world/polyline';
 import { clamp } from '../core/math';
@@ -19,11 +19,11 @@ export const CARD_THICKNESS = 0.016;
 
 const materialCache = new WeakMap<CardArt, THREE.MeshLambertMaterial>();
 
-/** One shared paper material per painted card face, printed on both sides unless options.back says otherwise. */
-export function materialFor(art: CardArt, options: Omit<PaperOptions, 'map'> = {}): THREE.MeshLambertMaterial {
+/** One shared paper material per painted card face, printed on both sides. */
+export function materialFor(art: CardArt): THREE.MeshLambertMaterial {
   let mat = materialCache.get(art);
   if (!mat) {
-    mat = createPaperMaterial({ back: null, ...options, map: art.texture });
+    mat = createPaperMaterial({ back: null, map: art.texture });
     materialCache.set(art, mat);
   }
   return mat;
@@ -168,7 +168,7 @@ function silhouette(texture: THREE.Texture): Pt[][] | null {
   const values = new Float32Array(W * H);
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) values[(H - 1 - y) * W + x] = 0.5 - alpha[y * W + x];
   // one grid cell = one pixel (the 1 px transparent frame closes every loop); converted to uv afterwards
-  const raw = contoursFromGrid({ x0: -1, z0: -1, cell: 1, nx: w + 1, nz: h + 1, values }, 0);
+  const raw = contoursFromGrid({ x0: -1, z0: -1, cell: 1, nx: w + 1, nz: h + 1, values });
   loops = raw
     .map((loop) => loop.filter((_, i) => i % 2 === 0).map(([x, y]) => [x / w, y / h] as Pt))
     .filter((loop) => loop.length >= 6);

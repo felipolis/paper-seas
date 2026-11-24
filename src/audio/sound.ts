@@ -49,7 +49,8 @@ export class Sound {
     window.addEventListener('keydown', (e) => { if (e.code === 'KeyM' && !e.repeat) this.toggleMute(); });
 
     bus.on('paper', (e) => this.paper(e.x, e.z, e.size, e.up, e.delay ?? 0, e.key));
-    bus.on('sails', (e) => this.sheet(e.level < 0 ? 1 : 0.8, e.level >= 0));
+    bus.on('sails', () => this.sheet(0.8, true));
+    bus.on('chart', () => this.sheet(1, false));
     bus.on('bump', (e) => this.knock(e.strength));
     bus.on('step', (e) => {
       this.live()?.voices.step(e.surface, e.foot, hashXZ(++this.events, 31, 9));
@@ -70,6 +71,7 @@ export class Sound {
 
   toggleMute(): void {
     this.muted = !this.muted;
+    bus.emit('sound', { muted: this.muted });
     if (!this.graph) return;
     const { ctx, master } = this.graph;
     master.gain.cancelScheduledValues(ctx.currentTime);
@@ -175,7 +177,8 @@ export class Sound {
     const pan = ctx.createStereoPanner();
     pan.pan.value = p.pan * AUDIO.panWidth;
     src.connect(f).connect(env).connect(pan).connect(g.fx);
-    src.start(at, random() * 2, o.attack + o.decay + 0.05);
+    const length = o.attack + o.decay + 0.05;
+    src.start(at, random() * Math.max(0, g.noise.duration - length), length);
   }
 
   /** A whale breathing out: a soft rising breath. */

@@ -1,7 +1,7 @@
 /**
  * Pop-up flap dynamics: one degree of freedom per flap, its progress p (0 = folded flat on the page,
  * 1 = upright; p overshoots past 1). Integrated with a fixed step (semi-implicit Euler) so the motion is the
- * same at any frame rate. Three regimes:
+ * same at any frame rate. Four regimes:
  *
  *   RISE    p'' = k (1 - p) - c p'                 lightly damped hinge spring: the card arrives upright with speed
  *   LOCKED  p'' = -w^2 (p - 1) - (2 z w + drag |p'|) p' - friction
@@ -147,18 +147,16 @@ export class Flap {
     }
     const k = this.k;
     const par = this.parent;
-    // (its parent moving toward the same side, its stagger slot reached)
-    const pulled = (side: 0 | 1) => par !== null && par.target === side && par.pendingTarget < 0 && !par.atRest;
     let a: number;
     if (this.target === 1) {
       if (!this.locked && this.m >= 1) this.locked = true;
       a = this.locked
         ? -k.wLsq * (this.m - 1) - (k.cL + k.dragL * Math.abs(this.v) + k.fricL / (Math.abs(this.v) + 0.05)) * this.v
-        : pulled(1)
-          ? this.linkage(par!)
+        : par !== null && this.pulledBy(par, 1)
+          ? this.linkage(par)
           : k.kUp * (1 - this.m) - k.cUp * this.v;
-    } else if (pulled(0) && this.m <= 1 && par!.m <= 1) {
-      a = this.linkage(par!);
+    } else if (par !== null && this.pulledBy(par, 0) && this.m <= 1 && par.m <= 1) {
+      a = this.linkage(par);
     } else {
       a = -k.kDn * this.m - k.cDn * this.v - k.gDn;
       // reversed while still travelling up: brake like the rise spring; the end stop still exists past upright
@@ -183,6 +181,11 @@ export class Flap {
       this.v = 0;
       this.atRest = true;
     }
+  }
+
+  /** True while the parent moves toward `side` (its stagger slot reached): it pulls this flap along. */
+  private pulledBy(par: Flap, side: 0 | 1): boolean {
+    return par.target === side && par.pendingTarget < 0 && !par.atRest;
   }
 
   /** NESTED: the pull of the parent flap, bounded so catching up never reads as a jerk. */

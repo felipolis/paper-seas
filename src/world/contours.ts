@@ -5,7 +5,6 @@
  */
 import type { Pt } from './polyline';
 
-type Field = (x: number, z: number) => number;
 
 /** Edge pairs (from, to) per marching-squares case, all walked with the inside on the same side. */
 const TABLE: Record<number, Array<[number, number]>> = {
@@ -23,11 +22,8 @@ export interface Grid {
   values: Float32Array;
 }
 
-/**
- * Loops of (grid value - level - extra(x, z)) = 0. `extra` lets one grid serve fields that differ by a cheap term
- * (e.g. a terrace threshold); `clip` (optional) is intersected so loops close along a rectangle.
- */
-export function contoursFromGrid(g: Grid, level: number, extra?: Field, clip?: [number, number, number, number]): Pt[][] {
+/** Loops of grid value = 0; `clip` (optional) is intersected so loops close along a rectangle. */
+export function contoursFromGrid(g: Grid, clip?: [number, number, number, number]): Pt[][] {
   const { x0, z0, cell, nx, nz, values } = g;
   const W = nx + 1;
   const v = new Float32Array(values.length);
@@ -35,8 +31,7 @@ export function contoursFromGrid(g: Grid, level: number, extra?: Field, clip?: [
     for (let i = 0; i <= nx; i++) {
       const x = x0 + i * cell;
       const z = z0 + j * cell;
-      let f = values[j * W + i] - level;
-      if (extra) f += extra(x, z);
+      let f = values[j * W + i];
       // outside the rectangle the field is pushed out; ON its edge it keeps its own value, so land narrower than a
       // cell along a chunk seam is still found (the loop then runs a little past the edge and is cut back onto it
       // below): both chunks meeting at the seam close their loops at the same points

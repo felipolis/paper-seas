@@ -199,7 +199,11 @@ class Kraken implements Encounter {
       hinge.position.set(Math.cos(a) * 1.1, 0, Math.sin(a) * 0.8);
       hinge.rotation.y = (random() - 0.5) * 16 * DEG;
       const sway = new THREE.Group();
-      sway.add(createCard(spriteArt(i % 2 ? 'tentacle-1' : 'tentacle-0', { height: 1.05 + 0.25 * random() })));
+      // (dealt a size by scale, keeping the art of its base height: popup/card.ts caches a geometry per art)
+      const tentacle = createCard(spriteArt(i % 2 ? 'tentacle-1' : 'tentacle-0', { height: 1.05 }));
+      const s = 1 + (0.25 * random()) / 1.05;
+      tentacle.scale.set(s, s, 1);
+      sway.add(tentacle);
       hinge.add(sway);
       this.sways.push(sway);
       this.group.add(hinge);
@@ -328,7 +332,10 @@ class Jellies implements Encounter {
       const hinge = new THREE.Group();
       hinge.position.set((random() - 0.5) * 2.4, 0, (random() - 0.5) * 1.6);
       const bob = new THREE.Group();
-      bob.add(createCard(spriteArt('jellyfish', { height: 0.6 + random() * 0.25 }), { flipX: random() < 0.5 }));
+      const s = 1 + (random() * 0.25) / 0.6;
+      const jelly = createCard(spriteArt('jellyfish', { height: 0.6 }), { flipX: random() < 0.5 });
+      jelly.scale.set(s, s, 1);
+      bob.add(jelly);
       hinge.add(bob);
       this.bobs.push(bob);
       this.group.add(hinge);
@@ -517,8 +524,8 @@ export class SeaLife {
     for (let i = this.encounters.length - 1; i >= 0; i--) {
       const e = this.encounters[i];
       if (!e.update(dt, this.ship)) {
+        // (their cards' geometry is the sprites' own, cached and shared: popup/card.ts)
         this.group.remove(e.group);
-        e.group.traverse((o) => { if (o instanceof THREE.Mesh) o.geometry.dispose(); });
         this.encounters.splice(i, 1);
       }
     }
@@ -536,7 +543,7 @@ export class SeaLife {
   }
 
   /** Spawns an encounter now, picked by the weights of the ship's environment. */
-  private spawn(): boolean {
+  private spawn(): void {
     const s = this.ship;
     const [kind] = pickWeighted(Object.entries(this.zone().weights) as Array<[EncounterKind, number]>, ([, w]) => w, random());
     const side = random() < 0.5 ? 1 : -1;
@@ -550,7 +557,7 @@ export class SeaLife {
       const x = s.x + Math.cos(a) * d;
       const z = s.z + Math.sin(a) * d;
       const dir = random() < 0.5 ? 1 : -1;
-      for (let k = 0; k <= 16; k++) if (!this.isOpenWater(x + dir * k, z, 1.2)) return false;
+      for (let k = 0; k <= 16; k++) if (!this.isOpenWater(x + dir * k, z, 1.2)) return;
       return this.add(new PassingShip(x, z, dir, this.isNight() && random() < 0.7));
     }
     // somewhere ahead-ish of the ship, in open water
@@ -571,13 +578,11 @@ export class SeaLife {
       if (kind === 'shark') return this.add(new Shark(x, z));
       return this.add(new Kraken(x, z));
     }
-    return false;
   }
 
-  private add(e: Encounter): boolean {
+  private add(e: Encounter): void {
     this.encounters.push(e);
     this.group.add(e.group);
-    return true;
   }
 
 }

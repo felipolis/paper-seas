@@ -12,6 +12,7 @@
  */
 import { AUDIO } from '../config/audio';
 import { NOTE_SR } from './piano-synth';
+import { hash01 } from '../core/rng';
 
 /** Eighth notes per bar. */
 const BEATS = 6;
@@ -43,14 +44,8 @@ const RIGHT: ReadonlyArray<ReadonlyArray<readonly [number, number, number]>> = [
 ];
 /** The rocking left hand: bass, rising through the chord and back (eighths 0..5). */
 const LEFT_IDX = [0, 1, 2, 3, 2, 1];
-
-function hash(a: number, b: number): number {
-  let h = (Math.imul(a | 0, 0x9e3779b1) ^ Math.imul((b | 0) + 0x7f4a7c15, 0x85ebca6b)) >>> 0;
-  h ^= h >>> 15;
-  h = Math.imul(h, 0x2c1b3c6d) >>> 0;
-  h ^= h >>> 12;
-  return (h >>> 0) / 4294967296;
-}
+/** Salt of the score's choices per bar (core/rng hash01). */
+const SCORE_SALT = 0x5c07e;
 
 interface Note {
   beat: number;
@@ -62,7 +57,7 @@ interface Note {
 function barNotes(bar: number): Note[] {
   const i = ((bar % 16) + 16) % 16;
   const cycle = Math.floor(bar / 16);
-  const r = (k: number) => hash(bar, k);
+  const r = (k: number) => hash01(SCORE_SALT, bar, k);
   const out: Note[] = [];
   const lh = LEFT[i];
   const sparse = cycle % 3 === 2;
@@ -126,7 +121,6 @@ export class Music {
   private readonly buffers = new Map<number, AudioBuffer>();
   private origin = -1;
   private done = 0;
-  private on = true;
   private chimeAt = -1;
   private chimeTurn = 0;
 
@@ -155,16 +149,9 @@ export class Music {
     window.setInterval(() => this.tick(), 60);
   }
 
-  setOn(on: boolean): void {
-    this.on = on;
-    const t = this.ctx.currentTime;
-    this.out.gain.cancelScheduledValues(t);
-    this.out.gain.setTargetAtTime(on && this.origin >= 0 ? AUDIO.music.gain : 0, t, on ? AUDIO.music.fadeIn / 3 : 0.25);
-  }
-
   /** A quiet note (or figure) of the piano, in the chord that is sounding. Rate-limited. */
   chime(kind: ChimeKind): void {
-    if (this.origin < 0 || !this.on || this.ctx.state !== 'running') return;
+    if (this.origin < 0 || this.ctx.state !== 'running') return;
     const k = CHIMES[kind];
     const now = this.ctx.currentTime;
     if (now - this.chimeAt < 0.3) return;
@@ -189,11 +176,8 @@ export class Music {
       if (this.buffers.size < ALL_NOTES.length) return;
       this.origin = this.ctx.currentTime + 0.3;
       this.done = 0;
-      this.setOn(this.on);
-    }
-    if (!this.on) {
-      this.done = Math.max(this.done, this.ctx.currentTime - this.origin);
-      return;
+      // (it fades in once, as it starts)
+      this.out.gain.setTargetAtTime(AUDIO.music.gain, this.ctx.currentTime, AUDIO.music.fadeIn / 3);
     }
     const until = this.ctx.currentTime - this.origin + 1.2;
     if (until > this.done) {

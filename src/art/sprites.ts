@@ -41,6 +41,12 @@ export function spriteInfo(name: string): SpriteInfo {
   return info;
 }
 
+/** The drawn width (world units) of a sprite's card `height` tall (its print's aspect). */
+export function cardWidth(name: string, height: number): number {
+  const info = spriteInfo(name);
+  return (height * info.w) / info.h;
+}
+
 /** Names of all loaded sprites starting with `prefix`. */
 export function spritesWithPrefix(prefix: string): string[] {
   return Object.keys(manifest).filter((n) => n.startsWith(prefix)).sort();

@@ -60,7 +60,7 @@ float shoreDist(vec2 p) {
 vec3 seaColour(vec2 p) {
   float T = uTime;
   // (never 0: smoothstep with equal edges is undefined and comes out NaN on some GPUs)
-  float aa = max(fwidth(p.x) * 1.2, 1e-4);
+  float aa = max(max(fwidth(p.x), fwidth(p.y)) * 1.2, 1e-4);
   float d = shoreDist(p);
   // ---- depth tones ----
   float n = seaNoise(p * 0.045) * 0.55 + seaNoise(p * 0.13 + 7.3) * 0.3 + seaNoise(p * 0.5 + 1.1) * 0.15;

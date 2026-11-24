@@ -31,11 +31,20 @@ type Water = (x: number, z: number, margin: number) => boolean;
 const REGION = 260;
 const ATLANTIS_CHANCE = 0.35;
 const ATLANTIS_REACH = 9;
+/** The Phantom's green light at its brightest, and the Kraken Garden's tentacles' base height. */
+const PHANTOM_LIGHT = 2.2;
+const TENTACLE = 1.2;
 
-function card(name: string, height: number, fold: FoldGroup, delay: number, flip = false): THREE.Group {
+/**
+ * A card on its hinge, `height` tall and drawn `scale` times that (a sight dealt a size at random keeps the card art
+ * of its base height: popup/card.ts caches a geometry per art, and every new height would be a new one for good).
+ */
+function card(name: string, height: number, fold: FoldGroup, delay: number, flip = false, scale = 1): THREE.Group {
   const hinge = new THREE.Group();
-  hinge.add(createCard(spriteArt(name, { height }), { flipX: flip }));
-  fold.add(hinge, { size: height, seed: random(), delay, wobble: 1.2 });
+  const c = createCard(spriteArt(name, { height }), { flipX: flip });
+  c.scale.set(scale, scale, 1);
+  hinge.add(c);
+  fold.add(hinge, { size: height * scale, seed: random(), delay, wobble: 1.2 });
   return hinge;
 }
 
@@ -73,6 +82,14 @@ class Atlantis {
     this.group.visible = false;
   }
 
+  /** Frees its glow (the cards' art is the sprites' shared one). */
+  dispose(): void {
+    const m = this.glow.material as THREE.MeshBasicMaterial;
+    m.map?.dispose();
+    m.dispose();
+    this.glow.geometry.dispose();
+  }
+
   update(dt: number, d: number, time: number): void {
     this.fold.setTarget(d < ATLANTIS_REACH ? 1 : 0);
     this.fold.update(dt);
@@ -86,8 +103,10 @@ class Phantom {
   readonly group = new THREE.Group();
   readonly fold = new FoldGroup();
   private t = 0;
+  /** The green glow materials she was dealt (her card's own, cloned). */
+  private readonly glows: THREE.Material[] = [];
 
-  constructor(x: number, z: number, private readonly dir: number) {
+  constructor(x: number, z: number, private readonly dir: number, private readonly light: THREE.PointLight) {
     this.group.position.set(x, 0.006, z);
     const c = card('ghost-ship', 2.1, this.fold, 0, mirrorFor('ghost-ship', dir));
     // a sickly green glow about her
@@ -98,13 +117,17 @@ class Phantom {
         glow.emissive = new THREE.Color('#5dff9a');
         glow.emissiveIntensity = 0.55;
         (o as THREE.Mesh).material = glow;
+        this.glows.push(glow);
       }
     });
     this.group.add(c);
-    const light = new THREE.PointLight('#6dffa8', 2.2, 9, 1.2);
-    light.position.set(0, 1.4, 0.4);
-    this.group.add(light);
     this.fold.setTarget(1);
+  }
+
+  /** Frees her cloned glow materials and puts her light out. */
+  dispose(): void {
+    for (const m of this.glows) m.dispose();
+    this.light.intensity = 0;
   }
 
   update(dt: number, water: Water): boolean {
@@ -115,6 +138,9 @@ class Phantom {
     if (this.t >= 18) this.fold.setTarget(0);
     this.fold.update(dt);
     this.group.visible = !this.fold.isDown;
+    // her glow on the sea round her, as she stands
+    this.light.position.set(this.group.position.x, this.group.position.y + 1.4, this.group.position.z + 0.4);
+    this.light.intensity = PHANTOM_LIGHT * this.fold.progress;
     return !(this.t >= 18 && this.fold.isSettled);
   }
 }
@@ -126,7 +152,7 @@ class Leviathan {
 
   constructor(x: number, z: number, private readonly dir: number) {
     this.group.position.set(x, 0.006, z);
-    const parts: Array<[string, number, boolean]> = [['serpent-tail', 1.2, dir < 0], ['serpent-hump', 1.0, false], ['serpent-hump', 1.15, true], ['serpent-hump', 1.05, false], ['serpent-head', 1.9, dir > 0]];
+    const parts: Array<[string, number, boolean]> = [['serpent-tail', 1.2, mirrorFor('serpent-tail', dir)], ['serpent-hump', 1.0, false], ['serpent-hump', 1.15, true], ['serpent-hump', 1.05, false], ['serpent-head', 1.9, mirrorFor('serpent-head', dir)]];
     parts.forEach(([name, h, flip], i) => {
       const c = card(name, h, this.fold, i / parts.length, flip);
       c.position.set((i - 2) * 1.6 * dir, 0, (i % 2) * 0.25);
@@ -156,7 +182,7 @@ class KrakenGarden {
     for (let i = 0; i < 9; i++) {
       const a = (i / 9) * Math.PI * 2 + random() * 0.3;
       const r = 2 + random() * 4.5;
-      const c = card(i % 2 ? 'tentacle-1' : 'tentacle-0', 1.2 + random() * 0.7, this.fold, i / 9, random() < 0.5);
+      const c = card(i % 2 ? 'tentacle-1' : 'tentacle-0', TENTACLE, this.fold, i / 9, random() < 0.5, 1 + (random() * 0.7) / TENTACLE);
       c.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
       this.group.add(c);
     }
@@ -168,12 +194,18 @@ class KrakenGarden {
     this.group.children.forEach((c, i) => { c.rotation.z = Math.sin(this.t * 1.4 + i) * 0.12; });
     if (this.t > 12) this.fold.setTarget(0);
     this.fold.update(dt);
+    this.group.visible = !this.fold.isDown;
     return !(this.t > 12 && this.fold.isSettled);
   }
 }
 
 export class Marvels {
   readonly group = new THREE.Group();
+  /**
+   * The Phantom's light: always in the scene (dark while she is away), so the count of lights the shaders are built
+   * for never changes and nothing recompiles when she comes.
+   */
+  private readonly phantomLight = new THREE.PointLight('#6dffa8', 0, 9, 1.2);
   private readonly sites = new Map<number, Atlantis>();
   private readonly seen = new Set<number>();
   private phantom: Phantom | null = null;
@@ -185,7 +217,9 @@ export class Marvels {
   private days = 0;
   private lastHour = 0;
 
-  constructor(private readonly water: Water) {}
+  constructor(private readonly water: Water) {
+    this.group.add(this.phantomLight);
+  }
 
   /** The Atlantis site of a region, or null. */
   private siteOf(ri: number, rj: number): [number, number] | null {
@@ -217,12 +251,14 @@ export class Marvels {
       }
     }
     for (const [key, a] of this.sites) {
-      const d = Math.hypot(a.x - x, a.z - z);
-      if (d > REGION * 2) {
+      // (by region, as they were made: a distance rule dropped a far corner's site the frame it was made)
+      if (Math.abs(Math.floor(a.x / REGION) - ri) > 1 || Math.abs(Math.floor(a.z / REGION) - rj) > 1) {
         this.group.remove(a.group);
+        a.dispose();
         this.sites.delete(key);
         continue;
       }
+      const d = Math.hypot(a.x - x, a.z - z);
       a.update(dt, d, this.time);
       if (d < ATLANTIS_REACH && !this.seen.has(key)) {
         this.seen.add(key);
@@ -250,13 +286,14 @@ export class Marvels {
       const pz = z - 5 - random() * 3;
       if (this.water(px, pz, 2)) {
         this.phantomNight = this.days;
-        this.phantom = new Phantom(px, pz, side);
+        this.phantom = new Phantom(px, pz, side, this.phantomLight);
         this.group.add(this.phantom.group);
         bus.emit('marvel', { title: 'The Phantom Galleon', line: 'She sails at midnight, and never makes port' });
       }
     }
     if (this.phantom && !this.phantom.update(dt, this.water)) {
       this.group.remove(this.phantom.group);
+      this.phantom.dispose();
       this.phantom = null;
     }
 

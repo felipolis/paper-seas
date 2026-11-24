@@ -12,7 +12,7 @@ import { POPUP } from '../config/popup';
 import { PALETTE } from '../config/palette';
 import { hash01 } from '../core/rng';
 import { DEG, clamp } from '../core/math';
-import { segmentDistance } from '../world/polyline';
+import { distanceToSegment } from '../world/polyline';
 import { Flap, FixedStepper, flapConstants } from '../popup/spring';
 import { bus } from '../core/events';
 import { cardGeometry, thickCardGeometry, thickMaterial } from '../popup/card';
@@ -36,7 +36,6 @@ const FOLD_ANGLE = -Math.PI / 2;
 const WAVE_PATCH = 6;
 
 interface Wave {
-  key: number;
   x: number;
   z: number;
   yaw: number;
@@ -102,10 +101,6 @@ export class WaveField {
     }
   }
 
-  get count(): number {
-    return this.waves.size;
-  }
-
   /** reveal: the ring the land rises in (the waves keep to it); viewReach: how far the camera sees round the focus. */
   update(dt: number, focusX: number, focusZ: number, ship: WakeSource, reveal: Reveal, viewReach: number): void {
     this.time += dt;
@@ -132,12 +127,10 @@ export class WaveField {
         const wave = list[i];
         const flap = wave.flap;
         // the hull presses waves flat; they come back up after it has passed
-        const [hullD] = segmentDistance(wave.x, wave.z, ship.sternX, ship.sternZ, ship.bowX, ship.bowZ);
-        if (hullD < wakeR + 0.45 * wave.scale) {
-          if (flap.target === 1 || flap.pendingTarget === 1) {
-            flap.setTarget(0);
-            flap.impulse(-2.5 - ship.speed * 0.8);
-          }
+        if (distanceToSegment(wave.x, wave.z, ship.sternX, ship.sternZ, ship.bowX, ship.bowZ) < wakeR + 0.45 * wave.scale) {
+          // (a standing wave is knocked down; one still lying flat, waiting to rise, just stays down)
+          if (flap.target === 1) flap.impulse(-2.5 - ship.speed * 0.8);
+          if (flap.target === 1 || flap.pendingTarget === 1) flap.setTarget(0);
           wave.pressedUntil = this.time + W.waveHold;
         } else if (this.time >= wave.pressedUntil) {
           if (reveal.wantsUp(wave.x, wave.z)) {
@@ -146,7 +139,7 @@ export class WaveField {
             const sd = Math.sqrt(sx * sx + sz * sz);
             const delay = sd * W.waveRipple + wave.phase * 0.12;
             // (a patch of waves rising together is one gesture: one sound for it, not a rustle while the ship sails)
-            if (flap.target === 0 && flap.pendingTarget !== 1 && sd < 7) bus.emit('paper', { x: wave.x, z: wave.z, count: 1, size: 0.4, up: true, key: `w${Math.floor(wave.x / WAVE_PATCH)},${Math.floor(wave.z / WAVE_PATCH)}` });
+            if (flap.target === 0 && flap.pendingTarget !== 1 && sd < 7) bus.emit('paper', { x: wave.x, z: wave.z, size: 0.4, up: true, key: `w${Math.floor(wave.x / WAVE_PATCH)},${Math.floor(wave.z / WAVE_PATCH)}` });
             flap.setTarget(1, flap.target === 1 ? 0 : delay);
           } else if (reveal.wantsDown(wave.x, wave.z)) {
             flap.setTarget(0, wave.phase * 0.2);
@@ -213,7 +206,6 @@ export class WaveField {
     if (list.length >= CAPACITY) return;
     const scale = 0.8 + 0.35 * b;
     const wave: Wave = {
-      key,
       x,
       z,
       yaw: (b - 0.5) * 30 * DEG,

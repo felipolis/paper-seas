@@ -5,7 +5,7 @@
 import { mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright-core';
+import { launch } from '../browser.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const dir = join(root, 'public/art');
@@ -15,7 +15,7 @@ mkdirSync(outDir, { recursive: true });
 const files = readdirSync(dir).filter((f) => f.endsWith('.png')).sort();
 const PER_PAGE = 8;
 
-const browser = await chromium.launch({ executablePath: 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', headless: true });
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
 for (let p = 0; p * PER_PAGE < files.length; p++) {
   const batch = files.slice(p * PER_PAGE, (p + 1) * PER_PAGE);

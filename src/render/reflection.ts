@@ -14,6 +14,9 @@ import * as THREE from 'three';
 export const mirrorSkip = new Set<THREE.Material>();
 
 const _target = new THREE.Vector3();
+const _clear = new THREE.Color();
+/** The visibility of the objects the mirror hides, to give back. */
+const _was: boolean[] = [];
 const _plane = new THREE.Plane();
 const _clip = new THREE.Vector4();
 const _q = new THREE.Vector4();
@@ -43,7 +46,7 @@ export class Reflection {
   /** Renders the mirror image; `hidden` objects (the sea itself) are left out. */
   render(renderer: THREE.WebGLRenderer, scene: THREE.Scene, main: THREE.PerspectiveCamera, hidden: THREE.Object3D[]): void {
     const cam = this.camera;
-    cam.copy(main);
+    cam.copy(main, false);
     main.getWorldDirection(_dir);
     _target.copy(main.position).add(_dir);
     cam.position.set(main.position.x, -main.position.y, main.position.z);
@@ -54,22 +57,24 @@ export class Reflection {
     obliqueNearPlane(cam, CLIP_Y);
     this.matrix.copy(this.bias).multiply(cam.projectionMatrix).multiply(cam.matrixWorldInverse);
 
-    const was = hidden.map((o) => o.visible);
-    hidden.forEach((o) => { o.visible = false; });
+    _was.length = 0;
+    for (const o of hidden) {
+      _was.push(o.visible);
+      o.visible = false;
+    }
     for (const m of mirrorSkip) m.visible = false;
     // transparent background: alpha = where something is mirrored (the sea keeps its own colour elsewhere)
     const oldBg = scene.background;
-    const oldClear = renderer.getClearColor(new THREE.Color());
+    const oldClear = renderer.getClearColor(_clear);
     const oldAlpha = renderer.getClearAlpha();
     scene.background = null;
     renderer.setClearColor(0x000000, 0);
     renderer.setRenderTarget(this.target);
-    renderer.clear();
     renderer.render(scene, cam);
     renderer.setRenderTarget(null);
     renderer.setClearColor(oldClear, oldAlpha);
     scene.background = oldBg;
-    hidden.forEach((o, i) => { o.visible = was[i]; });
+    hidden.forEach((o, i) => { o.visible = _was[i]; });
     for (const m of mirrorSkip) m.visible = true;
   }
 }

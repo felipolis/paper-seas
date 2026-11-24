@@ -42,7 +42,7 @@ export class Hud {
     this.toastTitle = this.root.querySelector('.hud-toast-title')!;
     this.toastLine = this.root.querySelector('.hud-toast-line')!;
 
-    bus.on('discovered', (e) => this.queue.push({ title: e.name, line: e.name.endsWith(' Coast') ? 'Coast discovered' : 'Island discovered' }));
+    bus.on('discovered', (e) => this.queue.push({ title: e.name, line: e.coast ? 'Coast discovered' : 'Island discovered' }));
     bus.on('treasure', (e) => this.queue.push({ title: 'Treasure found!', line: `on ${e.name}` }));
     bus.on('marvel', (e) => this.queue.push({ title: e.title, line: e.line }));
     bus.on('bottle', (e) => this.queue.push({ title: 'Message in a bottle', line: `“${e.message}”` }));

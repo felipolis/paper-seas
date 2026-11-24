@@ -55,15 +55,17 @@ export class CardPainter {
     };
     const w = this.bounds.right - this.bounds.left;
     const h = this.bounds.top - this.bounds.bottom;
-    let ppu = options.ppu ?? 220;
-    ppu = Math.min(ppu, MAX_PX / w, MAX_PX / h);
-    this.ppu = ppu;
+    const ppu = Math.min(options.ppu ?? 220, MAX_PX / w, MAX_PX / h);
     this.canvas = document.createElement('canvas');
     this.canvas.width = Math.max(4, Math.ceil(w * ppu));
     this.canvas.height = Math.max(4, Math.ceil(h * ppu));
+    // (pixels per unit as the canvas came out: its size is rounded up, and the print must span the bounds exactly)
+    const sx = this.canvas.width / w;
+    const sy = this.canvas.height / h;
+    this.ppu = sx;
     this.ctx = this.canvas.getContext('2d')!;
     // card units, y up
-    this.ctx.setTransform(ppu, 0, 0, -ppu, -this.bounds.left * ppu, this.bounds.top * ppu);
+    this.ctx.setTransform(sx, 0, 0, -sy, -this.bounds.left * sx, this.bounds.top * sy);
     this.ctx.lineJoin = 'round';
     this.ctx.lineCap = 'round';
   }

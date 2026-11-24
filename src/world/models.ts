@@ -24,9 +24,8 @@ export interface ModelInfo {
   width: number;
   depth: number;
   height: number;
-  /** A pier's / bridge's walkable deck: its height above the foot at the ends, and how much it rises at the middle. */
+  /** A pier's / bridge's walkable deck: its height above the foot at the ends. */
   deck: number;
-  rise: number;
   /**
    * A bridge's deck profile (the skill's bridge): a ramp rising at `ramp` (rad) over `share` of each half span from the
    * bank, then the crown at `crown` (rad) to the middle; null for a level deck.
@@ -176,7 +175,6 @@ function prototype(root: THREE.Object3D, scale: number, solid: boolean): Prototy
       depth: Number(root.userData.depth ?? 1) * scale,
       height: Number(root.userData.height ?? 1) * scale,
       deck: Number(root.userData.deck ?? 0) * scale,
-      rise: Number(root.userData.rise ?? 0) * scale,
       profile:
         root.userData.rampShare === undefined
           ? null

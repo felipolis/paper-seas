@@ -22,14 +22,14 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright-core';
+import { launch } from '../browser.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const config = JSON.parse(readFileSync(resolve(root, process.argv[2] ?? 'tools/art/sprite-sheets.json'), 'utf8'));
 const outDir = process.env.ART_OUT ?? join(root, config.out);
 mkdirSync(outDir, { recursive: true });
 
-const browser = await chromium.launch({ executablePath: 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', headless: true });
+const browser = await launch();
 const page = await browser.newPage();
 await page.setContent('<html><body></body></html>');
 

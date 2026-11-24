@@ -5,17 +5,12 @@
  * dying sooner, a felt hammer struck near 1/8 of the string, and a soft low-passed thump at the onset.
  * Pure and deterministic: it runs in the piano worker.
  */
+import { hash01 } from '../core/rng';
+
 export const NOTE_SR = 24000;
 
-function hash(a: number, b: number): number {
-  let h = (Math.imul(a | 0, 0x9e3779b1) ^ Math.imul((b | 0) + 0x7f4a7c15, 0x85ebca6b)) >>> 0;
-  h ^= h >>> 15;
-  h = Math.imul(h, 0x2c1b3c6d) >>> 0;
-  h ^= h >>> 12;
-  h = Math.imul(h, 0x297a2d39) >>> 0;
-  h ^= h >>> 15;
-  return (h >>> 0) / 4294967296;
-}
+/** Salt of the strings' phases (core/rng hash01). */
+const PHASE_SALT = 0x51a90;
 
 export function synthNote(midi: number): Float32Array<ArrayBuffer> {
   const sr = NOTE_SR;
@@ -38,7 +33,7 @@ export function synthNote(midi: number): Float32Array<ArrayBuffer> {
       const cents = (s ? 1 : -1) * (0.5 + 0.12 * k);
       const w = (2 * Math.PI * fk * Math.pow(2, cents / 1200)) / sr;
       const c2 = 2 * Math.cos(w);
-      const ph = hash(midi, k * 2 + s) * 6.283;
+      const ph = hash01(PHASE_SALT, midi, k * 2 + s) * 6.283;
       let y1 = Math.sin(ph - w);
       let y2 = Math.sin(ph - 2 * w);
       let eF = 0.6 * amp * 0.5;

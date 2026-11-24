@@ -16,7 +16,7 @@ import { POPUP } from '../config/popup';
 import { Flap, FixedStepper, flapConstants } from '../popup/spring';
 import { CARD_THICKNESS, cardGeometry, materialFor, thickCardGeometry, thickMaterial } from '../popup/card';
 import { heightOf } from '../config/flora';
-import { spriteArt, spriteInfo } from '../art/sprites';
+import { cardWidth, spriteArt } from '../art/sprites';
 import { PAPER_FLAT_ATTRIBUTE, pencilPlan } from '../render/paper-material';
 import { CELL, cellJitter, type Reveal } from './reveal';
 import { SWAY_FADE_IN, SWAY_RADIUS, SWAY_RELEASE, swayAngle, swayOf, type Sway, windStrength } from './wind';
@@ -48,7 +48,7 @@ export interface CardSpec {
   flip: boolean;
   /** Extra start delay (s) when rising. */
   delay: number;
-  /** Two cards crossing at right angles (each 45 degrees off the view), like a slotted pop-up tree. */
+  /** Two cards crossing at right angles (CROSS_PLANES off the view), like a slotted pop-up tree. */
   cross?: boolean;
   /**
    * papertrails' vignette: an animal tied to a piece beside it (sitting on it, by it, at a door, behind it), which
@@ -95,8 +95,7 @@ interface Batch {
  * lies from its foot back by its height, as wide as it is drawn (a crossed card lies as its first plane).
  */
 function flatBounds(s: CardSpec): Box {
-  const info = spriteInfo(s.sprite);
-  const half = (s.height * info.w) / info.h / 2;
+  const half = cardWidth(s.sprite, s.height) / 2;
   const yaw = s.cross ? s.yaw + CROSS_PLANES[0] : s.yaw;
   const ax = Math.cos(yaw) * half;
   const az = -Math.sin(yaw) * half;
@@ -129,7 +128,6 @@ export class CardField {
   private readonly stepper = new FixedStepper();
   private nextId = 1;
   private time = 0;
-  private hidden = 0;
   /** Every card filed under each FLAT_CELL square its folded bounds reach. */
   private readonly flats = new Map<number, Card[]>();
   private readonly critters: Critters;
@@ -163,7 +161,7 @@ export class CardField {
         flipAt: -99,
         held: 0,
         lean: ((Math.abs(Math.sin(s.x * 39.346 + s.z * 11.135) * 43758.5453) % 1) * 2 - 1) * LEAN,
-        wind: swayOf(s.sprite, s.height, (s.height * spriteInfo(s.sprite).w) / spriteInfo(s.sprite).h, s.x, s.z),
+        wind: swayOf(s.sprite, s.height, cardWidth(s.sprite, s.height), s.x, s.z),
         sway: 0,
         swayLevel: 0,
         flatBox: flatBounds(s),
@@ -234,22 +232,10 @@ export class CardField {
     for (const biome of BIOMES) this.batch(sprites[0], false, biome);
   }
 
-  /** How many cards have been hidden for good (the walk fields are made again when it changes: world/terrain.ts). */
-  get hiddenCount(): number {
-    return this.hidden;
-  }
-
   /** Hides a card for good (a collected chest). */
   hide(card: Card): void {
     card.hidden = true;
-    this.hidden++;
     this.batch(card.sprite, card.flip, card.biome).dirty = true;
-  }
-
-  get count(): number {
-    let n = 0;
-    for (const b of this.batches.values()) n += b.cards.length;
-    return n;
   }
 
   /** reveal decides which cells stand; (focusX, focusZ): where the animals stir and the wind sways the cards. */
@@ -276,7 +262,7 @@ export class CardField {
               f.setTarget(1, delay);
               c.flipAt = this.time;
               c.held = 0;
-              if (!c.hidden) bus.emit('paper', { x: c.x, z: c.z, count: 1, size: Math.min(1, c.height / 3), up: true, delay, key: `c${c.cx},${c.cz}` });
+              if (!c.hidden) bus.emit('paper', { x: c.x, z: c.z, size: Math.min(1, c.height / 3), up: true, delay, key: `c${c.cx},${c.cz}` });
             }
           } else c.held = 0;
         } else if (may && reveal.wantsDown(c.cx, c.cz)) {
@@ -284,7 +270,7 @@ export class CardField {
           const delay = reveal.foldDelay(c.cx, c.cz, c.jitter) + (1 - c.order) * STAGGER;
           f.setTarget(0, delay);
           c.flipAt = this.time;
-          if (!c.hidden) bus.emit('paper', { x: c.x, z: c.z, count: 1, size: Math.min(1, c.height / 3), up: false, delay, key: `c${c.cx},${c.cz}` });
+          if (!c.hidden) bus.emit('paper', { x: c.x, z: c.z, size: Math.min(1, c.height / 3), up: false, delay, key: `c${c.cx},${c.cz}` });
         }
         if (f.active) {
           for (let i = 0; i < steps; i++) f.step(h);
@@ -374,7 +360,11 @@ export class CardField {
     const cap = Math.max(64, Math.ceil(b.cards.length * 3));
     const mesh = batchMesh(old.geometry, old.material, cap);
     this.group.remove(old);
-    old.geometry.dispose();
+    // (the shape's attributes and index are shared with this sprite's other batches: only the old flatness goes)
+    const g = old.geometry;
+    for (const name of Object.keys(g.attributes)) if (name !== PAPER_FLAT_ATTRIBUTE) g.deleteAttribute(name);
+    g.setIndex(null);
+    g.dispose();
     old.dispose();
     this.group.add(mesh);
     b.mesh = mesh;

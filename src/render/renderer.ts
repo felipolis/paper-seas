@@ -5,9 +5,14 @@
 import * as THREE from 'three';
 import { installPaperShadows } from './shadows';
 
+/** The drawing buffer's pixels per CSS pixel: the device's (at most 2), or 0.75 of one in the 'low' quality. */
+export function pixelRatio(quality: 'high' | 'low'): number {
+  return quality === 'high' ? Math.min(window.devicePixelRatio || 1, 2) : 0.75;
+}
+
 export function createRenderer(canvas: HTMLCanvasElement): THREE.WebGLRenderer {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, stencil: false, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setPixelRatio(pixelRatio('high'));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.NoToneMapping;
   renderer.shadowMap.enabled = true;

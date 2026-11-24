@@ -124,6 +124,8 @@ export class ShipModel {
   private readonly wind: ClothWind = { fill: 0, luff: 0, side: 1, time: 0 };
   private readonly _a = new THREE.Vector3();
   private readonly _b = new THREE.Vector3();
+  /** The far end of an `along` rigging end (they are never nested: see endPoint). */
+  private readonly _c = new THREE.Vector3();
   /** The captain at the wheel (a layered paper puppet). */
   private puppet: Puppet | null = null;
   /** The ship's wheel (turned with the rudder). */
@@ -446,9 +448,9 @@ export class ShipModel {
 
   private endPoint(end: RigEnd, out: THREE.Vector3): THREE.Vector3 {
     if ('along' in end) {
+      // (an `along` end lies between two fixed ends: never between two `along` ones, so one scratch will do)
       this.endPoint(end.along[0], out);
-      const b = this.endPoint(end.along[1], new THREE.Vector3());
-      return out.lerp(b, end.f);
+      return out.lerp(this.endPoint(end.along[1], this._c), end.f);
     }
     out.copy(end.p);
     if (end.mast >= 0) out.applyMatrix4(this.masts[end.mast].hinge.matrix);

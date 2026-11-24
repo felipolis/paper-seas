@@ -46,6 +46,7 @@ export class Shipyard {
         </div>
       </div>`;
     parent.appendChild(this.root);
+    this.root.inert = true;
     this.root.addEventListener('click', (e) => {
       const el = (e.target as HTMLElement).closest('button');
       if (!el) return;
@@ -76,10 +77,13 @@ export class Shipyard {
     this.ship = activeShip().id;
     this.captain = activeCaptain().id;
     this.render();
+    this.root.inert = false;
     this.root.classList.add('on');
   }
 
+  /** (inert while hidden: a sheet off-screen keeps no focus) */
   hide(): void {
+    this.root.inert = true;
     this.root.classList.remove('on');
   }
 

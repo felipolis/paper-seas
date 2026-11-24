@@ -24,6 +24,15 @@ export function overlaps(a: Box, b: Box): boolean {
   return a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1];
 }
 
+/** Distance from p to the segment ab (segmentDistance without the parameter, for loops run every frame). */
+export function distanceToSegment(px: number, pz: number, ax: number, az: number, bx: number, bz: number): number {
+  const dx = bx - ax;
+  const dz = bz - az;
+  const l2 = dx * dx + dz * dz;
+  const t = l2 > 1e-12 ? clamp(((px - ax) * dx + (pz - az) * dz) / l2, 0, 1) : 0;
+  return Math.hypot(px - (ax + dx * t), pz - (az + dz * t));
+}
+
 /** Distance from p to the segment ab, and the parameter t (0..1) of the nearest point. */
 export function segmentDistance(px: number, pz: number, ax: number, az: number, bx: number, bz: number): [number, number] {
   const dx = bx - ax;

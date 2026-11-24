@@ -10,7 +10,7 @@ import { smoothstep } from '../core/math';
 const BAND: [number, number] = [0.24, 0.42];
 /** ...and pieces nearer the lens than this (2.2 -> 5). */
 const LENS: [number, number] = [2.2, 5];
-/** The line ends this far above the focus: the captain's head, which the camera looks at. */
+/** The line ends at this height (the captain's head, which the camera looks at), above the focus point. */
 const HEAD = 0.4;
 
 

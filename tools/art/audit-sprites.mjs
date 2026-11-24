@@ -9,14 +9,14 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright-core';
+import { launch } from '../browser.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const dir = join(root, 'public/art');
 const out = process.argv[2] ?? join(root, 'assets-src/audit-contact.png');
 const files = readdirSync(dir).filter((f) => f.endsWith('.png')).sort();
 
-const browser = await chromium.launch({ executablePath: 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', headless: true });
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1800, height: 1200 } });
 await page.setContent('<html><body style="margin:0;background:#3a1030"></body></html>');
 const sprites = files.map((f) => ({ name: f.replace('.png', ''), url: `data:image/png;base64,${readFileSync(join(dir, f)).toString('base64')}` }));

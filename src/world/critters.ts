@@ -240,11 +240,8 @@ export class Critters {
           }
         } else if (sp.b === 'graze') {
           if (s.bank && s.cool <= 0 && d2 < SLIDE * SLIDE && this.startSlide(s, c, dx, dz)) break;
-          if (sp.shuffle && s.cool <= 0 && d2 < SHUFFLE * SHUFFLE && this.startFlee(s, c, kind, dx, dz, sp.shuffle, false)) {
-            // a few steps aside
-            s.st = 'walk';
-            s.v = sp.speed * 2.4;
-            s.air = false;
+          // a few steps aside, at a brisk walk
+          if (sp.shuffle && s.cool <= 0 && d2 < SHUFFLE * SHUFFLE && this.startFlee(s, c, kind, dx, dz, sp.shuffle, false, sp.speed * 2.4)) {
             s.cool = 3;
             break;
           }
@@ -516,8 +513,11 @@ export class Critters {
     s.idle = 'stand';
   }
 
-  /** Away from him ((dx, dz): toward him): a spot `dist` off that it can stand on, tried at widening angles. */
-  private startFlee(s: State, c: Card, kind: Kind, dx: number, dz: number, dist: number, fly: boolean): boolean {
+  /**
+   * Away from him ((dx, dz): toward him): a spot `dist` off that it can stand on, tried at widening angles; it runs
+   * there (flies with `fly`), or walks at `walk` when given (a grazer's shuffle). Up on a seat it leaps down first.
+   */
+  private startFlee(s: State, c: Card, kind: Kind, dx: number, dz: number, dist: number, fly: boolean, walk?: number): boolean {
     const ok = (x: number, z: number) => this.habitat.canStand(c.x + x, c.z + z);
     const base = Math.atan2(-dz, -dx);
     for (const d of [dist, dist * 0.6]) {
@@ -536,6 +536,10 @@ export class Critters {
           s.fx = s.x;
           s.fz = s.z;
           s.dur = 1.3 + d * 0.5;
+        } else if (walk !== undefined) {
+          s.st = 'walk';
+          s.v = walk;
+          s.air = false;
         } else {
           s.st = 'flee';
           s.v = kind.sp.run ?? kind.sp.speed;

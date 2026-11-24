@@ -67,9 +67,8 @@ export class Flotsam {
     loadJson(STORAGE_KEY, isNumberArray)?.forEach((k) => this.found.add(k));
   }
 
-  /** Forgets every bottle read. */
-  reset(): void {
-    this.found.clear();
+  /** Forgets the bottles read (a new voyage: the page reloads after). */
+  forgetVoyage(): void {
     forget(STORAGE_KEY);
   }
 
@@ -92,7 +91,7 @@ export class Flotsam {
       // bob and roll in the swell
       it.bob.position.y = 0.03 * Math.sin(this.t * 1.7 + it.phase * 6);
       it.bob.rotation.z = 0.09 * Math.sin(this.t * 1.1 + it.phase * 9);
-      if (it.sprite === 'bottle' && it.fold.currentTarget === 1 && d < PICKUP_RADIUS) this.pickUp(it);
+      if (it.sprite === 'bottle' && it.fold.target === 1 && d < PICKUP_RADIUS) this.pickUp(it);
     }
   }
 
@@ -100,7 +99,7 @@ export class Flotsam {
     this.found.add(it.key);
     saveJson(STORAGE_KEY, [...this.found]);
     const message = MESSAGES[Math.floor(mulberry32(it.key)() * MESSAGES.length)];
-    bus.emit('bottle', { message, total: this.found.size });
+    bus.emit('bottle', { message });
     this.drop(it);
   }
 
@@ -139,7 +138,11 @@ export class Flotsam {
     node.position.set(x, 0.006, z);
     node.rotation.y = (r - 0.5) * 30 * DEG;
     const bob = new THREE.Group();
-    bob.add(createCard(spriteArt(sprite, { height: height * (0.85 + 0.3 * r), bottom: -0.04 }), { flipX: r > 0.5 }));
+    // (sized by scale: the sprite keeps the card art, and the cached geometry, of its base height)
+    const card = createCard(spriteArt(sprite, { height, bottom: -0.04 }), { flipX: r > 0.5 });
+    const s = 0.85 + 0.3 * r;
+    card.scale.set(s, s, 1);
+    bob.add(card);
     node.add(bob);
     const fold = new FoldGroup();
     fold.add(node, { size: height, seed: r, wobble: 1.4 });
@@ -148,8 +151,8 @@ export class Flotsam {
   }
 
   private drop(it: Item): void {
+    // (its card's geometry is the sprite's own, cached and shared: popup/card.ts)
     this.group.remove(it.node);
-    it.node.traverse((o) => { if (o instanceof THREE.Mesh) o.geometry.dispose(); });
     this.items.delete(it.key);
   }
 }

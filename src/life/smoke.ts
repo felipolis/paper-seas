@@ -87,8 +87,7 @@ export class Smoke {
   readonly group = new THREE.Group();
   private readonly meshes: THREE.InstancedMesh[];
   private readonly puffs: Puff[][] = [];
-  /** When each chimney's house was first seen standing (s), and when it puffs next. */
-  private readonly seen = new WeakMap<object, number>();
+  /** When each chimney puffs next (s; set when its house is first seen standing). */
   private readonly next = new WeakMap<object, number>();
   private t = 0;
 
@@ -118,10 +117,7 @@ export class Smoke {
       .slice(0, EMITTERS);
     if (night < 0.5) {
       for (const c of near) {
-        if (!this.seen.has(c.key)) {
-          this.seen.set(c.key, this.t);
-          this.next.set(c.key, this.t + START[0] + random() * (START[1] - START[0]));
-        }
+        if (!this.next.has(c.key)) this.next.set(c.key, this.t + START[0] + random() * (START[1] - START[0]));
         if (this.t >= this.next.get(c.key)!) {
           this.emit(c.at);
           this.next.set(c.key, this.t + LIFE / PER_EMITTER);

@@ -12,6 +12,7 @@
 import { hash01 } from '../core/rng';
 import { DEG, clamp } from '../core/math';
 import type { Biome } from './land';
+import { Critters } from './critters';
 
 const MIN_DEG = 0.6;
 const MAX_DEG = 2.2;
@@ -42,8 +43,8 @@ export const SWAY_RELEASE = 0.22;
 /** Only cards this close to the focus sway (papertrails: 5.5 tiles). */
 export const SWAY_RADIUS = 11;
 
-const LOOSE = /^(grass|fern|flower|palm|reed)/;
-const STIFF = /^(post|flag|tiki|windmill|monkey|parrot|toucan|crab|iguana|pelican|flamingo|deadwood)/;
+const LOOSE = /^(grass|fern|flower|palm|cattails|papyrus)/;
+const STIFF = /^(signpost|guidepost|lantern-post|pier-post|fence-|flag|tiki|windmill|monkey|parrot|toucan|crab|iguana|pelican|flamingo|deadwood)/;
 const RIGID = /^(rock|ruin|pillar|crate|barrel|cannon|chest|market|waterfall|skull|sea-arch)/;
 
 export interface Sway {
@@ -60,7 +61,7 @@ export interface Sway {
 export function swayOf(sprite: string, height: number, width: number, x: number, z: number): Sway {
   const tall = clamp((height - 0.25) / 1.0, 0, 1);
   const thin = clamp((height / Math.max(width, 1e-3) - 0.7) / 1.2, 0, 1);
-  const cls = LOOSE.test(sprite) ? 1.3 : STIFF.test(sprite) ? 0.35 : RIGID.test(sprite) ? 0.04 : 1;
+  const cls = LOOSE.test(sprite) ? 1.3 : STIFF.test(sprite) || Critters.is(sprite) ? 0.35 : RIGID.test(sprite) ? 0.04 : 1;
   const deg = (MIN_DEG + (MAX_DEG - MIN_DEG) * (0.55 * tall + 0.45 * thin)) * cls;
   if (deg < CUTOFF_DEG) return { amp: 0, rate: 0, phase: 0, twist: 0 };
   const ix = Math.round(x * 1000);

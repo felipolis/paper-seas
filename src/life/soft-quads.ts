@@ -33,7 +33,7 @@ void main() {
   else {
     float ang = atan(p.y, p.x);
     r *= 1.0 + 0.13 * sin(ang * 3.0 + vPar.z * 6.283) + 0.07 * sin(ang * 5.0 + vPar.z * 17.0);
-    a = smoothstep(1.0, 0.2, r);
+    a = 1.0 - smoothstep(0.2, 1.0, r);
   }
   a *= vCol.a;
   gl_FragColor = vec4(vCol.rgb * a, a * vPar.x);

@@ -110,8 +110,6 @@ export function paperCopy<M extends THREE.Material>(mat: M): M {
 
 /** The `fibre` option at which a card gets papertrails' cardstock. */
 const FIBRE_DEFAULT = 0.18;
-/** The `fibreScale` option at which one tile of the card maps covers CARDSTOCK.tile world units. */
-const FIBRE_SCALE_DEFAULT = 1.3;
 
 export interface PaperOptions {
   map?: THREE.Texture | null;
@@ -120,20 +118,12 @@ export interface PaperOptions {
   back?: THREE.ColorRepresentation | null;
   /** Fibre strength: 0.18 = papertrails' cardstock, 0 = no fibre at all (albedo or relief). */
   fibre?: number;
-  /** Fibre frequency: 1.3 = papertrails' tile of the card maps. */
-  fibreScale?: number;
-  /** Normal relief of the fibre (multiplier on papertrails' strength). */
-  relief?: number;
   /** Per-sheet tone variation (papertrails' `vary`). */
   vary?: boolean;
   alphaTest?: number;
-  transparent?: boolean;
-  opacity?: number;
   emissive?: THREE.ColorRepresentation;
   emissiveIntensity?: number;
   side?: THREE.Side;
-  /** papertrails' cardstock: the colour is in the vertices (one white material for every printed card). */
-  vertexColors?: boolean;
 }
 
 type PaperLighting = Record<'uPaperWrap' | 'uPaperPointWrap' | 'uPaperTrans', THREE.IUniform<number>> &
@@ -194,14 +184,11 @@ export function createPaperMaterial(o: PaperOptions = {}): THREE.MeshLambertMate
     color: o.color ?? '#ffffff',
     side: o.side ?? THREE.DoubleSide,
     alphaTest: o.map ? (o.alphaTest ?? CARDSTOCK.cut) : 0,
-    transparent: o.transparent ?? false,
-    opacity: o.opacity ?? 1,
     emissive: o.emissive ?? '#000000',
     emissiveIntensity: o.emissiveIntensity ?? 1,
-    vertexColors: o.vertexColors ?? false,
   });
   // the die cut is anti-aliased on the multisampled scene target
-  mat.alphaToCoverage = mat.alphaTest > 0 && !mat.transparent;
+  mat.alphaToCoverage = mat.alphaTest > 0;
   mat.defines = {};
   if (fibre === 0) mat.defines.PAPER_NO_FIBRE = '';
   if (o.vary === false) mat.defines.PAPER_NO_VARY = '';
@@ -212,8 +199,8 @@ export function createPaperMaterial(o: PaperOptions = {}): THREE.MeshLambertMate
     uPaperBackOn: { value: back === null ? 0 : 1 },
     uPaperFibreTex: { value: cardFibre() },
     uPaperFibreAmt: { value: fibre / FIBRE_DEFAULT },
-    uPaperFibreScale: { value: (o.fibreScale ?? FIBRE_SCALE_DEFAULT) / FIBRE_SCALE_DEFAULT / CARDSTOCK.tile },
-    uPaperRelief: { value: CARDSTOCK.relief * (o.relief ?? 1) },
+    uPaperFibreScale: { value: 1 / CARDSTOCK.tile },
+    uPaperRelief: { value: CARDSTOCK.relief },
     uPageFocus: pageFocus,
   };
   // (a function, not an arrow: called on each copy of the material too (paperCopy), with its own flatness)

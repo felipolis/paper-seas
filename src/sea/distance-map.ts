@@ -1,7 +1,7 @@
 /**
  * A window of the shore-distance field around the ship, as a texture the sea shader reads (depth tones, shallows,
  * foam lapping at the beaches). It is recomputed a few rows per frame into a staging buffer whenever the ship has
- * moved far enough, then swapped in, so it never costs a frame hitch.
+ * moved far enough, then swapped in (the last step, the true-distance pass over the whole window, takes one frame).
  */
 import * as THREE from 'three';
 import type { LandField } from '../world/land';
@@ -20,7 +20,7 @@ export class DistanceMap {
   readonly origin = new THREE.Vector2();
   readonly size = SIZE;
   private readonly data = new Uint16Array(N * N);
-  private readonly staging = new Uint16Array(N * N);
+  private readonly staging = new Float32Array(N * N);
   private stagingOrigin: [number, number] | null = null;
   private row = 0;
   private hasData = false;
@@ -61,17 +61,14 @@ export class DistanceMap {
       const z = oz + (j + 0.5) * CELL;
       for (let i = 0; i < N; i++) {
         const d = this.land.distance(ox + (i + 0.5) * CELL, z);
-        this.staging[j * N + i] = THREE.DataUtils.toHalfFloat(Math.max(-3, Math.min(FAR, d)));
+        this.staging[j * N + i] = Math.max(-3, Math.min(FAR, d));
       }
     }
     this.row = end;
     if (this.row >= N) {
       // true distances (see trueDistance): the shallows only print where land really is near
-      const raw = new Float32Array(N * N);
-      for (let k = 0; k < raw.length; k++) raw[k] = THREE.DataUtils.fromHalfFloat(this.staging[k]);
-      const t = trueDistance(raw, N, CELL);
-      for (let k = 0; k < t.length; k++) this.staging[k] = THREE.DataUtils.toHalfFloat(Math.max(-3, Math.min(FAR, t[k])));
-      this.data.set(this.staging);
+      const t = trueDistance(this.staging, N, CELL);
+      for (let k = 0; k < t.length; k++) this.data[k] = THREE.DataUtils.toHalfFloat(Math.max(-3, Math.min(FAR, t[k])));
       this.origin.set(ox, oz);
       this.texture.needsUpdate = true;
       this.stagingOrigin = null;

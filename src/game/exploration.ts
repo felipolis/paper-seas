@@ -1,10 +1,11 @@
 /**
- * What the ship has seen, for the voyage chart: a set of explored cells (CELL world units square), one small
- * printed tile per cell (land and sea painted from the land field in the game's own tones, coast inked), the dominant
- * feature of each cell (for the map's stamped trees, peaks, waves and landmarks), and the track the ship has sailed.
+ * What has been seen, for the voyage chart: a set of explored cells (CELL world units square), one small printed tile
+ * per cell (land and sea painted from the land field in the game's own tones, coast inked), the dominant feature of
+ * each cell (for the map's stamped trees, peaks, waves and landmarks), and the track sailed and walked.
  *
- * Cells are marked within SIGHT of the ship. Their tiles are painted in the background a few per frame, so opening
- * the chart is instant. The explored set and the track are kept in localStorage.
+ * Cells are marked within SIGHT of the ship (of the captain, ashore). Their tiles are painted in the background a few
+ * per frame, so opening the chart is instant; at most MAX_TILES are kept (the chart bakes them into its regions, and
+ * asks again for any it needs). The explored set and the track are kept in localStorage.
  */
 import { clamp, hexRgb, smoothstep } from '../core/math';
 import { PALETTE } from '../config/palette';
@@ -30,6 +31,10 @@ const isExplored = (v: unknown): v is Explored =>
   isRecord(v) && (v.cells === undefined || isNumberArray(v.cells)) && (v.track === undefined || isNumberArray(v.track));
 const TRACK_STEP = 1.6;
 const TRACK_MAX = 4000;
+/** Painted tiles kept (the oldest go first): about 10 MB of canvases. */
+const MAX_TILES = 4096;
+/** Seconds between two saves while something changes (and on leaving the page). */
+const SAVE_EVERY = 10;
 
 export interface CellInfo {
   /** Share of the cell that is land. */
@@ -63,7 +68,7 @@ const ROCK_TINT = 0.32;
 
 export class Exploration {
   readonly cells = new Set<number>();
-  readonly tiles = new Map<number, HTMLCanvasElement>();
+  private readonly tiles = new Map<number, HTMLCanvasElement>();
   readonly info = new Map<number, CellInfo>();
   readonly track: Array<[number, number]> = [];
   private readonly queue: number[] = [];
@@ -74,26 +79,21 @@ export class Exploration {
 
   constructor(private readonly land: LandField) {
     const data = loadJson(STORAGE_KEY, isExplored);
-    for (const k of data?.cells ?? []) {
-      this.cells.add(k);
-      this.queue.push(k);
-    }
+    for (const k of data?.cells ?? []) this.cells.add(k);
+    window.addEventListener('pagehide', () => { if (this.dirty) this.save(); });
     const t = data?.track ?? [];
     for (let i = 0; i + 1 < t.length; i += 2) this.track.push([t[i], t[i + 1]]);
   }
 
-  reset(): void {
-    this.cells.clear();
-    this.tiles.clear();
-    this.info.clear();
-    this.track.length = 0;
-    this.queue.length = 0;
-    this.extra.clear();
-    this.onReset?.();
+  /** Forgets the stored chart (a new voyage: the page reloads after). */
+  forgetVoyage(): void {
     forget(STORAGE_KEY);
   }
 
-  /** Paints the tile of a cell that is not explored (the fog's soft edge reaches into it). Returns it if ready. */
+  /**
+   * The tile of a cell (explored, or one the fog's soft edge reaches into), or undefined while it is queued to be
+   * painted (onTile tells when it is).
+   */
   requestTile(k: number): HTMLCanvasElement | undefined {
     const t = this.tiles.get(k);
     if (!t && !this.extra.has(k)) {
@@ -106,8 +106,6 @@ export class Exploration {
   private readonly extra = new Set<number>();
   /** Called whenever a tile has been painted (the chart re-bakes the region it falls in). */
   onTile: ((k: number) => void) | null = null;
-  /** Called when the voyage is forgotten. */
-  onReset: (() => void) | null = null;
 
   /** Cells still waiting for their printed tile. */
   get pending(): number {
@@ -156,7 +154,7 @@ export class Exploration {
 
   private save(): void {
     this.dirty = false;
-    this.saveTimer = 3;
+    this.saveTimer = SAVE_EVERY;
     const track: number[] = [];
     for (const [x, z] of this.track) track.push(x, z);
     saveJson(STORAGE_KEY, { cells: [...this.cells], track } satisfies Explored);
@@ -210,6 +208,11 @@ export class Exploration {
     }
     ctx.putImageData(img, 0, 0);
     this.tiles.set(k, c);
+    if (this.tiles.size > MAX_TILES) {
+      const oldest = this.tiles.keys().next().value!;
+      this.tiles.delete(oldest);
+      this.extra.delete(oldest);
+    }
     const cx = x0 + CELL / 2;
     const cz = z0 + CELL / 2;
     const dc = this.land.distance(cx, cz);

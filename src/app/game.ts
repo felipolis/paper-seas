@@ -8,7 +8,7 @@ import { CAMERA, ON_FOOT } from '../config/view';
 import { WORLD } from '../config/world';
 import { Input } from '../core/input';
 import { FollowCamera } from '../camera/follow-camera';
-import { createRenderer } from '../render/renderer';
+import { createRenderer, pixelRatio } from '../render/renderer';
 import { Lights } from '../render/lights';
 import { PostChain } from '../render/post';
 import { DayNight } from '../render/day-night';
@@ -83,6 +83,8 @@ export class Game {
   readonly exploration: Exploration;
   private readonly chart: Chart;
   private quality: 'high' | 'low' = 'high';
+  /** The frame the loop has asked for (cancelled by stop). */
+  private frameId = 0;
   private readonly focus = new THREE.Vector3();
   private readonly lensFocus = new THREE.Vector3();
   private last = 0;
@@ -141,9 +143,9 @@ export class Game {
         onToggleQuality: () => this.setQuality(this.quality === 'high' ? 'low' : 'high'),
         onNewVoyage: (seed?: number) => {
           nextVoyageSeed(seed);
-          this.progress.reset();
-          this.exploration.reset();
-          this.flotsam.reset();
+          this.progress.forgetVoyage();
+          this.exploration.forgetVoyage();
+          this.flotsam.forgetVoyage();
           window.location.reload();
         },
       },
@@ -157,7 +159,7 @@ export class Game {
       }),
     );
     window.addEventListener('keydown', (e) => {
-      if (e.code !== 'Escape') return;
+      if (e.code !== 'Escape' || e.repeat) return;
       if (this.chart.isOpen) this.chart.close();
       else if (this.menu.isOpen) this.menu.hide();
       else this.menu.show();
@@ -184,18 +186,21 @@ export class Game {
     this.running = true;
     this.last = performance.now();
     const frame = (now: number) => {
-      if (!this.running) return;
       const dt = Math.min(0.05, Math.max(0, (now - this.last) / 1000));
       this.last = now;
-      if (this.menu.isOpen) this.input.endFrame();
-      else this.step(dt);
-      requestAnimationFrame(frame);
+      if (this.menu.isOpen) {
+        // (paused: the wheel's notches go to the menu's lists, not to the camera on resume)
+        this.input.takeWheel();
+        this.input.endFrame();
+      } else this.step(dt);
+      this.frameId = requestAnimationFrame(frame);
     };
-    requestAnimationFrame(frame);
+    this.frameId = requestAnimationFrame(frame);
   }
 
   stop(): void {
     this.running = false;
+    cancelAnimationFrame(this.frameId);
   }
 
   // ---- for the dev tools (tools/qa, tools/media drive the dev build through window.game) ----
@@ -214,7 +219,14 @@ export class Game {
   /** Puts the captain ashore at (x, z), the land round him built. */
   landCaptain(x: number, z: number): void {
     this.world.prime(x, z);
+    this.goAshore(x, z);
+  }
+
+  /** The captain steps ashore at (x, z): he leaves the wheel, and the camera comes down to papertrails' distance. */
+  private goAshore(x: number, z: number): void {
     this.walker.land(x, z, this.walkWorld);
+    this.view.targetDistance = ON_FOOT.distance;
+    this.ship.model.showCaptain(false);
   }
 
   /** Whether the captain could stand at (x, z). */
@@ -241,7 +253,7 @@ export class Game {
       // (the wheel zooms the chart itself: the camera's notches are dropped)
       this.input.takeWheel();
       this.chart.update(dt);
-      this.sound.update(p.x, p.z);
+      this.sound.update(this.walker.active ? this.walker.x : p.x, this.walker.active ? this.walker.z : p.z);
       this.input.endFrame();
       this.frames++;
       return;
@@ -262,7 +274,7 @@ export class Game {
     // (with the chart open the camera lifts off the diorama and the wheel is the chart's)
     this.view.lift += ((this.chart.isOpen ? 1 : 0) - this.view.lift) * Math.min(1, dt * 4);
     const wheel = this.input.takeWheel();
-    this.view.update(dt, fx, fz, walking ? this.walker.vx : p.vx, walking ? this.walker.vz : p.vz, keys ? wheel : 0, walking, this.walker.group.position.y);
+    this.view.update(dt, fx, fz, walking ? this.walker.vx : p.vx, walking ? this.walker.vz : p.vz, keys ? wheel : 0, walking, walking ? this.walker.group.position.y : 0);
 
     // streaming focus: ahead of the ship along its velocity
     const lead = Math.min(WORLD.focusLeadMax, WORLD.focusLead * p.speed);
@@ -290,7 +302,7 @@ export class Game {
     this.exploration.update(dt, fx, fz, this.chart.isOpen ? 0 : 0.6);
     this.chart.update(dt);
     this.dayNight.update(dt, !!keys?.isDown('KeyT'));
-    this.sound.update(p.x, p.z);
+    this.sound.update(fx, fz);
     this.time += dt;
     // (round what the camera looks at: the captain ashore, else the ship)
     this.distanceMap.update(this.view.focus.x, this.view.focus.z);
@@ -356,7 +368,8 @@ export class Game {
     const w = this.walker;
     const press = !!keys?.wasPressed('KeyF');
     if (w.active) {
-      const near = Math.hypot(w.x - p.x, w.z - p.z) < 2.6;
+      // (no prompt over the chart: its keys are the chart's)
+      const near = !this.chart.isOpen && Math.hypot(w.x - p.x, w.z - p.z) < 2.6;
       this.hud.setPrompt(near ? '<b>F</b> back aboard' : null);
       if (press && near) {
         w.leave();
@@ -371,7 +384,8 @@ export class Game {
     }
     // the nearest spot a little up the beach (or on a pier alongside) within reach of the ship, with room to stand
     const spots: Array<[number, number, number]> = [];
-    for (let r = 0.6; r <= 2.8; r += 0.2) {
+    for (let s = 0; s <= 11; s++) {
+      const r = 0.6 + 0.2 * s;
       for (let k = 0; k < 24; k++) {
         const x = p.x + Math.cos((k / 24) * Math.PI * 2) * r;
         const z = p.z + Math.sin((k / 24) * Math.PI * 2) * r;
@@ -392,22 +406,17 @@ export class Game {
       }
     }
     this.hud.setPrompt(best ? '<b>F</b> go ashore' : null);
-    if (press && best) {
-      w.land(best[0], best[1], this.walkWorld);
-      // on foot the camera comes down to papertrails' distance
-      this.view.targetDistance = ON_FOOT.distance;
-      this.ship.model.showCaptain(false);
-    }
+    if (press && best) this.goAshore(best[0], best[1]);
   }
 
-  /** 'low' halves the resolution and skips the mirror pass. */
+  /** 'low' draws at 0.75 of a CSS pixel (render/renderer.ts pixelRatio) and skips the mirror pass. */
   setQuality(q: 'high' | 'low'): void {
     this.quality = q;
-    this.renderer.setPixelRatio(q === 'high' ? Math.min(window.devicePixelRatio || 1, 2) : 0.75);
     this.resize();
   }
 
   private resize(): void {
+    this.renderer.setPixelRatio(pixelRatio(this.quality));
     const w = this.canvas.clientWidth || window.innerWidth;
     const h = this.canvas.clientHeight || window.innerHeight;
     this.renderer.setSize(w, h, false);

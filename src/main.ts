@@ -27,7 +27,9 @@ async function boot(): Promise<void> {
     const lift = () => {
       if (game.frames < 3) return requestAnimationFrame(lift);
       loading.classList.add('gone');
-      loading.addEventListener('transitionend', (e) => e.target === loading && loading.remove());
+      if (getComputedStyle(loading).transitionDuration.split(',').some((d) => parseFloat(d) > 0)) {
+        loading.addEventListener('transitionend', (e) => e.target === loading && loading.remove());
+      } else loading.remove();
     };
     requestAnimationFrame(lift);
   }

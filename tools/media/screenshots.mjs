@@ -6,12 +6,11 @@
 // Every scene is seed 865510: the ship held still with all sails set in open water just below the place it looks at
 // (mode 'ship'), or the captain ashore there (mode 'walk'), at a camera framing (dist) and a clock hour; the HUD is
 // hidden, and the chart or the shipyard opened over the scene when it asks for them (ui).
-import { chromium } from 'playwright-core';
+import { GAME_URL, launch } from '../browser.mjs';
 import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const URL = process.env.SHOT_URL ?? 'http://localhost:5180/';
 const SEED = '865510';
 const out = join(dirname(fileURLToPath(import.meta.url)), '../../docs/media');
 const SCENES = [
@@ -29,15 +28,11 @@ const SCENES = [
 const only = process.argv.slice(2);
 
 mkdirSync(out, { recursive: true });
-const browser = await chromium.launch({
-  executablePath: 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
-  headless: true,
-  args: ['--use-angle=d3d11', '--enable-gpu', '--ignore-gpu-blocklist'],
-});
+const browser = await launch({ gpu: true });
 for (const scene of SCENES.filter((s) => !only.length || only.includes(s.name))) {
   const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
   await page.addInitScript((seed) => localStorage.setItem('paper-seas:seed', seed), SEED);
-  await page.goto(URL, { waitUntil: 'networkidle' });
+  await page.goto(GAME_URL, { waitUntil: 'networkidle' });
   await page.waitForFunction(() => window.game && window.game.frames > 2, null, { timeout: 90000 });
   await page.evaluate(stage, scene);
   // (the chart and the shipyard open on CSS transitions, in real time: the chart has settled and no transition runs)

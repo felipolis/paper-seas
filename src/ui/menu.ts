@@ -4,6 +4,7 @@
  * fresh-voyage option. While it is open the world stops.
  */
 import './menu.css';
+import { bus } from '../core/events';
 
 export interface MenuState {
   lands: number;
@@ -49,6 +50,9 @@ export class Menu {
         </div>
       </div>`;
     parent.appendChild(this.root);
+    this.root.inert = true;
+    // (M mutes from anywhere: the sound button follows)
+    bus.on('sound', () => this.render());
     this.root.addEventListener('click', (e) => {
       const act = (e.target as HTMLElement).closest('button')?.dataset.act;
       if (act === 'resume') this.actions.onResume();
@@ -70,11 +74,13 @@ export class Menu {
   show(): void {
     this.open = true;
     this.render();
+    this.root.inert = false;
     this.root.classList.add('on');
   }
 
   hide(): void {
     this.open = false;
+    this.root.inert = true;
     this.root.classList.remove('on');
   }
 

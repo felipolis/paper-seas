@@ -37,6 +37,22 @@ const _v = new THREE.Vector3();
 const _goal = new THREE.Vector3();
 const _cam = new THREE.Vector3();
 
+/** springStep's answer (one shared object: it runs several times a frame). */
+const _spring = { x: 0, v: 0 };
+
+/**
+ * One step of a critically damped spring of angular frequency omega pulling x (moving at v) toward goal, exact for
+ * any dt (the camera's chase and the sight assist): the new x and v.
+ */
+function springStep(x: number, v: number, goal: number, omega: number, dt: number): { x: number; v: number } {
+  const e = Math.exp(-omega * dt);
+  const d = x - goal;
+  const tmp = (v + omega * d) * dt;
+  _spring.v = (v - omega * tmp) * e;
+  _spring.x = goal + (d + tmp) * e;
+  return _spring;
+}
+
 export class FollowCamera {
   readonly camera: THREE.PerspectiveCamera;
   /** The look target (papertrails' `target`). */
@@ -143,15 +159,12 @@ export class FollowCamera {
     } else if (dt > 0) {
       this.clock += dt;
       const omega = 2 / Math.max(0.01, zone ? ON_FOOT.zone.smoothTime : CAMERA.smoothTime);
-      const e = Math.exp(-omega * dt);
       // chase the goal at the middle of the step (second order for a moving goal: the path does not depend on the
       // frame rate)
       for (const axis of ['x', 'y', 'z'] as const) {
-        const g = (goal[axis] + this.prevGoal[axis]) * 0.5;
-        const d = this.focus[axis] - g;
-        const tmp = (this.targetVel[axis] + omega * d) * dt;
-        this.targetVel[axis] = (this.targetVel[axis] - omega * tmp) * e;
-        this.focus[axis] = g + (d + tmp) * e;
+        const s = springStep(this.focus[axis], this.targetVel[axis], (goal[axis] + this.prevGoal[axis]) * 0.5, omega, dt);
+        this.focus[axis] = s.x;
+        this.targetVel[axis] = s.v;
       }
       this.prevGoal.copy(goal);
     }
@@ -286,15 +299,12 @@ export class FollowCamera {
     }
     if (dt <= 0) return;
     const om = 2 / Math.max(0.05, AS.ease);
-    const e = Math.exp(-om * dt);
-    let d = this.aYaw - this.gYaw;
-    let tmp = (this.aYawV + om * d) * dt;
-    this.aYawV = (this.aYawV - om * tmp) * e;
-    this.aYaw = this.gYaw + (d + tmp) * e;
-    d = this.aPitch - this.gPitch;
-    tmp = (this.aPitchV + om * d) * dt;
-    this.aPitchV = (this.aPitchV - om * tmp) * e;
-    this.aPitch = this.gPitch + (d + tmp) * e;
+    let s = springStep(this.aYaw, this.aYawV, this.gYaw, om, dt);
+    this.aYaw = s.x;
+    this.aYawV = s.v;
+    s = springStep(this.aPitch, this.aPitchV, this.gPitch, om, dt);
+    this.aPitch = s.x;
+    this.aPitchV = s.v;
     if (this.gYaw === 0 && Math.abs(this.aYaw) < 1e-3 && Math.abs(this.aYawV) < 1e-3) this.aYaw = this.aYawV = 0;
     if (this.gPitch === 0 && Math.abs(this.aPitch) < 1e-3 && Math.abs(this.aPitchV) < 1e-3) this.aPitch = this.aPitchV = 0;
   }

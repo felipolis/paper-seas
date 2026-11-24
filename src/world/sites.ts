@@ -3,12 +3,12 @@
  * per chunk square. On the coast a fishing village or a port town, well inland now and then a hamlet; here and there
  * old ruins. A site's layout (its buildings round the square, its props, its piers, the lanes branching from the square to
  * every door) is worked out from the site, keeping clear of the roads that reach it, of the streams and of the ground
- * already claimed by the neighbouring sites laid out before it (sitesInOrder).
+ * already claimed by the neighbouring sites laid out before it (laidOutBefore).
  */
 import { WORLD } from '../config/world';
 import { hash01, hash2, mulberry32 } from '../core/rng';
 import { modelInfo } from './models';
-import { spriteInfo, spriteTop } from '../art/sprites';
+import { cardWidth, spriteTop } from '../art/sprites';
 import { HEIGHT, heightOf } from '../config/flora';
 import { boundsOf, polylineDistance, type Box, type Pt } from './polyline';
 import type { LandField } from './land';
@@ -18,8 +18,7 @@ const SEED = WORLD.seed;
 export const SITE_CELL = 18;
 /** A prop's footprint radius: half its card's drawn width at its tallest (what stops the feet is the card as drawn). */
 function propFoot(sprite: string): number {
-  const info = spriteInfo(sprite);
-  return (HEIGHT[sprite][1] * info.w) / info.h / 2;
+  return cardWidth(sprite, HEIGHT[sprite][1]) / 2;
 }
 
 /** A lane's points; a new lane may branch off an earlier one only short of its door (its first BRANCH_FROM points). */
@@ -255,20 +254,19 @@ function vignettes(site: Site, buildings: Placed[], props: Placed[], rng: () => 
     return list.length ? list[Math.floor(rng() * list.length)] : null;
   };
   // on: across the piece's top, feet at its print's top there (a seat between 0.13 and 0.75, as papertrails takes)
-  const seat = rng() < (hamlet ? VIG.onHamlet : VIG.on) ? pick(/^(fence-|barrel$|well$|crates$|hay$|woodpile$|bench$)/) : null;
+  const seat = rng() < (hamlet ? VIG.onHamlet : VIG.on) ? pick(/^(fence-|barrel$|well$|crates$|bench$)/) : null;
   if (seat && seat.height) {
-    const info = spriteInfo(seat.name);
     const t = (rng() - 0.5) * 0.9;
     const u = 0.5 + t * 0.5;
     const top = seat.height * Math.min(spriteTop(seat.name, u), spriteTop(seat.name, 1 - u));
     if (top >= 0.13 && top <= 0.75) {
-      const w = (seat.height * info.w) / info.h;
+      const w = cardWidth(seat.name, seat.height);
       props.push({ name: 'cat', x: seat.x + t * w * 0.5, z: seat.z + 0.02, yaw: 0, height: heightOf('cat', rng()), flip: rng() < 0.5, vignette: { seat: top - VIG.sink } });
     }
   }
   // door: by the door of a house, a little to one side
   if (rng() < (hamlet ? VIG.doorHamlet : VIG.door)) {
-    const homes = buildings.filter((b) => !['lighthouse', 'fort', 'windmill'].includes(b.name));
+    const homes = buildings.filter((b) => b.name !== 'lighthouse' && b.name !== 'fort');
     const b = homes.length ? homes[Math.floor(rng() * homes.length)] : null;
     const info = b ? modelInfo(b.name) : null;
     if (b && info) {
@@ -289,7 +287,7 @@ function vignettes(site: Site, buildings: Placed[], props: Placed[], rng: () => 
   const beside = (who: string, re: RegExp, n: number) => {
     const p = pick(re);
     if (!p || !p.height) return;
-    const half = (p.height * spriteInfo(p.name).w) / spriteInfo(p.name).h / 2;
+    const half = cardWidth(p.name, p.height) / 2;
     const s0 = rng() < 0.5 ? -1 : 1;
     let placed = 0;
     for (let q = 0; q < 4 && placed < n; q++) {
@@ -302,7 +300,7 @@ function vignettes(site: Site, buildings: Placed[], props: Placed[], rng: () => 
       placed++;
     }
   };
-  if (rng() < VIG.dog) beside('dog', /^(handcart|bench|well|signpost|guidepost)$/, 1);
+  if (rng() < VIG.dog) beside('dog', /^(handcart|bench|well)$/, 1);
   if (rng() < VIG.hens) beside('hen', /^(fence-|handcart$)/, 3);
 }
 

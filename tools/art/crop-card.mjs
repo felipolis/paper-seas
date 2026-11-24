@@ -1,11 +1,11 @@
 // Crops one card out of a generated sheet by hand (for a card the sprite cutter cannot separate from the white
 // sheet, like a snow swatch), inside its ink frame, and adds it to the target folder's manifest.
 //   node tools/art/crop-card.mjs <sheet.png> <out.png> <x0> <y0> <x1> <y1>   (fractions of the sheet)
-import { chromium } from 'playwright-core';
+import { launch } from '../browser.mjs';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join, basename } from 'node:path';
 const [src, out, x0, y0, x1, y1] = process.argv.slice(2);
-const b = await chromium.launch({ channel: 'msedge' });
+const b = await launch();
 const p = await b.newPage();
 const url = await p.evaluate(async ({ data, r }) => {
   const i = new Image();

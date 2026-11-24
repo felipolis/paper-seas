@@ -24,8 +24,11 @@ export interface IslandSpec {
 
 /** Width of the shallow-water ring printed around every island (world units). */
 const SHALLOW_WIDTH = 1.0;
-/** Largest extent of any island (bounds the neighbour search). */
-const MAX_EXTENT = 10;
+/**
+ * Largest extent of any island (bounds the neighbour search): the 'big' form's farthest satellite reaches 4.5 + 3.8 x
+ * 1.3 (stretch) x 1.33 (its lumps at their largest), about 11.1; every other form stays under 9.5.
+ */
+const MAX_EXTENT = 11.5;
 
 const FORMS: ReadonlyArray<{ form: IslandForm; weight: number }> = [
   { form: 'round', weight: 0.22 },
@@ -144,7 +147,7 @@ function makeShape(form: IslandForm, rng: Rng): IslandShape {
     for (const l of b.lumps) k += Math.abs(l.amp);
     extent = Math.max(extent, Math.hypot(b.x, b.z) + Math.max(b.rx, b.rz) * k);
   }
-  return { blobs, cuts, extent: Math.min(MAX_EXTENT, extent) };
+  return { blobs, cuts, extent };
 }
 
 /** Signed distance from (x, z) (world) to the island's shore: > 0 in the water, < 0 on land. */

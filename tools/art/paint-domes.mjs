@@ -10,7 +10,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright-core';
+import { launch } from '../browser.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const swatch = (n) => `data:image/png;base64,${readFileSync(join(root, 'public/models/tex', `${n}.png`)).toString('base64')}`;
@@ -48,7 +48,7 @@ for (const [kind, k] of Object.entries(KINDS)) for (const d of DOMES.filter((v) 
 for (const [kind, k] of Object.entries(STONES)) for (const d of STONE_V) jobs.push({ name: `stone-${kind}-${d.v}`, type: 'stone', k, d, seed: seed++ * 7919 });
 const grains = Object.fromEntries([...new Set(jobs.flatMap((j) => [j.k.grain, j.k.capGrain].filter(Boolean)))].map((g) => [g, swatch(g)]));
 
-const browser = await chromium.launch({ executablePath: 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', headless: true });
+const browser = await launch();
 const page = await browser.newPage();
 await page.setContent('<html><body></body></html>');
 const out = await page.evaluate(async ({ jobs, grains }) => {

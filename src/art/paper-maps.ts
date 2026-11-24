@@ -10,6 +10,7 @@
  */
 import * as THREE from 'three';
 import { mulberry32 } from '../core/rng';
+import { addValueNoise } from './tile-noise';
 
 /** The rougher page stock of the ground (papertrails' `pagePaper` / `pagePaperNormal`). */
 export interface PageFibre {
@@ -34,33 +35,6 @@ function repeatTexture(image: HTMLImageElement): THREE.Texture {
   t.minFilter = THREE.LinearMipmapLinearFilter;
   t.needsUpdate = true;
   return t;
-}
-
-function smooth(t: number): number {
-  return t * t * (3 - 2 * t);
-}
-
-/** papertrails' tileable value noise, added into `out` (render/materials.js `addValueNoise`). */
-function addValueNoise(out: Float32Array, n: number, cells: number, amp: number, rng: () => number): void {
-  const g = new Float32Array(cells * cells);
-  for (let i = 0; i < g.length; i++) g[i] = rng() - 0.5;
-  for (let y = 0; y < n; y++) {
-    const fy = (y / n) * cells;
-    const iy = Math.floor(fy);
-    const ty = smooth(fy - iy);
-    const y0 = (iy % cells) * cells;
-    const y1 = ((iy + 1) % cells) * cells;
-    for (let x = 0; x < n; x++) {
-      const fx = (x / n) * cells;
-      const ix = Math.floor(fx);
-      const tx = smooth(fx - ix);
-      const x0 = ix % cells;
-      const x1 = (ix + 1) % cells;
-      const a = g[y0 + x0] + (g[y0 + x1] - g[y0 + x0]) * tx;
-      const b = g[y1 + x0] + (g[y1 + x1] - g[y1 + x0]) * tx;
-      out[y * n + x] += amp * (a + (b - a) * ty);
-    }
-  }
 }
 
 /** Zero mean, unit variance. */

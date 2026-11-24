@@ -15,7 +15,7 @@
 import { readFileSync, writeFileSync, readdirSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright-core';
+import { launch } from '../browser.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const facesDir = join(root, 'assets-src/models/faces');
@@ -35,7 +35,7 @@ const sources = [
 ].map(({ name, file }) => ({ name, url: `data:image/png;base64,${readFileSync(file).toString('base64')}` }));
 const faces = [...sources, ...Object.entries(DERIVED).map(([name, [from, shade]]) => ({ name, url: sources.find((f) => f.name === from).url, shade }))];
 
-const browser = await chromium.launch({ executablePath: 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', headless: true });
+const browser = await launch();
 const page = await browser.newPage();
 await page.setContent('<html><body></body></html>');
 const result = await page.evaluate(async ({ faces, SIZE, PAD, PATCHES }) => {

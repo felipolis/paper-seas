@@ -13,6 +13,12 @@
  */
 import { CLOUD_GLSL } from './cloud-shadows';
 
+/** Interleaved gradient noise (per-pixel rotation of a tap pattern) and Rec. 709 luma. */
+const HELPERS = /* glsl */ `
+float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
+float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
+`;
+
 export const VERT = /* glsl */ `
 varying vec2 vUv;
 void main() {
@@ -28,7 +34,7 @@ varying vec2 vUv;
 uniform vec4 uProj;   // near, far, tan(fov / 2), aspect
 uniform vec4 uDofA;   // focus view depth, focus uv.y, depth scale, depth weight
 uniform vec4 uDofB;   // half band, ramp, max blur (px, drawing buffer), near gain
-uniform vec4 uDofC;   // far gain, enabled, green pull, warm/cool split
+uniform vec3 uDofC;   // far gain, green pull, warm/cool split
 uniform mat4 uCamWorld;
 uniform vec3 uFocusW;
 uniform vec4 uGobo;   // screen-right axis on the ground (x, z), 1 / radius, key falloff
@@ -43,10 +49,9 @@ float cocAt(vec2 uv, float z) {
   float a = min(max(abs(c) - uDofB.x, 0.0) / uDofB.y, 1.0);
   a = a * a * (3.0 - 2.0 * a) * 0.35 + a * 0.65;
   float g = c < 0.0 ? uDofB.w : uDofC.x;
-  return sign(c) * min(a * g, 1.0) * uDofB.z * uDofC.y;
+  return sign(c) * min(a * g, 1.0) * uDofB.z;
 }
-float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
-float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
+${HELPERS}
 vec3 viewPos(vec2 uv, float z) { return vec3((uv * 2.0 - 1.0) * vec2(uProj.z * uProj.w, uProj.z) * z, -z); }
 
 // papertrails' world-space light falloff: the key side (screen-left) brighter and warmer, the fill side dimmer and
@@ -155,8 +160,7 @@ uniform vec2 uTexel;  // full-res texel
 uniform vec2 uTileTexel;
 uniform vec2 uTaps[DOF_TAPS];
 uniform float uBoost;
-float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
-float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
+${HELPERS}
 void main() {
   vec4 c0 = textureLod(tPre, vUv, 0.0);
   float cc = c0.a;
@@ -320,7 +324,7 @@ void main() {
   vec2 shift = gl > 1e-4 ? g / gl * min(gl * 0.35, 1.0) * 2.2 : vec2(0.0);
   vec4 blur = texture2D(tBlur, vUv + shift * uTexel);
   float blend = max(smoothstep(1.2, 3.6, ac), blur.a);
-  vec3 col = mix(sharp, blur.rgb, blend * uDofC.y);
+  vec3 col = mix(sharp, blur.rgb, blend);
   col += texture2D(tBloom, vUv).rgb * uFx.x;
   // papertrails' light spill: the very wide blur of the glowing panes and lanterns lights the paper round them
   if (uSpill > 0.0) {
@@ -339,12 +343,12 @@ void main() {
   col = (col - 0.42) * uTone.y + 0.42;
   // yellow-green grass under the warm key reads as a video game: pull only those hues toward sage (after
   // papertrails; cream, ochre, terracotta and the teal sea are outside the mask)
-  float gm = smoothstep(0.1, 0.3, col.g - col.b) * smoothstep(-0.2, -0.05, col.g - col.r) * uDofC.z;
+  float gm = smoothstep(0.1, 0.3, col.g - col.b) * smoothstep(-0.2, -0.05, col.g - col.r) * uDofC.y;
   col = mix(col, mix(vec3(luma(col)), col, 0.45) * vec3(0.97, 1.0, 1.03), clamp(gm, 0.0, 1.0));
   col += uShadowTint * uTone.w * (1.0 - smoothstep(0.0, 0.45, l));
   // a very slight warm-left / cool-right grade: the lamp is at screen-left
   float sx = vUv.x * 2.0 - 1.0;
-  col *= vec3(1.0 - uDofC.w * sx, 1.0 - uDofC.w * 0.25 * sx, 1.0 + uDofC.w * 1.3 * sx);
+  col *= vec3(1.0 - uDofC.z * sx, 1.0 - uDofC.z * 0.25 * sx, 1.0 + uDofC.z * 1.3 * sx);
   vec2 gp = gl_FragCoord.xy / uLens.z;
   vec2 gi = floor(gp), gf = fract(gp);
   vec2 so = vec2(uFx.w * 0.618, uFx.w * 0.377);

@@ -144,10 +144,6 @@ export function addContact(tex: THREE.DataTexture, x0: number, z0: number, props
 }
 
 /**
- * The ground's paper material: papertrails' page (no card fibre, no per-sheet tone), its colour the chunk's base print
- * finished by papertrails' page terms.
- */
-/**
  * papertrails' road tone per biome (biomeTint[b].path): over the chunk, a small grid of the tone the trodden ground
  * takes there (linear rgb) and how much of it (alpha), blended over a tile like the ground tint. tone(u, v) answers
  * for a node (0..1 across the chunk); grid: nodes per side - 1.
@@ -171,6 +167,10 @@ export function pathTones(grid: number, tone: (u: number, v: number) => [number,
   return tex;
 }
 
+/**
+ * The ground's paper material: papertrails' page (no card fibre, no per-sheet tone), its colour the chunk's base print
+ * finished by papertrails' page terms.
+ */
 export function groundMaterial(print: THREE.Texture, data: THREE.Texture, paths: THREE.DataTexture, x0: number, z0: number, size: number): THREE.MeshLambertMaterial {
   const mat = createPaperMaterial({ back: null, fibre: 0, vary: false });
   const page = pageFibre();

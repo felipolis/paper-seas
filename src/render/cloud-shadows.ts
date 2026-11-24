@@ -81,7 +81,7 @@ vec3 cloudShadows(vec3 col, vec3 pw, vec3 cam) {
     // papertrails' soft patch: a wavy outline, a smooth fall from the middle
     float ang = atan(p.y, p.x);
     r *= 1.0 + 0.13 * sin(ang * 3.0 + B.z * 6.283) + 0.07 * sin(ang * 5.0 + B.z * 17.0);
-    float a = smoothstep(1.0, 0.2, r) * B.w;
+    float a = (1.0 - smoothstep(0.2, 1.0, r)) * B.w;
     // (its premultiplied quad over the scene: colour * a * a + dst * (1 - a))
     col = col * (1.0 - a) + uCloudColor * a * a;
   }

@@ -5,11 +5,11 @@
  */
 import { bus } from '../core/events';
 import type { World } from '../world/world';
-import { islandName } from '../world/island-names';
+import { coastName, islandName } from '../world/island-names';
 import { hash2 } from '../core/rng';
 import type { IslandKind } from '../world/island-layout';
 import { WORLD } from '../config/world';
-import { isNumber, isNumberArray, isRecord, isString, loadJson, saveJson } from '../core/storage';
+import { forget, isNumber, isNumberArray, isRecord, isString, loadJson, saveJson } from '../core/storage';
 
 /** World hashes are salted with the voyage seed: every voyage places its own villages, ruins, chests... */
 const SEED = WORLD.seed;
@@ -56,29 +56,25 @@ export class Progress {
     data?.spots?.forEach(([name, x, z]) => this.treasureSpots.push({ name, x, z }));
   }
 
-  /** Forgets the whole voyage. */
-  reset(): void {
-    this.discovered.clear();
-    this.treasures.clear();
-    this.places.clear();
-    this.treasureSpots.length = 0;
-    this.save();
+  /** Forgets the stored voyage (a new voyage: the page reloads after). */
+  forgetVoyage(): void {
+    forget(STORAGE_KEY);
   }
 
   update(dt: number, world: World, x: number, z: number): void {
     // treasure
     for (const chest of world.terrain.chestList()) {
       if (this.treasures.has(chest.id)) {
-        if (!chest.card.hidden) world.cards.hide(chest.card);
+        if (!chest.card.hidden) world.terrain.takeChest(chest);
         continue;
       }
       if (chest.card.flap.p < 0.9) continue;
       if (Math.hypot(chest.card.x - x, chest.card.z - z) > TREASURE_REACH) continue;
       this.treasures.add(chest.id);
       this.treasureSpots.push({ name: chest.name, x: chest.card.x, z: chest.card.z });
-      world.cards.hide(chest.card);
+      world.terrain.takeChest(chest);
       this.save();
-      bus.emit('treasure', { name: chest.name, total: this.treasures.size });
+      bus.emit('treasure', { name: chest.name });
     }
 
     // discoveries (a few times a second is plenty)
@@ -89,19 +85,16 @@ export class Progress {
     const island = world.land.islandsNear(x, z, DISCOVER_REACH)[0];
     let id: number;
     let name: string;
-    let kind: string;
     if (island) {
       id = island.id;
       name = islandName(island.kind, island.seed);
-      kind = island.kind;
     } else {
       const ri = Math.floor(x / REGION);
       const rj = Math.floor(z / REGION);
       id = -((hash2((61) ^ SEED, ri, rj) >>> 1) + 1);
       const biome = world.land.biome(x, z, -3);
       const k: IslandKind = biome === 'jungle' ? 'jungle' : biome === 'pine' || biome === 'rocky' ? 'rocky' : biome === 'meadow' ? 'village' : 'tropical';
-      name = islandName(k, hash2((67) ^ SEED, ri, rj)).replace(/ (Cay|Isle|Key|Atoll|Island|Rock|Reef|Point|Crag|Wilds|Reach|Harbour|Haven|Town|Landing)$/, ' Coast');
-      kind = biome;
+      name = coastName(k, hash2((67) ^ SEED, ri, rj));
     }
     if (this.discovered.has(id)) return;
     this.discovered.add(id);
@@ -110,7 +103,7 @@ export class Progress {
     const inland = Math.max(2, Math.min(9, world.land.distance(x, z) + 4));
     this.places.set(id, island ? { name, x: island.x, z: island.z } : { name, x: x - nx * inland, z: z - nz * inland });
     this.save();
-    bus.emit('discovered', { name, kind, total: this.discovered.size });
+    bus.emit('discovered', { name, coast: !island });
   }
 
   private save(): void {

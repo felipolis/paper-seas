@@ -30,3 +30,9 @@ export function islandName(kind: IslandKind, seed: number): string {
   const b = SECOND[kind][Math.floor(rng() * SECOND[kind].length)];
   return `${a} ${b}`;
 }
+
+/** The name of a stretch of continent coast: the island name's first word and "Coast" (Coconut Coast). */
+export function coastName(kind: IslandKind, seed: number): string {
+  const rng = mulberry32(seed ^ 0x51a7);
+  return `${FIRST[kind][Math.floor(rng() * FIRST[kind].length)]} Coast`;
+}

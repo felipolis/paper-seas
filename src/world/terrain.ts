@@ -3,9 +3,9 @@
  * generator), so sailing never stutters:
  *
  *   1. sample the land field and the terrace thresholds on a grid aligned to the world
- *   2. print the ground texture pixel by pixel from those grids (sand, wet sand, biome-tinted grass, hills, rock,
- *      snow, inked terrace edges): every term is a function of world position, so chunks meet without seams
- *   3. extrude each terrace (sand, grass, hill, high) into stacked paper layers, clipped to the chunk square
+ *   2. print the ground texture pixel by pixel from those grids (sand, wet sand, biome-tinted grass, hills, rock): every
+ *      term is a function of world position, so chunks meet without seams
+ *   3. extrude the land into one paper sheet, clipped to the chunk square
  *   4. place the standing cards: vegetation by biome, big scenery on the high ground, villages on the coast,
  *      ruins, signature landmarks of the stamped islands, chests on beaches, animals, sea arches in the shallows
  */
@@ -15,7 +15,7 @@ import { DEG, clamp, hexRgb, smoothstep } from '../core/math';
 import { hash2, mulberry32 } from '../core/rng';
 import { mirrorSkip } from '../render/reflection';
 import { toTexture } from '../art/card-painter';
-import { spriteInfo, spriteSpan, spriteTop } from '../art/sprites';
+import { cardWidth, spriteSpan, spriteTop } from '../art/sprites';
 import { BAND_HI, BAND_LO, HULL_MAX, hullSegments, placeSegments, type Segment } from './blockers';
 import { cellJitter, type Reveal } from './reveal';
 import { contoursFromGrid, outlinesWithHoles, type Grid } from './contours';
@@ -41,9 +41,11 @@ import { cellKey } from '../core/grid';
 import { ClearanceField, REACH } from './clearance';
 
 /** World hashes are salted with the voyage seed: every voyage places its own villages, ruins, chests... */
+/** The chest roll's own salt (each roll its own: one shared with the lighthouse's put a chest by every lighthouse). */
+const CHEST_SALT = 97;
 const SEED = WORLD.seed;
 
-const CHUNK = 18;
+export const CHUNK = 18;
 
 /**
  * The land field is a distance *estimate*: where its noise flattens out it can read "0.3 from the shore" over open
@@ -78,28 +80,42 @@ const toLinear = (v: number) => Math.pow(v / 255, 2.2);
 const toByte = (v: number) => 255 * Math.pow(Math.min(1, v), 1 / 2.2);
 
 /**
- * A ground colour (sRGB bytes) under the biome tints of the four grid nodes round (u, v) (0..1 across the chunk),
- * mixed by smooth weights; null nodes are the identity.
+ * A ground colour (sRGB bytes r, g, b) under the biome tints of the four grid nodes round (u, v) (0..1 across the
+ * chunk), mixed by smooth weights (null nodes are the identity), written to `out` as sRGB bytes; `one` is scratch.
+ * (It runs for every tinted pixel of a chunk's print.)
  */
-function tintAt(tints: Array<TintRows | null>, u: number, v: number, r: number, g: number, b: number, lin: [number, number, number], one: [number, number, number]): [number, number, number] {
+function tintAt(tints: Array<TintRows | null>, u: number, v: number, r: number, g: number, b: number, out: Rgb, one: Rgb): void {
   const fx = clamp(u * TINT_GRID, 0, TINT_GRID - 1e-3);
   const fz = clamp(v * TINT_GRID, 0, TINT_GRID - 1e-3);
   const i = Math.floor(fx);
   const j = Math.floor(fz);
   const a = smoothstep(0, 1, fx - i);
   const c = smoothstep(0, 1, fz - j);
-  lin[0] = lin[1] = lin[2] = 0;
-  for (const [di, dj, w] of [[0, 0, (1 - a) * (1 - c)], [1, 0, a * (1 - c)], [0, 1, (1 - a) * c], [1, 1, a * c]] as const) {
-    one[0] = toLinear(r);
-    one[1] = toLinear(g);
-    one[2] = toLinear(b);
-    const t = tints[(j + dj) * (TINT_GRID + 1) + i + di];
-    if (t) applyTint(t, one);
-    lin[0] += one[0] * w;
-    lin[1] += one[1] * w;
-    lin[2] += one[2] * w;
-  }
-  return [toByte(lin[0]), toByte(lin[1]), toByte(lin[2])];
+  const lr = toLinear(r);
+  const lg = toLinear(g);
+  const lb = toLinear(b);
+  const row = TINT_GRID + 1;
+  out[0] = out[1] = out[2] = 0;
+  addTinted(tints[j * row + i], (1 - a) * (1 - c), lr, lg, lb, out, one);
+  addTinted(tints[j * row + i + 1], a * (1 - c), lr, lg, lb, out, one);
+  addTinted(tints[(j + 1) * row + i], (1 - a) * c, lr, lg, lb, out, one);
+  addTinted(tints[(j + 1) * row + i + 1], a * c, lr, lg, lb, out, one);
+  out[0] = toByte(out[0]);
+  out[1] = toByte(out[1]);
+  out[2] = toByte(out[2]);
+}
+
+type Rgb = [number, number, number];
+
+/** Adds w of the linear colour (lr, lg, lb) under a node's tint (none: as it is) to `out`. */
+function addTinted(t: TintRows | null, w: number, lr: number, lg: number, lb: number, out: Rgb, one: Rgb): void {
+  one[0] = lr;
+  one[1] = lg;
+  one[2] = lb;
+  if (t) applyTint(t, one);
+  out[0] += one[0] * w;
+  out[1] += one[1] * w;
+  out[2] += one[2] * w;
 }
 const LOAD_RADIUS = 36;
 const UNLOAD_RADIUS = 46;
@@ -107,6 +123,18 @@ const FRAME_BUDGET_MS = 4;
 /** Grid layout shared by every chunk (origin = chunk corner - one cell). */
 const GRID_N = Math.round(CHUNK / CELL) + 2;
 const GRID_W = GRID_N + 1;
+
+/** Bilinear read at (x, z) of a chunk's sampled grid a, whose first node lies at (gx0, gz0) (clamped to the grid). */
+function gridSample(a: Float32Array, gx0: number, gz0: number, x: number, z: number): number {
+  const fx = clamp((x - gx0) / CELL, 0, GRID_N - 1e-3);
+  const fz = clamp((z - gz0) / CELL, 0, GRID_N - 1e-3);
+  const ii = Math.floor(fx);
+  const jj = Math.floor(fz);
+  const u = fx - ii;
+  const v = fz - jj;
+  const k = jj * GRID_W + ii;
+  return a[k] * (1 - u) * (1 - v) + a[k + 1] * u * (1 - v) + a[k + GRID_W] * (1 - u) * v + a[k + GRID_W + 1] * u * v;
+}
 
 
 interface Chunk {
@@ -130,6 +158,8 @@ interface Chunk {
   decks: Deck[];
   /** The trodden ground of this chunk (roads, lanes, squares), as the ground shader draws it. */
   paths: Paths | null;
+  /** Bumped when one of its pieces stops blocking (a chest taken): its walk field is made again. */
+  revision: number;
 }
 
 interface Paths {
@@ -178,9 +208,10 @@ const CROSSED = new Set(['palm-1', 'pine', 'pine-1', 'pine-2', 'cypress', 'tree-
 /** papertrails' crossed cards turn only this share of the camera-facing cards' jitter (world.js cardJ). */
 const CROSS_JITTER = 0.6;
 
-/** A chunk's walk field (world/clearance.ts): what it was made from (its piece count), the pieces, how far they reach. */
+/** A chunk's walk field (world/clearance.ts): what it was made from (its piece count and revision), the pieces, how far they reach. */
 interface FieldEntry {
   count: number;
+  revision: number;
   pieces: Segment[][];
   box: Box | null;
   field: ClearanceField | null;
@@ -264,8 +295,7 @@ function blockingSpan(sprite: string, height: number): [number, number] | null {
 function footReach(sprite: string, height: number): number {
   const span = blockingSpan(sprite, height);
   if (!span) return 0;
-  const info = spriteInfo(sprite);
-  return Math.max(0.5 - span[0], span[1] - 0.5) * ((height * info.w) / info.h);
+  return Math.max(0.5 - span[0], span[1] - 0.5) * cardWidth(sprite, height);
 }
 
 
@@ -282,15 +312,9 @@ export class Terrain {
 
   /** Each chunk's walk field (world/clearance.ts): its pieces, how far they reach, and the field once asked for. */
   private readonly fields = new Map<number, FieldEntry>();
-  /** The card field's hidden count the walk fields were made with. */
-  private fieldsHidden = 0;
 
   constructor(private readonly land: LandField, private readonly cards: CardField, private readonly places: Places) {}
 
-  /**
-   * Shore distance exactly as the ground was drawn: bilinear on the chunk's sampled grid (so you collide with what
-   * you see, never with a sliver of land too thin to print); the analytic field where no chunk is sampled yet.
-   */
   /** True on a road, a lane or a village square (trodden ground). */
   onPath(x: number, z: number): boolean {
     const p = this.chunks.get(cellKey(Math.floor(x / CHUNK), Math.floor(z / CHUNK)))?.paths;
@@ -298,25 +322,28 @@ export class Terrain {
     return p.squares.some(([sx, sz, r]) => Math.hypot(x - sx, z - sz) < r) || p.strips.some((st) => polylineDistance(st.pts, x, z)[0] < st.width / 2);
   }
 
+  /**
+   * Shore distance exactly as the ground was drawn: bilinear on the chunk's sampled grid (so you collide with what
+   * you see, never with a sliver of land too thin to print); the analytic field where no chunk is sampled yet.
+   */
   distanceAt(x: number, z: number): number {
     const i = Math.floor(x / CHUNK);
     const j = Math.floor(z / CHUNK);
     const c = this.chunks.get(cellKey(i, j));
     if (!c || !c.dist) return this.land.distance(x, z);
-    const fx = Math.min(GRID_N - 1e-3, Math.max(0, (x - (i * CHUNK - CELL)) / CELL));
-    const fz = Math.min(GRID_N - 1e-3, Math.max(0, (z - (j * CHUNK - CELL)) / CELL));
-    const ii = Math.floor(fx);
-    const jj = Math.floor(fz);
-    const u = fx - ii;
-    const v = fz - jj;
-    const k = jj * GRID_W + ii;
-    const a = c.dist;
-    return a[k] * (1 - u) * (1 - v) + a[k + 1] * u * (1 - v) + a[k + GRID_W] * (1 - u) * v + a[k + GRID_W + 1] * u * v;
+    return gridSample(c.dist, i * CHUNK - CELL, j * CHUNK - CELL, x, z);
   }
 
   /** Chests currently loaded. */
   chestList(): IterableIterator<Chest> {
     return this.chests.values();
+  }
+
+  /** A chest found: taken away for good (its card hidden, its chunk's walk field made again without it). */
+  takeChest(chest: Chest): void {
+    this.cards.hide(chest.card);
+    const c = this.chunks.get(cellKey(Math.floor(chest.card.x / CHUNK), Math.floor(chest.card.z / CHUNK)));
+    if (c) c.revision++;
   }
 
   /** Builds every chunk around a point right away (start of the voyage). */
@@ -336,11 +363,6 @@ export class Terrain {
    * papertrails, a piece blocks standing or lying folded: round the feet the land always stands.
    */
   roomAt(x: number, z: number): number {
-    // (a collected chest stops nothing: every field is made again)
-    if (this.cards.hiddenCount !== this.fieldsHidden) {
-      this.fields.clear();
-      this.fieldsHidden = this.cards.hiddenCount;
-    }
     let room = REACH;
     const i = Math.floor(x / CHUNK);
     const j = Math.floor(z / CHUNK);
@@ -361,7 +383,7 @@ export class Terrain {
     const c = this.chunks.get(key);
     if (!c) return null;
     let e = this.fields.get(key);
-    if (!e || e.count !== c.cards.length + c.houses.length) {
+    if (!e || e.count !== c.cards.length + c.houses.length || e.revision !== c.revision) {
       e = this.fieldEntry(c);
       this.fields.set(key, e);
     }
@@ -380,7 +402,7 @@ export class Terrain {
   /** A chunk's pieces and how far they reach, its field not made yet. */
   private fieldEntry(c: Chunk): FieldEntry {
     const pieces = this.pieces(c);
-    return { count: c.cards.length + c.houses.length, pieces, box: piecesBox(pieces, REACH), field: null };
+    return { count: c.cards.length + c.houses.length, revision: c.revision, pieces, box: piecesBox(pieces, REACH), field: null };
   }
 
   /** The blocking segments of each piece of a chunk (see roomAt). */
@@ -390,8 +412,7 @@ export class Terrain {
       if (card.hidden) continue;
       const span = blockingSpan(card.sprite, card.height);
       if (!span) continue;
-      const info = spriteInfo(card.sprite);
-      const w = (card.height * info.w) / info.h;
+      const w = cardWidth(card.sprite, card.height);
       // the card's own x runs across its face; a flipped card is mirrored
       const l = (card.flip ? 0.5 - span[1] : span[0] - 0.5) * w;
       const rr = (card.flip ? 0.5 - span[0] : span[1] - 0.5) * w;
@@ -627,7 +648,7 @@ export class Terrain {
   /** Builds one chunk, yielding between the expensive steps. */
   private *build(i: number, j: number): Generator<void> {
     const key = cellKey(i, j);
-    const chunk: Chunk = { key, i, j, ground: null, cards: [], chests: [], texture: null, data: null, pathTone: null, material: null, dist: null, houses: [], decks: [], paths: null };
+    const chunk: Chunk = { key, i, j, ground: null, cards: [], chests: [], texture: null, data: null, pathTone: null, material: null, dist: null, houses: [], decks: [], paths: null, revision: 0 };
     this.chunks.set(key, chunk);
     const land = this.land;
     const x0 = i * CHUNK;
@@ -638,8 +659,8 @@ export class Terrain {
     // ---- 1. grids: shore distance + terrace fields (d + threshold < 0 inside a terrace) ----
     const gx0 = x0 - CELL;
     const gz0 = z0 - CELL;
-    const n = Math.round(CHUNK / CELL) + 2;
-    const W = n + 1;
+    const n = GRID_N;
+    const W = GRID_W;
     const dist = new Float32Array(W * W);
     const terr = [new Float32Array(W * W), new Float32Array(W * W), new Float32Array(W * W)];
     let minD = Infinity;
@@ -658,16 +679,7 @@ export class Terrain {
       }
       if (jj % 4 === 3) yield;
     }
-    const sampleAt = (a: Float32Array, x: number, z: number): number => {
-      const fx = clamp((x - gx0) / CELL, 0, n - 1e-3);
-      const fz = clamp((z - gz0) / CELL, 0, n - 1e-3);
-      const ii = Math.floor(fx);
-      const jj = Math.floor(fz);
-      const u = fx - ii;
-      const v = fz - jj;
-      const k = jj * W + ii;
-      return a[k] * (1 - u) * (1 - v) + a[k + 1] * u * (1 - v) + a[k + W] * (1 - u) * v + a[k + W + 1] * u * v;
-    };
+    const sampleAt = (a: Float32Array, x: number, z: number): number => gridSample(a, gx0, gz0, x, z);
     const terraceAt = (x: number, z: number): number => {
       if (sampleAt(dist, x, z) >= 0) return -1;
       for (let t = 2; t >= 0; t--) if (sampleAt(terr[t], x, z) < 0) return t + 1;
@@ -699,8 +711,8 @@ export class Terrain {
       // grid, the colours they make mixed between the four nodes round a pixel
       const tints = Array.from({ length: (TINT_GRID + 1) ** 2 }, (_, k) => groundTint(land.biomeInland(x0 + ((k % (TINT_GRID + 1)) / TINT_GRID) * CHUNK, z0 + (Math.floor(k / (TINT_GRID + 1)) / TINT_GRID) * CHUNK)));
       const tinted = tints.some((t) => t !== null);
-      const lin: [number, number, number] = [0, 0, 0];
-      const one: [number, number, number] = [0, 0, 0];
+      const lin: Rgb = [0, 0, 0];
+      const one: Rgb = [0, 0, 0];
       for (let py = 0; py < px; py++) {
         // canvas rows run from north (top, z0) to south (z1)
         const z = z0 + (py + 0.5) / PPU;
@@ -738,7 +750,12 @@ export class Terrain {
             }
           }
           // (the beach's sand is ours, not a page papertrails tints: it keeps its colour)
-          if (tinted && t1 < 0) [r, g, b] = tintAt(tints, (x - x0) / CHUNK, (z - z0) / CHUNK, r, g, b, lin, one);
+          if (tinted && t1 < 0) {
+            tintAt(tints, (x - x0) / CHUNK, (z - z0) / CHUNK, r, g, b, lin, one);
+            r = lin[0];
+            g = lin[1];
+            b = lin[2];
+          }
           // (no ink on the ground, as in papertrails: the land's cut edge is the paper's own)
           const shade = 0.9 + 0.2 * grain;
           data[o] = r * shade;
@@ -774,7 +791,7 @@ export class Terrain {
       const clip: [number, number, number, number] = [x0, z0, x1, z1];
       const grid: Grid = { x0: gx0, z0: gz0, cell: CELL, nx: n, nz: n, values: dist };
       const base = POPUP.layerGap * 0.5;
-      const loops = contoursFromGrid(grid, 0, undefined, clip);
+      const loops = contoursFromGrid(grid, clip);
       const sheet = loops.length ? this.layer(loops, base, LAND_TOP - base, x0, z0, top, this.edgeMaterial) : null;
       if (sheet) ground.add(sheet);
       // the streams' water on it (world/stream-mesh.ts)
@@ -799,8 +816,7 @@ export class Terrain {
       const inGrid = (x: number, z: number) => x >= gx0 && x <= gx0 + n * CELL && z >= gz0 && z <= gz0 + n * CELL;
       const shoreAt = (x: number, z: number) => (inGrid(x, z) ? sampleAt(shore, x, z) : this.distanceAt(x, z));
       const onLand = (sprite: string, x: number, z: number, height: number, yaw: number, cross: boolean) => {
-        const info = spriteInfo(sprite);
-        const half = (height * info.w) / info.h / 2;
+        const half = cardWidth(sprite, height) / 2;
         for (const a of cross ? CROSS_PLANES.map((p) => yaw + p) : [yaw]) {
           for (const k of [-1, 1]) if (shoreAt(x + Math.cos(a) * half * k, z - Math.sin(a) * half * k) > -0.05) return false;
         }
@@ -1058,7 +1074,8 @@ export class Terrain {
       plantCover(env, x0, z0, CHUNK);
 
       // a treasure chest on a beach, sometimes
-      if ((hash2((47) ^ SEED, i, j) >>> 0) / 4294967296 < 0.2) {
+      let chestAt = -1;
+      if ((hash2(CHEST_SALT ^ SEED, i, j) >>> 0) / 4294967296 < 0.2) {
         for (let a = 0; a < 40; a++) {
           const x = x0 + rng() * CHUNK;
           const z = z0 + rng() * CHUNK;
@@ -1067,17 +1084,21 @@ export class Terrain {
           const before = specs.length;
           add('chest', x, z, heightOf('chest', rng()), rng() < 0.5, 12);
           if (specs.length === before) continue;
-          const card = this.cards.add([specs.pop()!])[0];
-          chunk.cards.push(card);
-          const chest: Chest = { id: hash2((53) ^ SEED, i, j), card, name: this.coastName(x, z) };
-          chunk.chests.push(chest);
-          this.chests.set(chest.id, chest);
+          chestAt = before;
           break;
         }
       }
-      chunk.cards.push(...this.cards.add(specs));
+      // (the chest with the rest: it takes its place in its cell's rise order)
+      const cards = this.cards.add(specs);
+      chunk.cards.push(...cards);
+      if (chestAt >= 0) {
+        const card = cards[chestAt];
+        const chest: Chest = { id: hash2((53) ^ SEED, i, j), card, name: this.coastName(card.x, card.z) };
+        chunk.chests.push(chest);
+        this.chests.set(chest.id, chest);
+      }
       // papertrails' contact patch under every standing piece of the chunk (the ground cover and the animals as well)
-      if (chunk.data) addContact(chunk.data, x0, z0, chunk.cards.map((c) => [c.x, c.z, (c.height * spriteInfo(c.sprite).w) / spriteInfo(c.sprite).h]));
+      if (chunk.data) addContact(chunk.data, x0, z0, chunk.cards.map((c) => [c.x, c.z, cardWidth(c.sprite, c.height)]));
     }
     // papertrails' walk field, made with the chunk (not when the feet first ask, in the middle of a walk)
     yield* this.makeField(chunk);

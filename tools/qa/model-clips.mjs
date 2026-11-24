@@ -1,13 +1,13 @@
 // The constructions' clip check: no piece of a building, pier, bridge or height cuts into another while it unfolds.
 // Runs tools/qa/model-clips.ts in the dev build (npm run dev on port 5180) and lists every pair that does.
 //   node tools/qa/model-clips.mjs [model...]
-import { chromium } from 'playwright-core';
+import { GAME_URL, launch } from '../browser.mjs';
 
 const only = process.argv.slice(2);
-const browser = await chromium.launch({ executablePath: 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', headless: true, args: ['--use-angle=d3d11', '--enable-gpu', '--ignore-gpu-blocklist'] });
+const browser = await launch({ gpu: true });
 const page = await browser.newPage();
 page.on('pageerror', (e) => console.log('page error:', e.message));
-await page.goto('http://localhost:5180/', { waitUntil: 'networkidle' });
+await page.goto(GAME_URL, { waitUntil: 'networkidle' });
 await page.waitForFunction(() => window.game && window.game.frames > 2, null, { timeout: 90000 });
 const reports = await page.evaluate(async (only) => (await import('/tools/qa/model-clips.ts')).checkAll(only.length ? only : undefined), only);
 await browser.close();

@@ -80,11 +80,6 @@ export class ClearanceField {
     this.d = new Float32Array(this.nx * this.nz).fill(REACH);
   }
 
-  /** True if the field answers for (x, z). */
-  covers(x: number, z: number): boolean {
-    return x >= this.x0 && z >= this.z0 && x <= this.x0 + (this.nx - 1) * STEP && z <= this.z0 + (this.nz - 1) * STEP;
-  }
-
   /** Distance from (x, z) to the nearest piece (REACH at most), bilinear between the grid points. */
   distance(x: number, z: number): number {
     const fx = (x - this.x0) / STEP;

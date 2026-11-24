@@ -15,6 +15,7 @@ import * as THREE from 'three';
 import { POST, NIGHT } from '../config/view';
 import { clamp } from '../core/math';
 import { CloudShadows } from './cloud-shadows';
+import { blend, pair, type Pair } from './colour-pair';
 import { AO_FRAG, BLOOM_DOWN_FRAG, BLUR_FRAG, COMPOSITE_FRAG, FILL_FRAG, GATHER_FRAG, PRE_FRAG, TILE_FRAG, VERT } from './post-shaders';
 
 /** papertrails' reference framing: the focus 17 units from the camera (the gobo and the haze scale from it). */
@@ -48,31 +49,36 @@ interface Tone {
 }
 const acesJS = (x: number) => clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0, 1);
 const toSRGBJS = (c: number) => (c < 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055);
-/** The composite's tone curve at the centre of the frame (no vignette, grain or shadow lift). */
-function toneJS(rgb: number[], P: Tone): number[] {
-  const t = rgb.map((v, i) => acesJS(v * P.exposure * P.tint.getComponent(i)));
-  const l = 0.2126 * t[0] + 0.7152 * t[1] + 0.0722 * t[2];
-  return t.map((v) => (toSRGBJS(Math.max(0, l + (v - l) * P.saturation)) - 0.42) * P.contrast + 0.42);
+/** The composite's tone curve at the centre of the frame (no vignette, grain or shadow lift), rgb into out. */
+function toneJS(rgb: Float64Array, P: Tone, out: Float64Array): void {
+  for (let i = 0; i < 3; i++) out[i] = acesJS(rgb[i] * P.exposure * P.tint.getComponent(i));
+  const l = 0.2126 * out[0] + 0.7152 * out[1] + 0.0722 * out[2];
+  for (let i = 0; i < 3; i++) out[i] = (toSRGBJS(Math.max(0, l + (out[i] - l) * P.saturation)) - 0.42) * P.contrast + 0.42;
 }
 const _srgb = { r: 0, g: 0, b: 0 };
+const _want = new Float64Array(3);
+const _x = new Float64Array(3);
+const _got = new Float64Array(3);
 /** The linear scene colour whose tone-mapped result is the given colour (papertrails' inverseTone). */
 function inverseTone(colour: THREE.Color, P: Tone, out: THREE.Color): THREE.Color {
   colour.getRGB(_srgb, THREE.SRGBColorSpace);
-  const want = [_srgb.r, _srgb.g, _srgb.b];
-  const x = [0.02, 0.02, 0.02];
+  _want[0] = _srgb.r;
+  _want[1] = _srgb.g;
+  _want[2] = _srgb.b;
+  _x.fill(0.02);
   for (let it = 0; it < 60; it++) {
-    const got = toneJS(x, P);
+    toneJS(_x, P, _got);
     for (let i = 0; i < 3; i++) {
-      const ratio = (want[i] + 0.02) / (Math.max(got[i], -0.015) + 0.02);
-      x[i] = clamp(x[i] * Math.pow(ratio, 0.8), 1e-5, 8);
+      const ratio = (_want[i] + 0.02) / (Math.max(_got[i], -0.015) + 0.02);
+      _x[i] = clamp(_x[i] * Math.pow(ratio, 0.8), 1e-5, 8);
     }
   }
-  return out.setRGB(x[0], x[1], x[2], THREE.LinearSRGBColorSpace);
+  return out.setRGB(_x[0], _x[1], _x[2], THREE.LinearSRGBColorSpace);
 }
 
-type Pair = readonly [day: THREE.Color, night: THREE.Color];
-/** A day colour and its night colour, blended in linear RGB as papertrails blends them. */
-const pair = (day: string, night: string): Pair => [new THREE.Color(day), new THREE.Color(night)];
+/** setNight's steps from day to night. */
+const NIGHT_STEPS = 200;
+
 const COLOURS = {
   background: pair(POST.background, NIGHT.background),
   fade: pair(POST.fade.color, NIGHT.fade.color),
@@ -104,7 +110,7 @@ export class PostChain {
     uProj: { value: new THREE.Vector4(1, 100, 0.23, 1.78) },
     uDofA: { value: new THREE.Vector4(18, 0.5, 2.7, POST.depthWeight) },
     uDofB: { value: new THREE.Vector4(POST.focusBand / 2, POST.ramp, POST.maxBlurPx, POST.nearGain) },
-    uDofC: { value: new THREE.Vector4(POST.farGain, 1, POST.greenPull, POST.split) },
+    uDofC: { value: new THREE.Vector3(POST.farGain, POST.greenPull, POST.split) },
     uCamWorld: { value: new THREE.Matrix4() },
     uFocusW: { value: new THREE.Vector3() },
     uGobo: { value: new THREE.Vector4(1, 0, 1 / POST.gobo.radius, POST.gobo.key) },
@@ -206,13 +212,16 @@ export class PostChain {
 
   /**
    * night: 0 day .. 1 night; blends every term of the look toward the night set, and pre-compensates the surround, the
-   * haze and the vignette's colour for the tone curve so they come out exactly their colour on screen.
+   * haze and the vignette's colour for the tone curve at the normal framing (the vignette's and the haze's come out
+   * their colour on screen; the surround is then hazed like any far pixel). It works in NIGHT_STEPS steps: the colours
+   * move by a fraction of a percent between two, and each step costs three tone inversions.
    */
-  setNight(night: number): void {
+  setNight(amount: number): void {
+    const night = Math.round(amount * NIGHT_STEPS) / NIGHT_STEPS;
     if (night === this.night) return;
     this.night = night;
     const mix = (day: number, nightValue: number) => day + (nightValue - day) * night;
-    const blend = (out: THREE.Color, [day, nightColour]: Pair) => out.copy(day).lerp(nightColour, night);
+    const tween = (out: THREE.Color, p: Pair) => blend(out, p, night);
     const C = this.common;
     const u = this.compositeMat.uniforms;
     const L = this.look;
@@ -228,7 +237,7 @@ export class PostChain {
     const tint = u.uTint.value as THREE.Vector3;
     tint.set(mix(POST.tint[0], NIGHT.tint[0]), mix(POST.tint[1], NIGHT.tint[1]), mix(POST.tint[2], NIGHT.tint[2]));
     // (papertrails adds its shadow tint after the tone curve, as an sRGB colour)
-    blend(u.uShadowTint.value as THREE.Color, COLOURS.shadowTint).convertLinearToSRGB();
+    tween(u.uShadowTint.value as THREE.Color, COLOURS.shadowTint).convertLinearToSRGB();
     u.uLens.value.x = mix(POST.vignette, NIGHT.vignette);
     u.uLens.value.y = mix(POST.grain, NIGHT.grain);
     u.uFx.value.x = mix(POST.bloom, NIGHT.bloom);
@@ -236,16 +245,16 @@ export class PostChain {
     u.uSpill.value = mix(POST.spill, NIGHT.spill);
     this.bloomDownMat.uniforms.uThreshold.value = mix(POST.bloomThreshold, NIGHT.bloomThreshold);
     (this.aoMat.uniforms.uAo.value as THREE.Vector3).set(mix(POST.aoRadius, NIGHT.aoRadius), mix(POST.aoIntensity, NIGHT.aoIntensity), POST.aoBias);
-    blend(C.uAoTint.value, COLOURS.aoTint);
-    C.uDofC.value.z = mix(POST.greenPull, NIGHT.greenPull);
-    C.uDofC.value.w = mix(POST.split, NIGHT.split);
+    tween(C.uAoTint.value, COLOURS.aoTint);
+    C.uDofC.value.y = mix(POST.greenPull, NIGHT.greenPull);
+    C.uDofC.value.z = mix(POST.split, NIGHT.split);
     C.uGobo2.value.x = mix(POST.gobo.tint, NIGHT.gobo.tint);
     C.uGobo2.value.w = mix(POST.fade.amount, NIGHT.fade.amount);
 
     const P: Tone = { exposure: L.exposure, contrast: tone.y, saturation: tone.z, tint };
-    inverseTone(blend(this._c, COLOURS.background), P, this.background);
-    inverseTone(blend(this._c, COLOURS.fade), P, C.uFade.value);
-    inverseTone(blend(this._c, COLOURS.vignette), P, u.uVignetteColor.value as THREE.Color);
+    inverseTone(tween(this._c, COLOURS.background), P, this.background);
+    inverseTone(tween(this._c, COLOURS.fade), P, C.uFade.value);
+    inverseTone(tween(this._c, COLOURS.vignette), P, u.uVignetteColor.value as THREE.Color);
   }
 
   /** Drifts the cloud shadows on with the wind round the traveller (fx, fz); they are gone at night (0..1). */

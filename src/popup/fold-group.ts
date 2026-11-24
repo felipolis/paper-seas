@@ -82,10 +82,6 @@ export class FoldGroup {
     return this.settled;
   }
 
-  get currentTarget(): 0 | 1 {
-    return this.target;
-  }
-
   /** True while every card lies flat and still (a creature that has dived, a prop not yet risen). */
   get isDown(): boolean {
     return this.settled && this.target === 0;

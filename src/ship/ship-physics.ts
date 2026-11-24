@@ -7,6 +7,7 @@
  */
 import { SHIP } from '../config/ship';
 import { approach, clamp } from '../core/math';
+import { HULL_LENGTH } from './hull-shape';
 
 export interface HelmInput {
   /** -1 (port / left) .. 1 (starboard / right). */
@@ -19,8 +20,13 @@ export interface ShoreCollider {
   collide(x: number, z: number, r: number): { dx: number; dz: number; nx: number; nz: number } | null;
 }
 
-/** Hull sample circles along the keel: offset from the centre (forward +) and radius. */
-const HULL_CIRCLES: ReadonlyArray<[number, number]> = [[0.95, 0.28], [0.35, 0.42], [-0.35, 0.42], [-0.95, 0.36]];
+/**
+ * Hull sample circles along the keel: offset from the centre (forward +) and radius, laid out on a 2.6 hull and
+ * stretched along the chosen ship's own length (the longest is 3.15: its bow and stern must not reach past them).
+ */
+const HULL_CIRCLES: ReadonlyArray<[number, number]> = ([[0.95, 0.28], [0.35, 0.42], [-0.35, 0.42], [-0.95, 0.36]] as const).map(
+  ([off, r]): [number, number] => [(off * HULL_LENGTH) / 2.6, r],
+);
 
 /** Quadratic drag that makes the thrust and drag balance exactly at maxSpeed. */
 const DRAG_QUAD = (SHIP.thrust - SHIP.dragLinear * SHIP.maxSpeed) / (SHIP.maxSpeed * SHIP.maxSpeed);

@@ -13,10 +13,8 @@ import type { PostChain } from './post';
 import { paperLighting } from './paper-material';
 import { SHADOW } from './shadows';
 import { setGlowLevel } from './glow';
+import { blend, pair } from './colour-pair';
 
-type Pair = readonly [day: THREE.Color, night: THREE.Color];
-/** A day colour and its night colour, blended in linear RGB as papertrails blends them. */
-const pair = (day: string, night: string): Pair => [new THREE.Color(day), new THREE.Color(night)];
 const COLOURS = {
   key: pair(LIGHTS.key.color, NIGHT.key.color),
   fill: pair(LIGHTS.fill.color, NIGHT.fill.color),
@@ -28,10 +26,6 @@ const COLOURS = {
 
 /** The paper's shared lighting uniforms (render/paper-material.ts), as the look writes them. */
 const paper: Record<'uPaperWrap' | 'uPaperTrans', THREE.IUniform<number>> & Record<'uPaperTransTint' | 'uPaperShadowLeak', THREE.IUniform<THREE.Color>> = paperLighting;
-
-function blend(out: THREE.Color, [day, night]: Pair, n: number): void {
-  out.copy(day).lerp(night, n);
-}
 
 /** 0 by day .. 1 by night at this clock hour: an eased fade between papertrails' two looks, centred on dawn and dusk. */
 function nightAt(hour: number): number {
@@ -84,7 +78,7 @@ export class DayNight {
 
     this.post.setNight(n);
     setGlowLevel(n);
+    // (only its intensity: switching it off would change the light count the shaders are built for)
     this.shipLight.intensity = n * 2.2;
-    this.shipLight.visible = n > 0.01;
   }
 }

@@ -14,15 +14,10 @@
 //   roads      the captain unable to walk along a road
 //   sea        more than MAX_LAND of the world is land (the open sea matters: there is more water than land)
 // Prints every issue with its position and exits 1 if there are any.
-import { chromium } from 'playwright-core';
+import { GAME_URL, launch } from '../browser.mjs';
 
-const URL = process.env.QA_URL ?? 'http://localhost:5180/';
 const seeds = (process.argv[2] ?? '1234,7,42').split(',').map(Number);
-const browser = await chromium.launch({
-  executablePath: 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
-  headless: true,
-  args: ['--use-angle=d3d11', '--enable-gpu', '--ignore-gpu-blocklist'],
-});
+const browser = await launch({ gpu: true });
 
 let total = 0;
 for (const seed of seeds) {
@@ -31,7 +26,7 @@ for (const seed of seeds) {
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
   await page.addInitScript((s) => localStorage.setItem('paper-seas:seed', String(s)), seed);
-  await page.goto(URL, { waitUntil: 'networkidle' });
+  await page.goto(GAME_URL, { waitUntil: 'networkidle' });
   await page.waitForFunction(() => window.game && window.game.frames > 2, null, { timeout: 60000 });
   const report = await page.evaluate(checkWorld);
   const issues = [...errors.map((e) => ({ kind: 'error', note: e })), ...report.issues];
@@ -53,6 +48,8 @@ process.exit(total ? 1 : 0);
 /** Runs in the page (window.game is the dev build's handle). */
 async function checkWorld() {
   const THREE = await import('/node_modules/three/build/three.module.js');
+  const { CHUNK } = await import('/src/world/terrain.ts');
+  const { CROSS_PLANES } = await import('/src/world/card-field.ts');
   const g = window.game;
   g.stop();
   // the checks' own random choices are seeded, so a run can be repeated exactly
@@ -71,9 +68,7 @@ async function checkWorld() {
   // (cards that belong on a river's water: a duck afloat, and the mound and back crag of the river_source in its pool)
   const STREAM_CARDS = new Set(['duck-float', 'spring', 'crag-0']);
   const manifest = await (await fetch('/art/manifest.json')).json();
-  const CROSS = [24 * Math.PI / 180, -66 * Math.PI / 180];
   const ray = new THREE.Raycaster();
-  ray.firstHitOnly = true;
   let cards = 0;
   let buildings = 0;
   let roadsChecked = 0;
@@ -114,7 +109,7 @@ async function checkWorld() {
     // ---- holes: land with no paper under it ----
     const grounds = [];
     for (const c of T.chunks.values()) if (c.ground) grounds.push(c.ground);
-    const built = (x, z) => [...T.chunks.values()].some((c) => c.ground && c.i === Math.floor(x / 18) && c.j === Math.floor(z / 18));
+    const built = (x, z) => [...T.chunks.values()].some((c) => c.ground && c.i === Math.floor(x / CHUNK) && c.j === Math.floor(z / CHUNK));
     for (let k = 0; k < 300; k++) {
       const x = px + (rand() - 0.5) * 14;
       const z = pz + (rand() - 0.5) * 14;
@@ -124,8 +119,8 @@ async function checkWorld() {
     }
 
     // ... and every chunk seam and corner near here, finely (where two or four sheets of paper meet)
-    for (let cx = Math.ceil((px - 10) / 18) * 18; cx <= px + 10; cx += 18) {
-      for (let cz = Math.ceil((pz - 10) / 18) * 18; cz <= pz + 10; cz += 18) {
+    for (let cx = Math.ceil((px - 10) / CHUNK) * CHUNK; cx <= px + 10; cx += CHUNK) {
+      for (let cz = Math.ceil((pz - 10) / CHUNK) * CHUNK; cz <= pz + 10; cz += CHUNK) {
         for (let k = -8; k <= 8; k++) {
           // (a few mm off the seam line itself: a ray exactly along a shared edge is ambiguous)
           const o = k * 0.04 + 0.013;
@@ -165,7 +160,7 @@ async function checkWorld() {
         const m = manifest[card.sprite];
         const w = (card.height * m.w) / m.h / 2 * 0.9;
         let hangs = false;
-        for (const a of card.cross ? CROSS.map((p) => card.yaw + p) : [card.yaw]) {
+        for (const a of card.cross ? CROSS_PLANES.map((p) => card.yaw + p) : [card.yaw]) {
           for (const s of [-1, 1]) if (card.y - ground(card.x + Math.cos(a) * w * s, card.z - Math.sin(a) * w * s) > 0.05) hangs = true;
         }
         // (a vignette, papertrails' animal tied to a piece, sits up on its seat, and may sit by a door on a lane)
