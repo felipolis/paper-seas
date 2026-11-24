@@ -34,6 +34,8 @@ const GRACE = 1;
 const DIR_SMOOTH = 0.3;
 const RIPPLE = 0.055;
 const JITTER = 0.035;
+/** papertrails: on the way, cells closer than the ring's radius less 0.75 tiles rise without the ripple. */
+const INNER = 1.5;
 /** Salt of the cells' rise jitter. */
 const JITTER_SALT = 0x6a09e667;
 const MIN_FLIP = 2;
@@ -152,9 +154,15 @@ export class Reveal {
     return now - flipAt >= MIN_FLIP || this.distance(x, z) < REFLIP;
   }
 
-  /** Ripple delay (s) before a cell rises: further cells later (jitter: the cell's own +-JITTER). */
+  /**
+   * Ripple delay (s) before a cell rises: further cells later (jitter: the cell's own +-JITTER). On the way, a cell
+   * well inside the ring (INNER short of its edge) rises at once: the ripple runs along the ring's edge, and over
+   * everything only after a jump.
+   */
   riseDelay(x: number, z: number, jitter: number): number {
-    return Math.max(0, (this.distance(x, z) / CELL) * RIPPLE + jitter);
+    const d = this.distance(x, z);
+    if (!this.fresh && d < RADIUS + this.reach - INNER) return 0;
+    return Math.max(0, (d / CELL) * RIPPLE + jitter);
   }
 
   /** Delay (s) before a cell folds: the rows behind close from the track outward. */

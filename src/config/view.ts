@@ -81,13 +81,13 @@ export const POST = {
    */
   gobo: { radius: 9, key: 0.12, tint: 0.07, closeRelief: 0.7 },
 
-  // ---- depth of field: tilt-shift (the skill's 3D template: one sharp band, measured focusHeight ~0.55-0.75) ----
+  // ---- depth of field: tilt-shift, papertrails' (config/render.js dof there; the same by day and by night) ----
   /** Fraction of the frame height around the focus that stays fully sharp. */
-  focusBand: 0.3,
+  focusBand: 0.36,
   /** Fraction of the frame height over which blur ramps up beyond the band. */
-  ramp: 0.3,
-  /** Blur radius (px at 1080p; the skill: 12-18). */
-  maxBlurPx: 15,
+  ramp: 0.42,
+  /** Blur radius (px at 1080p). */
+  maxBlurPx: 12.5,
   /** 0 = pure screen-space tilt-shift, 1 = pure depth-based blur (the layers: each piece blurred by its depth). */
   depthWeight: 0.8,
   /** The sharp band grows up to this factor when the camera is closer than 12 units. */
@@ -183,7 +183,4 @@ export const NIGHT = {
   aoIntensity: 1.0,
   aoRadius: 0.22,
   grain: 0.02,
-  /** Depth of field: a wider blur, less of it toward the camera. */
-  maxBlurPx: 16,
-  nearGain: 1.2,
 } as const;

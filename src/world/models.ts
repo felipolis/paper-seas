@@ -40,7 +40,7 @@ interface Prototype {
   /** The bone tree (root first), in rest pose; cloned per building. */
   bones: THREE.Bone[];
   boneInverses: THREE.Matrix4[];
-  /** Per bone (index > 0): its fold. */
+  /** Per bone (index > 0): its fold; size, the upright height (world units) of the piece with all that rides on it. */
   folds: Array<{ foldAngle: number; delay: number; size: number; layer: number }>;
   /** What blocks the feet once it stands (model space, scaled): see blockers.ts. */
   foot: Segment[];
@@ -114,6 +114,11 @@ function prototype(root: THREE.Object3D, scale: number, solid: boolean): Prototy
   boneOf.set(root, rootBone);
   const local = new THREE.Matrix4();
   let smoke: THREE.Vector3 | null = null;
+  // each bone's parent, and the height span (model space) of its piece with all that rides on it
+  const indexOf = new Map<THREE.Object3D, number>([[root, 0]]);
+  const parentOf = [-1];
+  const lowest = [Infinity];
+  const highest = [-Infinity];
   root.traverse((o) => {
     if (o === root) return;
     const bone = new THREE.Bone();
@@ -125,8 +130,11 @@ function prototype(root: THREE.Object3D, scale: number, solid: boolean): Prototy
     boneOf.set(o, bone);
     const index = bones.length;
     bones.push(bone);
+    indexOf.set(o, index);
+    parentOf.push(indexOf.get(o.parent!)!);
+    lowest.push(Infinity);
+    highest.push(-Infinity);
     const mesh = o as THREE.Mesh;
-    let size = 0.3;
     if (mesh.isMesh) {
       // the piece's vertices in model space (its rest pose), weighted to its bone
       local.multiplyMatrices(rootInv, mesh.matrixWorld);
@@ -137,9 +145,8 @@ function prototype(root: THREE.Object3D, scale: number, solid: boolean): Prototy
       g2.setAttribute('skinWeight', new THREE.Float32BufferAttribute(new Float32Array(n * 4).map((_, i) => (i % 4 === 0 ? 1 : 0)), 4));
       for (const name of Object.keys(g2.attributes)) if (!['position', 'normal', 'uv', 'skinIndex', 'skinWeight'].includes(name)) g2.deleteAttribute(name);
       g2.computeBoundingBox();
-      const s = new THREE.Vector3();
-      g2.boundingBox!.getSize(s);
-      size = Math.max(s.x, s.y, s.z);
+      lowest[index] = g2.boundingBox!.min.y;
+      highest[index] = g2.boundingBox!.max.y;
       // the chimney's top, where its smoke rises from
       if (o.name.endsWith('__chimney')) {
         const bb = g2.boundingBox!;
@@ -147,8 +154,18 @@ function prototype(root: THREE.Object3D, scale: number, solid: boolean): Prototy
       }
       parts.push(g2);
     }
-    folds.push({ foldAngle: Number(o.userData.foldAngle ?? -Math.PI / 2), delay: Number(o.userData.delay ?? 0), size, layer: Number(o.userData.layer ?? 0) });
+    folds.push({ foldAngle: Number(o.userData.foldAngle ?? -Math.PI / 2), delay: Number(o.userData.delay ?? 0), size: 0, layer: Number(o.userData.layer ?? 0) });
   });
+  // papertrails' flap size (fold.js there): the upright height of the piece with all that rides on it, in world units
+  // (its 0.05 to 1 tile), 0.3 tile for a piece without geometry; the bones come after their parents, so walking back
+  // gathers every piece's riders before the piece itself is measured
+  for (let i = bones.length - 1; i > 0; i--) {
+    const p = parentOf[i];
+    lowest[p] = Math.min(lowest[p], lowest[i]);
+    highest[p] = Math.max(highest[p], highest[i]);
+    const h = (highest[i] - lowest[i]) * scale;
+    folds[i].size = Number.isFinite(h) ? Math.min(2, Math.max(0.1, h)) : 0.6;
+  }
   const geometry = merge(parts);
   // bind pose: every bone's world matrix in model space
   rootBone.updateMatrixWorld(true);
@@ -243,7 +260,7 @@ export function buildModel(name: string, x: number, y: number, z: number, yaw: n
     for (let a = b.parent; a && a !== rootBone; a = a.parent) depth++;
     // (a piece rides on the piece it is hinged to: it follows it as it opens, papertrails' and the skill's NESTED flaps)
     const parent = b.parent !== rootBone ? (b.parent ?? undefined) : undefined;
-    fold.add(b, { foldAngle: f.foldAngle, delay: f.delay, size: f.size, seed: (i * 0.618034 + x * 0.37 + z * 0.73) % 1, wobble: 0.7, lift: 0.006 * (depth + 1) + 0.012 * f.layer, parent });
+    fold.add(b, { foldAngle: f.foldAngle, delay: f.delay, size: f.size, seed: (i * 0.618034 + x * 0.37 + z * 0.73) % 1, lift: 0.006 * (depth + 1) + 0.012 * f.layer, parent });
   });
   fold.snap(0);
   mesh.onBeforeRender = () => {

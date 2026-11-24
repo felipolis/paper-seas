@@ -129,7 +129,7 @@ export class PostChain {
   private readonly background = new THREE.Color();
   /** The night amount the look was last blended for, and the blended values that are finished per frame. */
   private night = -1;
-  private readonly look: Record<'exposure' | 'maxBlurPx' | 'goboKey' | 'fadeStart' | 'fadeEnd', number> = { exposure: POST.exposure, maxBlurPx: POST.maxBlurPx, goboKey: POST.gobo.key, fadeStart: POST.fade.start, fadeEnd: POST.fade.end };
+  private readonly look: Record<'exposure' | 'goboKey' | 'fadeStart' | 'fadeEnd', number> = { exposure: POST.exposure, goboKey: POST.gobo.key, fadeStart: POST.fade.start, fadeEnd: POST.fade.end };
   private readonly focusWorld = new THREE.Vector3();
   private readonly _v = new THREE.Vector3();
   private readonly _c = new THREE.Color();
@@ -217,7 +217,6 @@ export class PostChain {
     const u = this.compositeMat.uniforms;
     const L = this.look;
     L.exposure = mix(POST.exposure, NIGHT.exposure);
-    L.maxBlurPx = mix(POST.maxBlurPx, NIGHT.maxBlurPx);
     L.goboKey = mix(POST.gobo.key, NIGHT.gobo.key);
     L.fadeStart = mix(POST.fade.start, NIGHT.fade.start);
     L.fadeEnd = mix(POST.fade.end, NIGHT.fade.end);
@@ -238,7 +237,6 @@ export class PostChain {
     this.bloomDownMat.uniforms.uThreshold.value = mix(POST.bloomThreshold, NIGHT.bloomThreshold);
     (this.aoMat.uniforms.uAo.value as THREE.Vector3).set(mix(POST.aoRadius, NIGHT.aoRadius), mix(POST.aoIntensity, NIGHT.aoIntensity), POST.aoBias);
     blend(C.uAoTint.value, COLOURS.aoTint);
-    C.uDofB.value.w = mix(POST.nearGain, NIGHT.nearGain);
     C.uDofC.value.z = mix(POST.greenPull, NIGHT.greenPull);
     C.uDofC.value.w = mix(POST.split, NIGHT.split);
     C.uGobo2.value.x = mix(POST.gobo.tint, NIGHT.gobo.tint);
@@ -314,7 +312,7 @@ export class PostChain {
     const cot = Math.max(0.1, Math.sqrt(1 - sinP * sinP) / sinP);
     C.uDofA.value.set(fz, Math.min(0.9, Math.max(0.1, fy)), Math.min(9, 1 / (2 * Math.atan(tanHalf) * cot)), POST.depthWeight);
     const bandScale = Math.min(POST.closeBandScale, Math.max(1, 12 / fz));
-    const blurPx = (this.look.maxBlurPx * H) / 1080;
+    const blurPx = (POST.maxBlurPx * H) / 1080;
     C.uDofB.value.x = (POST.focusBand * bandScale) / 2;
     C.uDofB.value.z = blurPx;
     (this.fillMat.uniforms.uFill.value as THREE.Vector2).y = blurPx;
