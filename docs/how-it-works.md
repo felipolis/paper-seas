@@ -109,11 +109,13 @@ What papertrails does, Paper Seas does the same way (its traveller is as tall as
 - **Wind** (`world/wind.ts`): every standing card rocks by its height, thinness and kind, in travelling gusts, as
   strongly as papertrails' wind blows in its biome (the meadow 0.85 of the jungle's, the pine woods all but still at
   0.32).
-- **Collisions as drawn** (`world/blockers.ts`, `player/walker.ts`): only what stands between 0.07 and 0.3 above the
-  page stops the feet; crossed cards and mountains block their whole footprint and, as papertrails closes its field
-  (closeRadius 0.2), a gap narrower than 0.4 between two pieces is filled (no pockets to wedge in). The captain
-  moves on a clearance field: a step is taken if it leaves room or is no tighter than where he stands, a blocked step
-  slides along the obstacle or goes round it, so he is never pinned.
+- **Collisions as drawn** (`world/blockers.ts`, `world/clearance.ts`, `player/walker.ts`): only what stands between
+  0.07 and 0.3 above the page stops the feet; crossed cards and mountains block their whole footprint. As in
+  papertrails, what stops the feet is baked once into a walk field: a grid of distances every 0.05 over each chunk,
+  made the first time something asks about its land, closed as papertrails closes it (grown and shrunk by 0.2, so no
+  nook is left to wedge in), so asking how much room there is costs one read whatever stands round it. The captain
+  moves on it: a step is taken if it leaves room or is no tighter than where he stands, a blocked step slides along
+  the obstacle or goes round it, so he is never pinned.
 - **Light** (`render/shadows.ts`, `config/time.ts`, `config/view.ts`): the papercraft skill's light. By day a warm key from
   screen-left 45 degrees up, a warm frontal fill at ~0.27 of it, soft paper shadows (PCSS) with a warm amber leak; by
   night an even pale-blue moon that keeps every card coloured and readable, the warmth in the windows and lanterns, navy

@@ -9,9 +9,7 @@ import { CardField } from './card-field';
 import { Terrain } from './terrain';
 import { Places } from './places';
 import type { Reveal } from './reveal';
-import { PADDING, type Segment } from './blockers';
-import { segmentDistance } from './polyline';
-import { cellKey } from '../core/grid';
+import { PADDING } from './blockers';
 
 /** Waves, creatures and flotsam keep at least this far from any beach. */
 const SHALLOWS = 0.9;
@@ -20,9 +18,6 @@ const SHALLOWS = 0.9;
  * past the blockers' padding), so they go round trees, rocks, fences and houses instead of through them.
  */
 const ANIMAL_ROOM = 0.07;
-/** The blockers round a point are fetched once a frame per square of this size (world units), and this far round it. */
-const BLOCK_CELL = 0.5;
-const BLOCK_REACH = 0.6;
 
 export interface ShorePush {
   dx: number;
@@ -99,30 +94,16 @@ export class World {
   update(dt: number, reveal: Reveal, focusX: number, focusZ: number, night: number): void {
     // papertrails' animals know day or night, not the fade between them
     this.night = night > 0.5;
-    // (cards rise and fold: the blockers are fetched afresh every frame)
-    this.blocks.clear();
     this.terrain.update(focusX, focusZ);
     this.cards.update(dt, reveal, focusX, focusZ);
     this.terrain.updateHouses(dt, reveal);
   }
 
-  /** The blockers near a point this frame, fetched once per BLOCK_CELL square. */
-  private readonly blocks = new Map<number, Segment[]>();
-
   /** papertrails' walk-field clearance at a point: the distance to whatever stops the feet, past its padding. */
   private room(x: number, z: number): number {
-    const i = Math.floor(x / BLOCK_CELL);
-    const j = Math.floor(z / BLOCK_CELL);
-    const key = cellKey(i, j);
-    let near = this.blocks.get(key);
-    if (!near) {
-      near = this.terrain.blockersNear((i + 0.5) * BLOCK_CELL, (j + 0.5) * BLOCK_CELL, BLOCK_CELL * 0.71 + BLOCK_REACH);
-      this.blocks.set(key, near);
-    }
-    let c = BLOCK_REACH;
-    for (const [ax, az, bx, bz] of near) c = Math.min(c, segmentDistance(x, z, ax, az, bx, bz)[0] - PADDING);
-    return c;
+    return this.terrain.roomAt(x, z) - PADDING;
   }
+
 
   /** True if (x, z) is open water at least `margin` beyond the shallows. */
   isOpenWater(x: number, z: number, margin: number): boolean {

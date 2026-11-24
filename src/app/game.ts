@@ -103,7 +103,7 @@ export class Game {
     this.walkWorld = {
       distance: (x, z) => this.world.terrain.distanceAt(x, z),
       ground: (x, z) => this.world.land.groundHeight(x, z),
-      blockers: (x, z, r) => this.world.terrain.blockersNear(x, z, r),
+      room: (x, z) => this.world.terrain.roomAt(x, z),
       bank: (x, z) => this.world.places.streams.bankDistance(x, z),
       deck: (x, z) => this.world.terrain.deckAt(x, z),
       onPath: (x, z) => this.world.terrain.onPath(x, z),

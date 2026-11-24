@@ -253,8 +253,8 @@ async function checkWorld() {
         for (const k2 of ['KeyW', 'KeyS', 'KeyA', 'KeyD']) key(k2, false);
         if (Math.hypot(W.x - tx, W.z - tz) > 0.6) {
           fails++;
-          const what = T.blockersNear(W.x, W.z, 0.4).length;
-          add('roads', W.x, W.z, `held up on the way to ${tx.toFixed(1)}, ${tz.toFixed(1)} (${what} blocker segments near, deck ${T.deckAt(W.x, W.z) !== null}, bank ${P.streams.bankDistance(W.x, W.z).toFixed(2)})`);
+          const room = T.roomAt(W.x, W.z);
+          add('roads', W.x, W.z, `held up on the way to ${tx.toFixed(1)}, ${tz.toFixed(1)} (room ${room.toFixed(2)}, deck ${T.deckAt(W.x, W.z) !== null}, bank ${P.streams.bankDistance(W.x, W.z).toFixed(2)})`);
           W.x = tx; W.z = tz; step(2);
         }
       }

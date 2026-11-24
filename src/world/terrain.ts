@@ -28,7 +28,7 @@ import type { Chimney } from '../life/smoke';
 import { ROAD_WIDTH } from './roads';
 import { Streams } from './streams';
 import type { Places } from './places';
-import { overlaps, polylineDistance, segmentDistance, type Box, type Pt } from './polyline';
+import { polylineDistance, type Box, type Pt } from './polyline';
 import { heightOf } from '../config/flora';
 import { CROSS_PLANES, type Card, type CardField, type CardSpec } from './card-field';
 import { islandName } from './island-names';
@@ -38,6 +38,7 @@ import { WORLD } from '../config/world';
 import { Critters } from './critters';
 import { applyTint, groundTint, pathTone, type TintRows } from '../render/biome-tint';
 import { cellKey } from '../core/grid';
+import { ClearanceField, REACH } from './clearance';
 
 /** World hashes are salted with the voyage seed: every voyage places its own villages, ruins, chests... */
 const SEED = WORLD.seed;
@@ -177,48 +178,32 @@ const CROSSED = new Set(['palm-1', 'pine', 'pine-1', 'pine-2', 'cypress', 'tree-
 /** papertrails' crossed cards turn only this share of the camera-facing cards' jitter (world.js cardJ). */
 const CROSS_JITTER = 0.6;
 
-/** papertrails' closeRadius x 2: gaps between blocking pieces narrower than this are closed (world.js buildField). */
-const CLOSE = 0.4;
+/** A chunk's walk field (world/clearance.ts): what it was made from (its piece count), the pieces, how far they reach. */
+interface FieldEntry {
+  count: number;
+  pieces: Segment[][];
+  box: Box | null;
+  field: ClearanceField | null;
+}
 
-/** The closest approach between two sets of segments: its length and the segment across it, or null. */
-function closestBetween(a: Segment[], b: Segment[]): [number, Segment] | null {
-  let best: [number, Segment] | null = null;
-  const tryPoint = (px: number, pz: number, [ax, az, bx, bz]: Segment, flip: boolean) => {
-    const [d, t] = segmentDistance(px, pz, ax, az, bx, bz);
-    if (best && d >= best[0]) return;
-    const qx = ax + (bx - ax) * t;
-    const qz = az + (bz - az) * t;
-    best = [d, flip ? [qx, qz, px, pz] : [px, pz, qx, qz]];
-  };
-  for (const s of a) {
-    for (const t of b) {
-      tryPoint(s[0], s[1], t, false);
-      tryPoint(s[2], s[3], t, false);
-      tryPoint(t[0], t[1], s, true);
-      tryPoint(t[2], t[3], s, true);
+/** The square of land a chunk answers for. */
+function chunkSquare(c: Chunk): Box {
+  return [c.i * CHUNK, c.j * CHUNK, (c.i + 1) * CHUNK, (c.j + 1) * CHUNK];
+}
+
+/** The bounds of every piece's segments, grown by pad, or null when there are none. */
+function piecesBox(pieces: Segment[][], pad: number): Box | null {
+  let box: Box | null = null;
+  for (const piece of pieces) {
+    for (const [ax, az, bx, bz] of piece) {
+      box ??= [Infinity, Infinity, -Infinity, -Infinity];
+      box[0] = Math.min(box[0], ax - pad, bx - pad);
+      box[1] = Math.min(box[1], az - pad, bz - pad);
+      box[2] = Math.max(box[2], ax + pad, bx + pad);
+      box[3] = Math.max(box[3], az + pad, bz + pad);
     }
   }
-  return best;
-}
-
-/** The bounds of a set of segments, grown by pad. */
-function segmentsBox(segments: Segment[], pad: number): Box {
-  let x0 = Infinity;
-  let z0 = Infinity;
-  let x1 = -Infinity;
-  let z1 = -Infinity;
-  for (const [ax, az, bx, bz] of segments) {
-    x0 = Math.min(x0, ax, bx);
-    z0 = Math.min(z0, az, bz);
-    x1 = Math.max(x1, ax, bx);
-    z1 = Math.max(z1, az, bz);
-  }
-  return [x0 - pad, z0 - pad, x1 + pad, z1 + pad];
-}
-
-/** The segments that reach into the box. */
-function within(segments: Segment[], [x0, z0, x1, z1]: Box): Segment[] {
-  return segments.filter(([ax, az, bx, bz]) => Math.max(ax, bx) >= x0 && Math.min(ax, bx) <= x1 && Math.max(az, bz) >= z0 && Math.min(az, bz) <= z1);
+  return box;
 }
 
 /** Width of the lanes from a village square to its doors, and the square's radius (papertrails' road: 0.5). */
@@ -295,6 +280,11 @@ export class Terrain {
   /** Uploads a texture to the GPU right away (set by the game), so a new chunk never stalls a later frame. */
   uploadTexture: (t: THREE.Texture) => void = () => {};
 
+  /** Each chunk's walk field (world/clearance.ts): its pieces, how far they reach, and the field once asked for. */
+  private readonly fields = new Map<number, FieldEntry>();
+  /** The card field's hidden count the walk fields were made with. */
+  private fieldsHidden = 0;
+
   constructor(private readonly land: LandField, private readonly cards: CardField, private readonly places: Places) {}
 
   /**
@@ -340,59 +330,87 @@ export class Terrain {
   }
 
   /**
-   * What stops the feet within r of (x, z), as drawn (papertrails' walk field): the print of every standing card
-   * between the blocking heights (a trunk, the foot of a rock, a crate; the soft ground cover and the animals never
-   * block) and the footprint of every assembled building. Folded pieces lie flat and stop nothing; piers are walked on.
+   * How much room there is round (x, z), as drawn (papertrails' walk field): the distance (REACH at most) to whatever
+   * stops the feet, the print of every card between the blocking heights (a trunk, the foot of a rock, a crate; the soft
+   * ground cover and the animals never block) and the footprint of every building but the piers (walked on). As in
+   * papertrails, a piece blocks standing or lying folded: round the feet the land always stands.
    */
-  blockersNear(x: number, z: number, r: number): Segment[] {
-    const out: Segment[] = [];
-    // (each piece's segments, for papertrails' closing below)
+  roomAt(x: number, z: number): number {
+    // (a collected chest stops nothing: every field is made again)
+    if (this.cards.hiddenCount !== this.fieldsHidden) {
+      this.fields.clear();
+      this.fieldsHidden = this.cards.hiddenCount;
+    }
+    let room = REACH;
+    const i = Math.floor(x / CHUNK);
+    const j = Math.floor(z / CHUNK);
+    for (let dj = -1; dj <= 1; dj++) {
+      for (let di = -1; di <= 1; di++) {
+        const f = this.fieldOf(cellKey(i + di, j + dj), x, z);
+        if (f) room = Math.min(room, f.distance(x, z));
+      }
+    }
+    return room;
+  }
+
+  /**
+   * The walk field of a chunk, if its pieces reach (x, z). A chunk makes it at the end of its build (makeField); asked
+   * before that, or once the chunk holds other pieces than it was made from, it is made at once.
+   */
+  private fieldOf(key: number, x: number, z: number): ClearanceField | null {
+    const c = this.chunks.get(key);
+    if (!c) return null;
+    let e = this.fields.get(key);
+    if (!e || e.count !== c.cards.length + c.houses.length) {
+      e = this.fieldEntry(c);
+      this.fields.set(key, e);
+    }
+    if (!e.box || x < e.box[0] || x > e.box[2] || z < e.box[1] || z > e.box[3]) return null;
+    e.field ??= ClearanceField.now(chunkSquare(c), e.pieces);
+    return e.field;
+  }
+
+  /** Makes a chunk's walk field, a slice per yield (the last step of its build). */
+  private *makeField(c: Chunk): Generator<void> {
+    const e = this.fieldEntry(c);
+    if (e.box) e.field = yield* ClearanceField.make(chunkSquare(c), e.pieces);
+    this.fields.set(c.key, e);
+  }
+
+  /** A chunk's pieces and how far they reach, its field not made yet. */
+  private fieldEntry(c: Chunk): FieldEntry {
+    const pieces = this.pieces(c);
+    return { count: c.cards.length + c.houses.length, pieces, box: piecesBox(pieces, REACH), field: null };
+  }
+
+  /** The blocking segments of each piece of a chunk (see roomAt). */
+  private pieces(c: Chunk): Segment[][] {
     const pieces: Segment[][] = [];
-    // what lies beyond r (and the closing's reach past it) changes nothing round the point
-    const reach: Box = [x - r - CLOSE, z - r - CLOSE, x + r + CLOSE, z + r + CLOSE];
-    for (const c of this.chunks.values()) {
-      // (only the chunks round the point)
-      if (x < c.i * CHUNK - r - 2 || x > (c.i + 1) * CHUNK + r + 2 || z < c.j * CHUNK - r - 2 || z > (c.j + 1) * CHUNK + r + 2) continue;
-      for (const card of c.cards) {
-        if (card.hidden || card.flap.p < 0.5 || Math.abs(card.x - x) > r + 1.5 || Math.abs(card.z - z) > r + 1.5) continue;
-        const span = blockingSpan(card.sprite, card.height);
-        if (!span) continue;
-        const info = spriteInfo(card.sprite);
-        const w = (card.height * info.w) / info.h;
-        // the card's own x runs across its face; a flipped card is mirrored
-        const l = (card.flip ? 0.5 - span[1] : span[0] - 0.5) * w;
-        const rr = (card.flip ? 0.5 - span[0] : span[1] - 0.5) * w;
-        const planes = (card.cross ? CROSS_PLANES.map((a) => card.yaw + a) : [card.yaw]).map((yaw): Segment => {
-          const cx = Math.cos(yaw);
-          const sz = -Math.sin(yaw);
-          return [card.x + cx * l, card.z + sz * l, card.x + cx * rr, card.z + sz * rr];
-        });
-        // papertrails' hull fill: crossed cards block their whole footprint, or the four quadrants between them
-        // would be pockets a walker gets wedged in; a footprint wider than HULL_MAX is no single prop, its cards block
-        pieces.push(card.cross && rr - l <= HULL_MAX ? hullSegments(planes) : planes);
-      }
-      for (const h of c.houses) {
-        if (h.name === 'pier' || h.fold.progress < 0.6 || Math.abs(h.x - x) > r + 4 || Math.abs(h.z - z) > r + 4) continue;
-        const foot: Segment[] = [];
-        placeSegments(h.foot, h.x, h.z, h.yaw, foot);
-        // (only its walls within reach: a bridge's foot alone is hundreds of segments)
-        const near = within(foot, reach);
-        if (near.length) pieces.push(near);
-      }
+    for (const card of c.cards) {
+      if (card.hidden) continue;
+      const span = blockingSpan(card.sprite, card.height);
+      if (!span) continue;
+      const info = spriteInfo(card.sprite);
+      const w = (card.height * info.w) / info.h;
+      // the card's own x runs across its face; a flipped card is mirrored
+      const l = (card.flip ? 0.5 - span[1] : span[0] - 0.5) * w;
+      const rr = (card.flip ? 0.5 - span[0] : span[1] - 0.5) * w;
+      const planes = (card.cross ? CROSS_PLANES.map((a) => card.yaw + a) : [card.yaw]).map((yaw): Segment => {
+        const cx = Math.cos(yaw);
+        const sz = -Math.sin(yaw);
+        return [card.x + cx * l, card.z + sz * l, card.x + cx * rr, card.z + sz * rr];
+      });
+      // papertrails' hull fill: crossed cards block their whole footprint, or the four quadrants between them
+      // would be pockets a walker gets wedged in; a footprint wider than HULL_MAX is no single prop, its cards block
+      pieces.push(card.cross && rr - l <= HULL_MAX ? hullSegments(planes) : planes);
     }
-    for (const p of pieces) out.push(...p);
-    // papertrails' closing (world.js buildField there, closeRadius 0.2): a gap narrower than CLOSE between two pieces is
-    // filled, so no nook between them is left for the feet to be wedged in (the feet need more room than that to pass).
-    // Only the segments of each piece that come within CLOSE of the other's bounds can make such a gap.
-    const boxes = pieces.map((p) => segmentsBox(p, CLOSE));
-    for (let a = 0; a < pieces.length; a++) {
-      for (let b = a + 1; b < pieces.length; b++) {
-        if (!overlaps(boxes[a], boxes[b])) continue;
-        const gap = closestBetween(within(pieces[a], boxes[b]), within(pieces[b], boxes[a]));
-        if (gap && gap[0] < CLOSE) out.push(gap[1]);
-      }
+    for (const h of c.houses) {
+      if (h.name === 'pier') continue;
+      const foot: Segment[] = [];
+      placeSegments(h.foot, h.x, h.z, h.yaw, foot);
+      pieces.push(foot);
     }
-    return out;
+    return pieces;
   }
 
   private clock = 0;
@@ -602,6 +620,7 @@ export class Terrain {
     this.cards.remove(c.cards);
     for (const ch of c.chests) this.chests.delete(ch.id);
     this.chunks.delete(key);
+    this.fields.delete(key);
     if (this.job && this.job.key === key) this.job = null;
   }
 
@@ -1060,6 +1079,8 @@ export class Terrain {
       // papertrails' contact patch under every standing piece of the chunk (the ground cover and the animals as well)
       if (chunk.data) addContact(chunk.data, x0, z0, chunk.cards.map((c) => [c.x, c.z, (c.height * spriteInfo(c.sprite).w) / spriteInfo(c.sprite).h]));
     }
+    // papertrails' walk field, made with the chunk (not when the feet first ask, in the middle of a walk)
+    yield* this.makeField(chunk);
   }
 
   /** A fitting name for a coast (used by treasure messages). */

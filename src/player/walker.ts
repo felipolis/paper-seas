@@ -15,16 +15,15 @@ import { Puppet } from './puppet';
 import { PLAYER } from '../config/player';
 import { bus } from '../core/events';
 import type { Input } from '../core/input';
-import { PADDING, WALKER_RADIUS, type Segment } from '../world/blockers';
-import { segmentDistance } from '../world/polyline';
+import { PADDING, WALKER_RADIUS } from '../world/blockers';
 
 export interface WalkWorld {
   /** Signed distance to the shore (negative on land). */
   distance(x: number, z: number): number;
   /** Height of the paper ground at a land point. */
   ground(x: number, z: number): number;
-  /** What stops the feet near the point (segments on the page, as drawn). */
-  blockers(x: number, z: number, r: number): Segment[];
+  /** Distance to whatever stops the feet (a card, a wall), as drawn; large where nothing is near. */
+  room(x: number, z: number): number;
   /** Distance to the nearest stream's bank (negative on its water). */
   bank(x: number, z: number): number;
   /** Height of a standing deck (pier, bridge) under the point, or null (the planks are walked on, over the water). */
@@ -73,8 +72,6 @@ export class Walker {
   private heading = 0;
   private yawRate = 0;
   private y = 0;
-  /** The blockers round the feet (fetched once per frame). */
-  private near: Segment[] = [];
   private world: WalkWorld | null = null;
   // going round an obstacle: the side committed to, how long we have been held
   private side = 1;
@@ -93,15 +90,12 @@ export class Walker {
   private clearance(x: number, z: number): number {
     const world = this.world!;
     if (world.deck(x, z) !== null) return 4;
-    let c = Math.min(WATERLINE - world.distance(x, z), world.bank(x, z)) + R;
-    for (const [ax, az, bx, bz] of this.near) c = Math.min(c, segmentDistance(x, z, ax, az, bx, bz)[0] - PADDING);
-    return c;
+    return Math.min(WATERLINE - world.distance(x, z) + R, world.bank(x, z) + R, world.room(x, z) - PADDING);
   }
 
   /** True if the captain can stand at (x, z) with room to spare (a landing spot). */
   canStand(x: number, z: number, world: WalkWorld): boolean {
     this.world = world;
-    this.near = world.blockers(x, z, 1);
     return this.clearance(x, z) >= R;
   }
 
@@ -160,7 +154,6 @@ export class Walker {
       this.heading += turn;
     }
     // the step (trapezoidal), in sub-steps, each resolved against the field
-    this.near = world.blockers(this.x, this.z, 1.2);
     const sx = ((v0x + v1x) / 2) * dt;
     const sz = ((v0z + v1z) / 2) * dt;
     const len = Math.hypot(sx, sz);

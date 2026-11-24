@@ -129,6 +129,7 @@ export class CardField {
   private readonly stepper = new FixedStepper();
   private nextId = 1;
   private time = 0;
+  private hidden = 0;
   /** Every card filed under each FLAT_CELL square its folded bounds reach. */
   private readonly flats = new Map<number, Card[]>();
   private readonly critters: Critters;
@@ -233,9 +234,15 @@ export class CardField {
     for (const biome of BIOMES) this.batch(sprites[0], false, biome);
   }
 
+  /** How many cards have been hidden for good (the walk fields are made again when it changes: world/terrain.ts). */
+  get hiddenCount(): number {
+    return this.hidden;
+  }
+
   /** Hides a card for good (a collected chest). */
   hide(card: Card): void {
     card.hidden = true;
+    this.hidden++;
     this.batch(card.sprite, card.flip, card.biome).dirty = true;
   }
 
