@@ -1,8 +1,9 @@
 /**
  * Planar mirror of the world in the sea: the scene is rendered (at half resolution, at most MAX_WIDTH wide) from the
- * main camera mirrored below the water plane; the sea shader projects its own position into this image (matrix) and
- * shows it rippled and tinted. Everything under the surface is cut away by an oblique near plane on the water (not
- * by clipping planes, which would compile a second variant of every material and slow every one of them down).
+ * main camera mirrored below the water plane; the water's shaders (the sea's and the streams', sea/mirror.ts) project
+ * their own position into this image (matrix) and show it rippled and tinted. Everything under the surface is cut away
+ * by an oblique near plane on the water (not by clipping planes, which would compile a second variant of every
+ * material and slow every one of them down).
  *
  * Materials in mirrorSkip are left out of the mirror: the printed tops of the land's paper layers. A ray reflected
  * up off the water meets a layer's cut wall before it could reach its top, so the tops never show in the sea, and

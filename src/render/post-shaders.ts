@@ -42,6 +42,28 @@ uniform vec4 uGobo2;  // warm / cool tint, fade start, fade end, fade amount
 uniform vec3 uFade;   // haze colour (pre-compensated for the tone curve)
 ${CLOUD_GLSL}
 float viewZ(float d) { return (uProj.x * uProj.y) / (uProj.y - d * (uProj.y - uProj.x)); }
+// a scene texel that is not a number or infinite (exponent bits all set; tested on the bits, which no compiler folds
+// away as it may isnan) would spread through every blur that reads it: one bad pixel came out as a white bokeh disc
+// ringed with black taps. It reads as the mean of the finite texels one and two away from the nearest one instead (a
+// bad speck may be a few texels across), fetched whole (a filtered read beside it would blend the bad one in again);
+// HDRP's "Stop NaNs" does the same job
+bool finite3(vec3 c) { return !any(equal(floatBitsToUint(c) & 0x7f800000u, uvec3(0x7f800000u))); }
+vec3 sceneAt(sampler2D t, vec2 uv) {
+  vec3 c = textureLod(t, uv, 0.0).rgb;
+  if (finite3(c)) return c;
+  ivec2 size = textureSize(t, 0);
+  ivec2 p = ivec2(uv * vec2(size));
+  vec3 sum = vec3(0.0);
+  float n = 0.0;
+  for (int i = 0; i < 8; i++) {
+    int s = (i & 1) * 2 - 1;
+    int r = 1 + (i >> 2);
+    ivec2 o = (i & 2) == 0 ? ivec2(s * r, 0) : ivec2(0, s * r);
+    vec3 q = texelFetch(t, clamp(p + o, ivec2(0), size - 1), 0).rgb;
+    if (finite3(q)) { sum += q; n += 1.0; }
+  }
+  return n > 0.0 ? sum / n : vec3(0.0);
+}
 float cocAt(vec2 uv, float z) {
   float sY = uv.y - uDofA.y;
   float sD = (z - uDofA.x) / uDofA.x * uDofA.z;
@@ -120,7 +142,7 @@ void main() {
     float c = cocAt(uv, zz);
     // favour the blurrier samples so a sharp foreground edge never leaks its colour into the blur buffer
     float w = 0.02 + abs(c);
-    acc += gradeWorld(min(textureLod(tScene, uv, 0.0).rgb, vec3(24.0)), uv, zz, dr) * w;
+    acc += gradeWorld(min(sceneAt(tScene, uv), vec3(24.0)), uv, zz, dr) * w;
     wsum += w;
     if (abs(c) > abs(coc)) coc = c;
   }
@@ -287,17 +309,17 @@ void main() {
 
   // --- sharp layer: a very slight chromatic softness toward the frame edge, then an unsharp mask in the focus band
   // (the bite of a macro lens) -------------------------------------------------------------------------------------
-  vec3 sharp = textureLod(tScene, vUv, 0.0).rgb;
+  vec3 sharp = sceneAt(tScene, vUv);
   vec2 cd = vUv - 0.5;
   vec2 co = cd * dot(cd, cd) * 4.0 * uLens.w * uTexel;
-  sharp.r = textureLod(tScene, vUv + co, 0.0).r;
-  sharp.b = textureLod(tScene, vUv - co, 0.0).b;
+  sharp.r = sceneAt(tScene, vUv + co).r;
+  sharp.b = sceneAt(tScene, vUv - co).b;
   float ac = abs(coc);
   // papertrails: 4 taps round the pixel, an unsharp mask inside the focus band turning into a small full-res blur for
   // CoC 0.5 - 3 px, so detail fades out gradually before the half-res bokeh layer takes over
   vec2 mo = uTexel * max(0.75, ac * 0.8);
-  vec3 sb = 0.25 * (textureLod(tScene, vUv + mo * vec2(1.0, 0.4), 0.0).rgb + textureLod(tScene, vUv + mo * vec2(-1.0, -0.4), 0.0).rgb
-    + textureLod(tScene, vUv + mo * vec2(-0.4, 1.0), 0.0).rgb + textureLod(tScene, vUv + mo * vec2(0.4, -1.0), 0.0).rgb);
+  vec3 sb = 0.25 * (sceneAt(tScene, vUv + mo * vec2(1.0, 0.4)) + sceneAt(tScene, vUv + mo * vec2(-1.0, -0.4))
+    + sceneAt(tScene, vUv + mo * vec2(-0.4, 1.0)) + sceneAt(tScene, vUv + mo * vec2(0.4, -1.0)));
   vec3 crisp = max(sharp + clamp(sharp - sb, vec3(-0.25), vec3(0.25)) * uSharpen, vec3(0.0));
   sharp = mix(crisp, mix(sharp, sb, 0.8), smoothstep(0.4, 1.6, ac));
   sharp = gradeWorld(sharp, vUv, z, rawD);

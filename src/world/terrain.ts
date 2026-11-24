@@ -218,6 +218,33 @@ interface FieldEntry {
 }
 
 /** The square of land a chunk answers for. */
+/** How near a wall's corners must lie to a side of its chunk's square to be a seam wall. */
+const SEAM_EPS = 1e-4;
+
+/**
+ * Leaves out the cut-edge walls a layer's outline has where it was cut back onto its chunk's square (world/contours.ts
+ * clip): the land runs on into the next chunk there, so they only ever showed in the mirror, which leaves the land's
+ * tops out (render/reflection.ts), as straight cream lines across the streams. The extruded layer has no index; its
+ * kept triangles become one, its groups (caps 0, walls 1, per shape) re-counted over it.
+ */
+function withoutSeamWalls(g: THREE.BufferGeometry, x0: number, z0: number, x1: number, z1: number): void {
+  const pos = g.getAttribute('position');
+  const on = (k: number, side: number) => {
+    const v = side < 2 ? pos.getX(k) : pos.getZ(k);
+    return Math.abs(v - [x0, x1, z0, z1][side]) < SEAM_EPS;
+  };
+  const seam = (k: number) => [0, 1, 2, 3].some((side) => on(k, side) && on(k + 1, side) && on(k + 2, side));
+  const index: number[] = [];
+  const groups = g.groups.map((gr) => ({ ...gr }));
+  g.clearGroups();
+  for (const gr of groups) {
+    const start = index.length;
+    for (let k = gr.start; k < gr.start + gr.count; k += 3) if (gr.materialIndex !== 1 || !seam(k)) index.push(k, k + 1, k + 2);
+    g.addGroup(start, index.length - start, gr.materialIndex);
+  }
+  g.setIndex(index);
+}
+
 function chunkSquare(c: Chunk): Box {
   return [c.i * CHUNK, c.j * CHUNK, (c.i + 1) * CHUNK, (c.j + 1) * CHUNK];
 }
@@ -1144,7 +1171,10 @@ export class Terrain {
     }
   }
 
-  /** One extruded paper layer: printed top (UVs into the chunk's ground print), coloured cut edge. */
+  /**
+   * One extruded paper layer: printed top (UVs into the chunk's ground print), coloured cut edge (but where its outline
+   * was cut back onto the chunk's square: see withoutSeamWalls).
+   */
   private layer(loops: Pt[][], base: number, depth: number, x0: number, z0: number, top: THREE.Material, edge: THREE.Material): THREE.Mesh | null {
     const shapes: THREE.Shape[] = [];
     // (a point repeated along a loop would extrude a wall of no width, with no normal: its light came out NaN)
@@ -1173,6 +1203,7 @@ export class Terrain {
     const g = new THREE.ExtrudeGeometry(shapes, { depth, bevelEnabled: false, curveSegments: 1, UVGenerator: uvGen });
     g.rotateX(-Math.PI / 2);
     g.translate(0, base, 0);
+    withoutSeamWalls(g, x0, z0, x0 + CHUNK, z0 + CHUNK);
     const mesh = new THREE.Mesh(g, [top, edge]);
     mesh.receiveShadow = true;
     mesh.castShadow = true;

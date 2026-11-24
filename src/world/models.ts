@@ -16,6 +16,8 @@ import { FoldGroup } from '../popup/fold-group';
 import { createPaperMaterial, paperCopy, pencilPlan, setPaperFlat } from '../render/paper-material';
 import { addGlowMap, setGlowShare } from '../render/glow';
 import { footSegments, hullSegments, type Segment } from './blockers';
+import { POPUP } from '../config/popup';
+import { cellKey } from '../core/grid';
 import { tintMaterial } from '../render/biome-tint';
 import type { Biome } from './land';
 
@@ -41,6 +43,10 @@ interface Prototype {
   boneInverses: THREE.Matrix4[];
   /** Per bone (index > 0): its fold; size, the upright height (world units) of the piece with all that rides on it. */
   folds: Array<{ foldAngle: number; delay: number; size: number; layer: number }>;
+  /** Per bone (index > 0): how far its piece stands off its own face while folded flat (model units). */
+  lifts: number[];
+  /** Per bone: what lifts it clear of the pieces it would lie on folded flat (its parent's space), or null: separateFlat. */
+  stacks: Array<THREE.Vector3 | null>;
   /** What blocks the feet once it stands (model space, scaled): see blockers.ts. */
   foot: Segment[];
   /** Its size in the world (SCALE). */
@@ -76,7 +82,10 @@ export async function loadModels(base = `${import.meta.env.BASE_URL}models/`): P
   pencilPlan(material, 'object');
   for (const node of gltf.scene.children) {
     const name = node.userData.model as string | undefined;
-    if (name) prototypes.set(name, prototype(node, SCALE[name] ?? 1, SOLID.test(name)));
+    if (!name) continue;
+    const proto = prototype(node, SCALE[name] ?? 1, SOLID.test(name));
+    separateFlat(proto);
+    prototypes.set(name, proto);
   }
 }
 
@@ -165,6 +174,13 @@ function prototype(root: THREE.Object3D, scale: number, solid: boolean): Prototy
     const h = (highest[i] - lowest[i]) * scale;
     folds[i].size = Number.isFinite(h) ? Math.min(2, Math.max(0.1, h)) : 0.6;
   }
+  // folded, a piece stands off its face by its depth in the tree and its layer (so a piece folded onto the one it is
+  // hinged to lies on it); separateFlat lifts apart the pieces that still meet
+  const lifts = parentOf.map((_, i) => {
+    let depth = 0;
+    for (let p = parentOf[i]; p > 0; p = parentOf[p]) depth++;
+    return 0.006 * (depth + 1) + 0.012 * folds[i].layer;
+  });
   const geometry = merge(parts);
   // bind pose: every bone's world matrix in model space
   rootBone.updateMatrixWorld(true);
@@ -184,6 +200,8 @@ function prototype(root: THREE.Object3D, scale: number, solid: boolean): Prototy
     bones,
     boneInverses,
     folds,
+    lifts,
+    stacks: bones.map(() => null),
     foot: solid ? hullSegments(footSegments(geometry, scale)) : footSegments(geometry, scale),
     scale,
     smoke,
@@ -233,33 +251,16 @@ export interface Building {
 export function buildModel(name: string, x: number, y: number, z: number, yaw: number, biome: Biome): Building {
   const proto = prototypes.get(name);
   if (!proto || !material) throw new Error(`model "${name}" not loaded`);
-  const rootBone = proto.bones[0].clone(true);
-  const bones: THREE.Bone[] = [];
-  rootBone.traverse((b) => bones.push(b as THREE.Bone));
   // (papertrails tints a tile's pieces by its biome, render/biome-tint.ts)
   const paper = paperCopy(tintMaterial(material, biome, name));
-  const mesh = new THREE.SkinnedMesh(proto.geometry, paper);
-  mesh.add(rootBone);
-  mesh.bind(new THREE.Skeleton(bones, proto.boneInverses), new THREE.Matrix4());
+  const { mesh, fold } = rig(proto, paper, x, z);
   mesh.position.set(x, y, z);
   mesh.rotation.y = yaw;
-  mesh.scale.setScalar(proto.scale);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   // culled with its assembled bounds (it is hidden while folded flat)
   mesh.boundingSphere = proto.geometry.boundingSphere!.clone();
   mesh.boundingBox = proto.geometry.boundingBox!.clone();
-  // papertrails: all the pieces of a tile start within its 0.34 s stagger span
-  const fold = new FoldGroup();
-  bones.forEach((b, i) => {
-    if (i === 0) return;
-    const f = proto.folds[i];
-    let depth = 0;
-    for (let a = b.parent; a && a !== rootBone; a = a.parent) depth++;
-    // (a piece rides on the piece it is hinged to: it follows it as it opens, papertrails' and the skill's NESTED flaps)
-    const parent = b.parent !== rootBone ? (b.parent ?? undefined) : undefined;
-    fold.add(b, { foldAngle: f.foldAngle, delay: f.delay, size: f.size, seed: (i * 0.618034 + x * 0.37 + z * 0.73) % 1, lift: 0.006 * (depth + 1) + 0.012 * f.layer, parent });
-  });
   fold.snap(0);
   mesh.onBeforeRender = () => {
     setPaperFlat(paper, 1 - fold.progress);
@@ -281,4 +282,226 @@ export function buildModel(name: string, x: number, y: number, z: number, yaw: n
       if (!keepMaterial) paper.dispose();
     },
   };
+}
+
+/** A skinned copy of a prototype (scaled, at the origin) and the fold of its pieces; (x, z) seeds their flutter. */
+function rig(proto: Prototype, paper: THREE.Material, x: number, z: number): { mesh: THREE.SkinnedMesh; fold: FoldGroup } {
+  const rootBone = proto.bones[0].clone(true);
+  const bones: THREE.Bone[] = [];
+  rootBone.traverse((b) => bones.push(b as THREE.Bone));
+  const mesh = new THREE.SkinnedMesh(proto.geometry, paper);
+  mesh.add(rootBone);
+  mesh.bind(new THREE.Skeleton(bones, proto.boneInverses), new THREE.Matrix4());
+  mesh.scale.setScalar(proto.scale);
+  // papertrails: all the pieces of a tile start within its 0.34 s stagger span
+  const fold = new FoldGroup();
+  bones.forEach((b, i) => {
+    if (i === 0) return;
+    const f = proto.folds[i];
+    // (a piece rides on the piece it is hinged to: it follows it as it opens, papertrails' and the skill's NESTED flaps)
+    const parent = b.parent !== rootBone ? (b.parent ?? undefined) : undefined;
+    fold.add(b, { foldAngle: f.foldAngle, delay: f.delay, size: f.size, seed: (i * 0.618034 + x * 0.37 + z * 0.73) % 1, lift: proto.lifts[i], stack: proto.stacks[i] ?? undefined, parent });
+  });
+  return { mesh, fold };
+}
+
+/** A face of a folded piece lies flat when its normal is this near vertical. */
+const FLAT_NORMAL = 0.9;
+/**
+ * Two faces fight over the part of the area they share where they lie within a step of each other: more of it than
+ * FIGHT_AREA (about 2 x 2 cm) and the piece moves. Faces crossing at an angle meet on a strip no wider than
+ * 1.8 steps / their slope against each other: steeper than CROSS_SLOPE it is under a centimetre, a line, not a surface
+ * flickering, and no lift short of clearing the whole crossing would remove it.
+ */
+const FIGHT_AREA = 0.0004;
+const CROSS_SLOPE = 0.18;
+/** The most steps a piece goes up or down to clear the ones before it. */
+const MAX_STEPS = 24;
+/** Side of the squares the folded faces are filed under, to find the ones a face lies over. */
+const FACE_CELL = 0.1;
+
+/** A flat face of the model folded flat (world units): its bone, corners (x, z), plane, bounds and how far it has moved. */
+interface Face {
+  bone: number;
+  corners: Array<[number, number]>;
+  /** Its plane as y = py + gx (x - px) + gz (z - pz), through its centre (px, py, pz). */
+  px: number;
+  py: number;
+  pz: number;
+  gx: number;
+  gz: number;
+  /** Its bounds: x, z across, and its lowest and highest corners. */
+  box: [number, number, number, number];
+  bottom: number;
+  top: number;
+  lift: number;
+  /** The last face it was checked against (each pair once, whatever squares they share). */
+  seen: Face | null;
+}
+
+/**
+ * Lifts apart the pieces of a model that lie over each other folded flat at one height (POPUP.flatStep, as the cards'
+ * card-field.ts layFlat): mirrored pieces, the two walls or the two roof slopes of a house, fold onto each other at the
+ * same lift and flickered, the depth test picking either face frame by frame. Measured once on a copy folded flat (its
+ * pieces skinned to flat faces); then piece by piece, in order, the fewest steps straight up or down that leave none of
+ * its faces fighting a face of the pieces before it (FIGHT_AREA), as its stack turned into its parent's folded space,
+ * the pieces riding on it going along. A face wholly under the model's base lies under the page, covered: it fights
+ * nothing (so a piece may also clear a crossing by going down under it).
+ */
+function separateFlat(proto: Prototype): void {
+  const { faces, turn, parent } = foldedFlat(proto);
+  const rides = (i: number, j: number) => {
+    for (let p = parent[i]; p > 0; p = parent[p]) if (p === j) return true;
+    return false;
+  };
+  // the FACE_CELL squares each face's corners reach, and the faces of the pieces done so far filed under them
+  const cells = new Map<Face, number[]>();
+  for (const f of faces) {
+    const keys: number[] = [];
+    for (let i = Math.floor(f.box[0] / FACE_CELL); i <= Math.floor(f.box[2] / FACE_CELL); i++) {
+      for (let k = Math.floor(f.box[1] / FACE_CELL); k <= Math.floor(f.box[3] / FACE_CELL); k++) keys.push(cellKey(i, k));
+    }
+    cells.set(f, keys);
+  }
+  const filed = new Map<number, Face[]>();
+  const byBone = parent.map((_, j) => faces.filter((f) => f.bone === j));
+  for (let j = 1; j < byBone.length; j++) {
+    // how far above each overlapped earlier face this piece's faces lie, least and most over the area they share
+    const gaps: Gap[] = [];
+    for (const f of byBone[j]) {
+      for (const cell of cells.get(f)!) {
+        for (const g of filed.get(cell) ?? []) {
+          if (g.seen === f) continue;
+          g.seen = f;
+          // (farther apart than any move could bring them, or crossing)
+          const reach = (MAX_STEPS + 1) * POPUP.flatStep;
+          if (f.bottom + f.lift > g.top + g.lift + reach || g.bottom + g.lift > f.top + f.lift + reach) continue;
+          if (f.box[0] >= g.box[2] || g.box[0] >= f.box[2] || f.box[1] >= g.box[3] || g.box[1] >= f.box[3]) continue;
+          if (Math.hypot(f.gx - g.gx, f.gz - g.gz) > CROSS_SLOPE) continue;
+          const shared = clip(f.corners, g.corners);
+          const size = area(shared);
+          if (size < FIGHT_AREA) continue;
+          const d = shared.map(([x, z]) => heightOn(f, x, z) - heightOn(g, x, z));
+          gaps.push({ lo: Math.min(...d), hi: Math.max(...d), area: size, top: f.top + f.lift, under: g.top + g.lift });
+        }
+      }
+    }
+    // (the height between them runs evenly over the shared area, from lo to hi: the share of it within a step)
+    const s = POPUP.flatStep;
+    const fights = (g: Gap, up: number) => {
+      if (g.top + up < 0 || g.under < 0) return false;
+      const lo = g.lo + up;
+      const hi = g.hi + up;
+      const within = Math.min(hi, 0.9 * s) - Math.max(lo, -0.9 * s);
+      return within > 0 && g.area * (hi - lo > 1e-9 ? within / (hi - lo) : 1) > FIGHT_AREA;
+    };
+    // (0, 1, -1, 2, -2 ... steps)
+    let k = 0;
+    for (let n = 1; n <= 2 * MAX_STEPS && gaps.some((g) => fights(g, k * s)); n++) k = n % 2 ? (n + 1) / 2 : -n / 2;
+    if (k !== 0) {
+      // (k steps up in the world, down if negative, in the parent's space as it lies folded; the bones are in model
+      // units, the world scaled)
+      proto.stacks[j] = new THREE.Vector3(0, (k * POPUP.flatStep) / proto.scale, 0).applyQuaternion(turn[parent[j]].clone().invert());
+      for (const f of faces) if (f.bone === j || rides(f.bone, j)) f.lift += k * POPUP.flatStep;
+    }
+    for (const f of byBone[j]) {
+      for (const cell of cells.get(f)!) {
+        const list = filed.get(cell);
+        if (list) list.push(f);
+        else filed.set(cell, [f]);
+      }
+    }
+  }
+}
+
+/** How far a later face lies above an earlier one over the area they share, and how high each reaches. */
+interface Gap {
+  lo: number;
+  hi: number;
+  area: number;
+  /** The later face's highest corner, and the earlier one's (lifted as they are so far). */
+  top: number;
+  under: number;
+}
+
+/** A face's height at (x, z), lifted as it is so far. */
+function heightOn(f: Face, x: number, z: number): number {
+  return f.py + f.gx * (x - f.px) + f.gz * (z - f.pz) + f.lift;
+}
+
+/** The part of polygon a (x, z corners) inside triangle b (Sutherland-Hodgman, either winding). */
+function clip(a: Array<[number, number]>, b: Array<[number, number]>): Array<[number, number]> {
+  const turn = Math.sign((b[1][0] - b[0][0]) * (b[2][1] - b[0][1]) - (b[1][1] - b[0][1]) * (b[2][0] - b[0][0]));
+  let out = a;
+  for (let e = 0; e < 3 && out.length; e++) {
+    const [x0, z0] = b[e];
+    const [x1, z1] = b[(e + 1) % 3];
+    const side = ([x, z]: [number, number]) => turn * ((x1 - x0) * (z - z0) - (z1 - z0) * (x - x0));
+    const next: Array<[number, number]> = [];
+    for (let i = 0; i < out.length; i++) {
+      const p = out[i];
+      const q = out[(i + 1) % out.length];
+      const sp = side(p);
+      const sq = side(q);
+      if (sp >= 0) next.push(p);
+      if (sp >= 0 !== sq >= 0) {
+        const t = sp / (sp - sq);
+        next.push([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]);
+      }
+    }
+    out = next;
+  }
+  return out;
+}
+
+/** The area of a polygon (x, z corners). */
+function area(poly: Array<[number, number]>): number {
+  let s = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const [x0, z0] = poly[i];
+    const [x1, z1] = poly[(i + 1) % poly.length];
+    s += x0 * z1 - x1 * z0;
+  }
+  return Math.abs(s) / 2;
+}
+
+/**
+ * The model folded flat at the origin (world units): its flat faces, how each bone is turned in the model (its rotation
+ * under the root, folded) and the bone each is hinged to.
+ */
+function foldedFlat(proto: Prototype): { faces: Face[]; turn: THREE.Quaternion[]; parent: number[] } {
+  const { mesh, fold } = rig(proto, material!, 0, 0);
+  fold.snap(0);
+  mesh.updateMatrixWorld(true);
+  mesh.skeleton.update();
+  const bones = mesh.skeleton.bones;
+  const turn = bones.map((b) => b.getWorldQuaternion(new THREE.Quaternion()));
+  const parent = bones.map((b) => bones.indexOf(b.parent as THREE.Bone));
+  const pos = proto.geometry.getAttribute('position');
+  const bone = proto.geometry.getAttribute('skinIndex');
+  const p = Array.from({ length: pos.count }, (_, k) => mesh.applyBoneTransform(k, new THREE.Vector3().fromBufferAttribute(pos, k)).applyMatrix4(mesh.matrixWorld));
+  const faces: Face[] = [];
+  const e1 = new THREE.Vector3();
+  const e2 = new THREE.Vector3();
+  for (let k = 0; k < pos.count; k += 3) {
+    const [a, b, c] = [p[k], p[k + 1], p[k + 2]];
+    const n = e1.subVectors(b, a).cross(e2.subVectors(c, a));
+    const size = n.length() / 2;
+    if (size === 0 || Math.abs(n.y) < FLAT_NORMAL * 2 * size) continue;
+    faces.push({
+      bone: bone.getX(k),
+      corners: [a, b, c].map((v): [number, number] => [v.x, v.z]),
+      px: (a.x + b.x + c.x) / 3,
+      py: (a.y + b.y + c.y) / 3,
+      pz: (a.z + b.z + c.z) / 3,
+      gx: -n.x / n.y,
+      gz: -n.z / n.y,
+      box: [Math.min(a.x, b.x, c.x), Math.min(a.z, b.z, c.z), Math.max(a.x, b.x, c.x), Math.max(a.z, b.z, c.z)],
+      bottom: Math.min(a.y, b.y, c.y),
+      top: Math.max(a.y, b.y, c.y),
+      lift: 0,
+      seen: null,
+    });
+  }
+  return { faces, turn, parent };
 }

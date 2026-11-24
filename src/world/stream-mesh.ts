@@ -6,6 +6,8 @@
  *   light net  the sea's slow caustic net
  *   dashes     cream lens-shaped dashes in staggered rows, carried along by the current, gathering by the banks
  *   banks      a dark waterline just inside the water, a thin broken cream cut line outside it, then a band of sand
+ *   mirror     the world mirrored in the water as on the sea, read from the sea's image at the water's own height
+ *              (sea/mirror.ts): papertrails mirrors its rivers too
  *
  * The ribbon is a little wider than the water so its bank fits on it; beyond the bank the ribbon is cut away. Its colours
  * are papertrails' water of the biome it runs through (render/biome-tint.ts waterPalettes), blended along the stream: a
@@ -13,11 +15,14 @@
  */
 import * as THREE from 'three';
 import { WATER_GLSL, waterUniforms } from '../sea/water';
+import { MIRROR_APPLY, MIRROR_GLSL, mirrorUniforms } from '../sea/mirror';
 import { mirrorSkip } from '../render/reflection';
 import { waterPalettes, waterRow } from '../render/biome-tint';
 import { LAND_TOP, type Biome } from './land';
 import { Streams, type Stream } from './streams';
 
+/** Height of the streams' water: just above the land, so it never fights it for depth. */
+const STREAM_Y = LAND_TOP + 0.004;
 /** Width of the bank band (world units) laid outside the water on each side. */
 const BANK = 0.14;
 /** Segments of the round pool at either end of a stream. */
@@ -30,17 +35,18 @@ let material: THREE.MeshLambertMaterial | null = null;
 function streamMaterial(): THREE.MeshLambertMaterial {
   if (material) return material;
   const m = new THREE.MeshLambertMaterial({ color: '#ffffff', polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, alphaToCoverage: true, alphaTest: 0.02 });
-  const uniforms = { ...waterUniforms(), uRiverPal: { value: waterPalettes() } };
+  const uniforms = { ...waterUniforms(), ...mirrorUniforms(), uRiverPal: { value: waterPalettes() } };
   m.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nattribute vec3 aRiver;\nattribute vec3 aRiverMix;\nvarying vec3 vRiver;\nvarying vec3 vRiverMix;\nvarying vec3 vRiverPos;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvRiver = aRiver;\nvRiverMix = aRiverMix;\nvRiverPos = (modelMatrix * vec4(position, 1.0)).xyz;');
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\n${WATER_GLSL}\n${RIVER_GLSL}`)
-      .replace('#include <color_fragment>', `#include <color_fragment>\ndiffuseColor.rgb *= riverColour();\ndiffuseColor.a = gRiverCover;`);
+      .replace('#include <common>', `#include <common>\n${WATER_GLSL}\n${MIRROR_GLSL}\n${RIVER_GLSL}`)
+      .replace('#include <color_fragment>', `#include <color_fragment>\ndiffuseColor.rgb *= riverColour();\ndiffuseColor.a = gRiverCover;\n${MIRROR_APPLY.colour}`)
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${MIRROR_APPLY.emissive}`);
   };
-  m.customProgramCacheKey = () => 'river-v3';
+  m.customProgramCacheKey = () => 'river-v4';
   mirrorSkip.add(m);
   material = m;
   return m;
@@ -76,7 +82,7 @@ export function streamRibbons(streams: Stream[], x0: number, z0: number, x1: num
           const hw = Streams.widthAt(i) / 2;
           const half = hw + BANK;
           for (const side of [-1, 1]) {
-            pos.push(pts[i][0] + nx * half * side, LAND_TOP + 0.004, pts[i][1] + nz * half * side);
+            pos.push(pts[i][0] + nx * half * side, STREAM_Y, pts[i][1] + nz * half * side);
             river.push(arc[i], side, hw);
             mixAt(i);
           }
@@ -106,7 +112,7 @@ export function streamRibbons(streams: Stream[], x0: number, z0: number, x1: num
       const hw = Streams.widthAt(i) / 2;
       const half = hw + BANK;
       const centre = pos.length / 3;
-      pos.push(px, LAND_TOP + 0.004, pz);
+      pos.push(px, STREAM_Y, pz);
       river.push(arc[i], 0, hw);
       mixAt(i);
       const rim: number[] = [left];
@@ -116,7 +122,7 @@ export function streamRibbons(streams: Stream[], x0: number, z0: number, x1: num
       const rimVertex = (a: number, side: number) => {
         const ox = Math.cos(a);
         const oy = Math.sin(a);
-        pos.push(px + (tx * ox - tz * oy) * half, LAND_TOP + 0.004, pz + (tz * ox + tx * oy) * half);
+        pos.push(px + (tx * ox - tz * oy) * half, STREAM_Y, pz + (tz * ox + tx * oy) * half);
         river.push(arc[i] + down * ox * half, side, hw);
         mixAt(i);
         rim.push(pos.length / 3 - 1);
@@ -184,6 +190,7 @@ uniform vec3 uRiverPal[12];  // per palette: shallow, deep, rim, floater
 float gRiverCover;
 vec3 gRiverRim;       // the palette's rim (the bank's cut line, the dashes)
 float gRiverBlossom;  // how much of the stream is the blossom's (petals ride it, smaller and more of them)
+float gRiverMarks;    // what floats on the water here (dashes, leaves): the mirror image shows round it
 vec3 riverBank(vec2 p, float out_, float aa) {
   // the bank: a thin broken cream cut line, then a band of sand fading into the ground
   float line = (1.0 - smoothstep(0.012, 0.012 + aa, abs(out_ - 0.022))) * step(seaNoise(p * 1.8 + 5.0), 0.72);
@@ -244,6 +251,7 @@ vec3 riverWater(vec2 p, float T, float s, float hw, float across, float edge, fl
   // (papertrails' river floater of the biome: a leaf, a petal in the blossom)
   vec3 leaf = RIVER_PAL(3);
   col = mix(col, mix(leaf, leaf * 0.62, floInk * 0.6), flo);
+  gRiverMarks = clamp(dash + flo, 0.0, 1.0);
   // ---- the waterline: darker just inside the bank ----
   col *= 1.0 - 0.42 * (1.0 - smoothstep(0.0, 0.05, edge));
   col *= 1.0 + (seaFibre(p) - 0.5) * 1.1;
@@ -261,6 +269,13 @@ vec3 riverColour() {
   float aa = max(fwidth(across) * 1.2, 1e-4);
   // the bank wobbles a little, hand cut
   float edge = hw + (seaNoise(p * 2.0) - 0.5) * 0.06 + (seaNoise(p * 7.0 + 3.0) - 0.5) * 0.025 - across;  // > 0 on the water
-  return edge < 0.0 ? riverBank(p, -edge, aa) : riverWater(p, T, s, hw, across, edge, aa);
+  if (edge < 0.0) {
+    gMirror = vec3(0.0);
+    gMirrorW = 0.0;
+    return riverBank(p, -edge, aa);
+  }
+  vec3 col = riverWater(p, T, s, hw, across, edge, aa);
+  mirrorImage(p, ${STREAM_Y.toFixed(3)}, col, 1.0 - gRiverMarks);
+  return col;
 }
 `;

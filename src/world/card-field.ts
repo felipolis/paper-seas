@@ -108,11 +108,6 @@ function flatBounds(s: CardSpec): Box {
 
 /** Side of the squares the folded cards are filed under (world units), to find the ones a card lies over. */
 const FLAT_CELL = 1;
-/**
- * The height step between overlapping folded cards: the 24-bit depth buffer tells apart planes this far apart up to ~90
- * units from the camera (its step there is about z^2 / (near * 2^24)).
- */
-const FLAT_STEP = 0.001;
 
 const _m = new THREE.Matrix4();
 const _q = new THREE.Quaternion();
@@ -187,7 +182,7 @@ export class CardField {
 
   /**
    * Keeps a new card off the plane of every card it overlaps lying folded flat: two faces in one plane flicker, the
-   * depth test picking either one frame by frame. It goes up from its own height in FLAT_STEP layers until it is at
+   * depth test picking either one frame by frame. It goes up from its own height in POPUP.flatStep layers until it is at
    * least that far from each of them (the lowest such height, so the flat stacks stay a few hundredths thin).
    */
   private layFlat(c: Card): void {
@@ -203,7 +198,7 @@ export class CardField {
       }
     }
     const heights = [...over].map((o) => o.y);
-    while (heights.some((y) => Math.abs(y - c.y) < FLAT_STEP * 0.9)) c.y += FLAT_STEP;
+    while (heights.some((y) => Math.abs(y - c.y) < POPUP.flatStep * 0.9)) c.y += POPUP.flatStep;
   }
 
   remove(cards: Card[]): void {

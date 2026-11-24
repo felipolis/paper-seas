@@ -56,7 +56,10 @@ What papertrails does, Paper Seas does the same way (its traveller is as tall as
   A cell's cards start over 0.34 s in flat-stack order (they fold back, so the nearest lies on top and rises first)
   and fold in the reverse order; each leans up to 2.5 degrees once it stands, and lies exactly flat when folded.
   A piece of a building that rides on another (a roof on its wall) follows it as it opens
-  (popup/spring.ts NESTED), so the planes of one construction never scissor.
+  (popup/spring.ts NESTED), so the planes of one construction never scissor. Folded flat, no two pieces lie over each
+  other closer than 0.001 (config/popup.ts flatStep), so no face flickers between two: the cards step up from those
+  they cover (world/card-field.ts), and the pieces of a building that would meet (its two walls, its two roof slopes)
+  are moved apart once per model, measured on its faces folded flat (world/models.ts separateFlat).
   Folded flat, every piece (cards, buildings, mountains, piers and bridges alike) fades with its distance from the
   captain or the ship into papertrails' pencil plan of the unpainted book: full colour within 6.8, beyond 9.6 a pale
   cream wash keeping a quarter of its colour, pencil outlines and a little hatching (render/paper-material.ts).
@@ -100,12 +103,14 @@ What papertrails does, Paper Seas does the same way (its traveller is as tall as
 - **The sea** (`sea/sea-surface.ts`, `config/palette.ts`): the world's floor printed pale, as the papercraft skill has it
   (paler and less saturated than the pieces on it, authored a step bluer than it lands under the warm grade), in
   mottled depth tones with printed shallows, foam and drifting dashes. Its reflection is papertrails' own real mirror
-  (`render/reflection.ts`), swaying on its broad wave and tinted toward the water as there; the wave keeps the size on
+  (`render/reflection.ts`, `sea/mirror.ts`), swaying on its broad wave and tinted toward the water as there; the wave keeps the size on
   screen it has in papertrails at its 10.8 framing, and its finer wave (which split a dark hull over the pale sea into
   striped rows) is left out. Dolphins and fish leap on arms turning about an axle under the page, a paper mover.
 - **Streams are sea water** (`world/stream-mesh.ts`, `sea/water.ts`): the same colours and fibre as the sea,
   in depth steps, with current dashes flowing down, papertrails' floating leaves (with their shadow and midrib) and
-  faint current lines riding the same flow, and a sandy cut bank; each begins and ends in a round pool.
+  faint current lines riding the same flow, and a sandy cut bank; each begins and ends in a round pool. They mirror
+  the world as the sea does (papertrails mirrors its rivers), reading the sea's mirror image at their own height on the
+  land: no second pass, and off by less than the image's own ripple.
 - **Wind** (`world/wind.ts`): every standing card rocks by its height, thinness and kind, in travelling gusts, as
   strongly as papertrails' wind blows in its biome (the meadow 0.85 of the jungle's, the pine woods all but still at
   0.32).
@@ -162,7 +167,8 @@ What papertrails does, Paper Seas does the same way (its traveller is as tall as
   tilt-shift whose sharp band measures ~0.65 of the frame (the skill's measure.py focusHeight, its range 0.55-0.75): each pixel blurred by a mix of its
   height on screen and its depth (0.8 depth: the pieces blur in layers), a sharp band round the focus that grows with a
   close camera, a near-field tile pass so the foreground blurs over the sharp band, a near / far aware bokeh gather and a
-  fill pass.
+  fill pass. A scene pixel that is not a number (a speck lit into one) is read as the mean of its neighbours, so it
+  never spreads through the blur into a white disc ringed with black (HDRP's "Stop NaNs").
 
 ## World QA
 

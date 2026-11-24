@@ -24,6 +24,11 @@ export interface HingeOptions extends FlapTuning {
   lift?: number;
   /** The hinge node this card rides on (already added): it follows that card's progress (NESTED) and starts after it. */
   parent?: THREE.Object3D;
+  /**
+   * While folded the card is also moved by this (in its parent's space), easing to nothing as it rises: what keeps it
+   * off another card it would otherwise lie on at the same height.
+   */
+  stack?: THREE.Vector3;
 }
 
 interface Hinge {
@@ -31,6 +36,7 @@ interface Hinge {
   rest: THREE.Quaternion;
   restPos: THREE.Vector3;
   lift: number;
+  stack: THREE.Vector3 | null;
   flap: Flap;
   foldAngle: number;
   delayUp: number;
@@ -65,7 +71,7 @@ export class FoldGroup {
       flap.parent = parent.flap;
       delay = Math.max(delay, parent.delayUp + POPUP.nested.lag);
     }
-    this.hinges.push({ node, rest: node.quaternion.clone(), restPos: node.position.clone(), lift: options.lift ?? 0, flap, foldAngle: options.foldAngle ?? -Math.PI / 2, delayUp: delay, delayDown: 0 });
+    this.hinges.push({ node, rest: node.quaternion.clone(), restPos: node.position.clone(), lift: options.lift ?? 0, stack: options.stack ?? null, flap, foldAngle: options.foldAngle ?? -Math.PI / 2, delayUp: delay, delayDown: 0 });
     // fold-down runs in exact reverse: the last card up is the first one down
     let span = 0;
     for (const h of this.hinges) span = Math.max(span, h.delayUp);
@@ -135,9 +141,11 @@ export class FoldGroup {
     h.node.quaternion.copy(h.rest).multiply(_qFold);
     const twist = flap.twist;
     if (twist !== 0) h.node.quaternion.multiply(_qTwist.setFromAxisAngle(Y_AXIS, twist));
-    if (h.lift) {
-      const k = h.lift * Math.max(0, 1 - flap.p);
-      h.node.position.copy(h.restPos).addScaledVector(_n.set(0, 0, 1).applyQuaternion(h.node.quaternion), k);
+    if (h.lift || h.stack) {
+      const down = Math.max(0, 1 - flap.p);
+      h.node.position.copy(h.restPos);
+      if (h.lift) h.node.position.addScaledVector(_n.set(0, 0, 1).applyQuaternion(h.node.quaternion), h.lift * down);
+      if (h.stack) h.node.position.addScaledVector(h.stack, down);
     }
   }
 }

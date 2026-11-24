@@ -15,6 +15,7 @@ import { DayNight } from '../render/day-night';
 import { SeaSurface } from '../sea/sea-surface';
 import { WaveField } from '../sea/wave-field';
 import { DistanceMap } from '../sea/distance-map';
+import { frameMirrorRipple, setMirror } from '../sea/mirror';
 import { Reflection } from '../render/reflection';
 import { World } from '../world/world';
 import { SeaLife } from '../life/sea-life';
@@ -308,7 +309,8 @@ export class Game {
     this.distanceMap.update(this.view.focus.x, this.view.focus.z);
     this.sea.follow(this.view.focus.x, this.view.focus.z);
     this.sea.setDistanceMap(this.distanceMap);
-    this.sea.update(this.time, this.view.distance, this.view.focus.x, this.view.focus.z);
+    this.sea.update(this.time);
+    frameMirrorRipple(this.view.distance, this.view.focus.x, this.view.focus.z);
     this.lights.follow(this.view.camera, this.view.focus);
     this.hud.update(dt, {
       sailSetting: ship.sailSetting,
@@ -323,12 +325,12 @@ export class Game {
     // (papertrails' page: full colour round the traveller, the unpainted book further out)
     setPageFocus(fx, fz);
     this.post.setFocus(this.lensFocus);
-    // mirror pass first (it also refreshes the shadow map for this frame), then the main render
+    // mirror pass first (it also refreshes the shadow map for this frame), then the main render; the sea and the
+    // streams read the one image (sea/mirror.ts)
     this.renderer.shadowMap.needsUpdate = true;
-    if (this.quality === 'high' && !this.chart.isOpen) {
-      this.reflection.render(this.renderer, this.scene, this.view.camera, [this.sea.mesh]);
-      this.sea.setReflection(this.reflection);
-    } else this.sea.setReflection(null);
+    const mirror = this.quality === 'high' && !this.chart.isOpen;
+    if (mirror) this.reflection.render(this.renderer, this.scene, this.view.camera, [this.sea.mesh]);
+    setMirror(mirror ? this.reflection : null);
     this.post.render(this.time);
     this.frames++;
   }

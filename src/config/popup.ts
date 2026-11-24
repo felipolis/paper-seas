@@ -58,4 +58,10 @@ export const POPUP = {
 
   /** Height gap between stacked flat paper layers (avoids z-fighting of folded cards). */
   layerGap: 0.004,
+  /**
+   * The least height between two pieces lying over each other folded flat (cards, a building's walls and roof): the
+   * 24-bit depth buffer tells apart planes this far apart up to ~90 units from the camera (its step there is about
+   * z^2 / (near * 2^24)); closer, two faces in one plane flicker, the depth test picking either one frame by frame.
+   */
+  flatStep: 0.001,
 } as const;
