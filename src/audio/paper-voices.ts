@@ -1,17 +1,20 @@
 /**
- * Live player of the synthesised paper sounds (allocation after papertrails by xikhar, MIT):
+ * Live player of the synthesised paper sounds (allocation after papertrails by xikhar, MIT, audio/paper.js there):
  *   - a fixed pool of voice slots (gain + stereo panner, each with its own reusable buffer), the quietest voice is
  *     faded out and replaced when all are busy;
  *   - a token-bucket rate limit, and overlapping voices turned down (~1 / sqrt(voices)) so they never sum into hiss;
- *   - one sound per gesture: the flaps of one piece the same way within a group window speak as one (the skill);
- *   - flaps keep a minimum spacing: cards rising around the ship come out as a soft flap now and then, the loudest
- *     candidate (nearest, largest) taking the next slot, late ones dropped.
+ *     detail flaps (the smallest pieces) give way first when the page is busy, and may not spend the last tokens;
+ *   - one sound per gesture: the pieces of one cell moving the same way within a group window speak as one, its
+ *     largest piece taking the gesture's place while it waits (the skill: one flap for a group's largest layer);
+ *   - flaps keep a minimum spacing: pieces rising around the ship come out as a soft flap now and then, the loudest
+ *     waiting gesture (nearest, largest) taking the next slot, a little quieter the longer it waited, late ones
+ *     dropped.
  * Everything goes through a short room (early reflections) into `out`.
  */
 import { AUDIO } from '../config/audio';
 import { MAX_SOUND_SECONDS, flapVoice, makeRoomIR, stepVoice, synthFlap, synthKnock, synthStep } from './paper-synth';
 import type { StepSurface } from '../core/events';
-import { clamp } from '../core/math';
+import { clamp, lerp, smoothstep } from '../core/math';
 import { mulberry32 } from '../core/rng';
 
 interface Slot {
@@ -27,8 +30,9 @@ interface Slot {
   released: boolean;
 }
 
-interface Pending {
-  /** When the card moved (audio clock). */
+/** A flap waiting to be voiced. */
+interface Candidate {
+  /** When its piece moves (audio clock). */
   t: number;
   up: boolean;
   size: number;
@@ -36,8 +40,20 @@ interface Pending {
   pan: number;
   air: number;
   seed: number;
+  /** How it ranks for the next slot (louder: nearer, larger, rising). */
+  score: number;
+  /** The gesture it speaks for (none: a sheet the player moved). */
+  gesture: Gesture | null;
 }
 
+/** One gesture: a cell's pieces moving one way within the group window. */
+interface Gesture {
+  /** When it began (audio clock). */
+  t: number;
+  voiced: boolean;
+  /** Its flap waiting for a slot, if any. */
+  waiting: Candidate | null;
+}
 
 export class PaperVoices {
   private readonly slots: Slot[] = [];
@@ -46,9 +62,10 @@ export class PaperVoices {
   private tokenT = -1;
   private lastSt: number | null = null;
   private nextOnset = -1;
-  private queued: Pending | null = null;
-  /** When each piece (key and direction) last flapped (audio clock), for the group window. */
-  private readonly gestures = new Map<string, number>();
+  /** The one flap waiting for the next slot (papertrails' queue of one). */
+  private queued: Candidate | null = null;
+  /** The gestures under way, by key and direction. */
+  private readonly gestures = new Map<string, Gesture>();
 
   constructor(private readonly ctx: AudioContext, out: AudioNode) {
     this.sr = ctx.sampleRate;
@@ -71,35 +88,46 @@ export class PaperVoices {
   }
 
   /**
-   * A card rose (up) or folded away. gain: distance gain 0..1, pan -1..1, air 0..1 (distance softening),
-   * delay: seconds until the card actually moves. force: a sheet the player moved (the chart, the sails), played
-   * at once whatever the spacing. key: the piece it belongs to; its flaps the same way within the group window after
-   * the first stay silent.
+   * A piece rose (up) or folded away. size: 0 (tiny) .. 1 (large), gain: distance gain 0..1, pan -1..1, air 0..1
+   * (distance softening), delay: seconds until the piece actually moves. force: a sheet the player moved (the chart,
+   * the sails), played at once whatever the spacing. key: the gesture it belongs to (its cell).
    */
   flap(up: boolean, size: number, gain: number, pan: number, air: number, seed: number, delay = 0, force = false, key?: string): void {
     if (gain * AUDIO.flap.gain < AUDIO.minGain) return;
+    const F = AUDIO.flaps;
     const now = this.ctx.currentTime;
     this.drain(now);
-    const c: Pending = { t: now + delay, up, size, gain, pan, air, seed };
-    if (key !== undefined) {
-      const k = `${key}|${up ? 1 : 0}`;
-      const last = this.gestures.get(k);
-      if (last !== undefined && Math.abs(c.t - last) < AUDIO.flaps.groupWindow) return;
-      this.gestures.set(k, c.t);
-      // (forget the gestures long past, a few at a time)
-      if (this.gestures.size > 256) for (const [g, t] of this.gestures) if (now - t > AUDIO.flaps.groupWindow * 4) this.gestures.delete(g);
-    }
-    if (force) {
-      this.start(c, now);
+    const t = now + delay;
+    const score = gain * lerp(AUDIO.flap.sizeGainMin, 1, size) * (up ? 1 : F.downScore);
+    const c: Candidate = { t, up, size, gain, pan, air, seed, score, gesture: null };
+    if (force || key === undefined) {
+      this.startOne(c, now);
       return;
     }
-    const score = (p: Pending) => p.gain * (0.85 + 0.15 * p.size) * (p.up ? 1 : 0.7);
-    if (!this.queued && c.t <= now + 0.03 && c.t >= this.nextOnset) {
-      this.start(c, Math.max(c.t, now));
+    const k = `${key}|${up ? 1 : 0}`;
+    let g = this.gestures.get(k);
+    if (!g || t - g.t > F.groupWindow) {
+      // (forget the gestures long past, a few at a time)
+      if (this.gestures.size > 96) for (const [o, v] of this.gestures) if (now - v.t > F.groupWindow && !v.waiting) this.gestures.delete(o);
+      g = { t, voiced: false, waiting: null };
+      this.gestures.set(k, g);
+    }
+    if (g.voiced) return;
+    if (g.waiting) {
+      // a larger piece of a gesture still waiting takes over its place
+      if (size > g.waiting.size) Object.assign(g.waiting, { up, size, gain, pan, air, seed, score: Math.max(g.waiting.score, score) });
+      return;
+    }
+    c.gesture = g;
+    if (!this.queued && t <= now + F.lookahead && t >= this.nextOnset) {
+      this.startOne(c, Math.max(t, now));
       return;
     }
     // one waiting place: the louder candidate keeps it
-    if (!this.queued || score(c) > score(this.queued)) this.queued = c;
+    if (this.queued && this.queued.score >= score) return;
+    if (this.queued?.gesture) this.queued.gesture.waiting = null;
+    this.queued = c;
+    g.waiting = c;
   }
 
   /** The hull struck a shore. */
@@ -130,33 +158,53 @@ export class PaperVoices {
 
   private drain(now: number): void {
     const c = this.queued;
+    const F = AUDIO.flaps;
     // (a voice is only ever started for the next few milliseconds: its slot must be free right now)
-    if (!c || this.nextOnset > now + 0.03 || c.t > now + 0.03) return;
+    if (!c || this.nextOnset > now + F.lookahead || c.t > now + F.lookahead) return;
     this.queued = null;
     const at = Math.max(this.nextOnset, c.t, now);
-    if (at - c.t > AUDIO.flaps.maxDefer) return;
-    this.start(c, at);
+    if (at - c.t > F.maxDefer) {
+      if (c.gesture) c.gesture.waiting = null;
+      return;
+    }
+    this.startOne(c, at);
   }
 
-  private start(c: Pending, at: number): void {
+  /** Voices a candidate at `at`, a little quieter the longer it waited; the next flap keeps its spacing after it. */
+  private startOne(c: Candidate, at: number): void {
+    const F = AUDIO.flaps;
+    if (c.gesture) c.gesture.waiting = null;
+    const wait = Math.max(0, at - c.t);
+    const start = this.play(c, at, Math.pow(10, (-F.deferDb * Math.min(1, wait / F.maxDefer)) / 20));
+    if (start === null) return;
+    if (c.gesture) c.gesture.voiced = true;
+    this.nextOnset = start.at + F.spacing + F.spacingJitter * ((((start.seed >>> 10) & 1023) / 1023) * 2 - 1);
+  }
+
+  /** Synthesises and starts one flap at `at` (extGain: a deferred flap's softening); its onset and seed, or null. */
+  private play(c: Candidate, at: number, extGain: number): { at: number; seed: number } | null {
     const A = AUDIO;
     const active = this.active(at);
     const density = clamp(active / A.maxVoices, 0, 1);
-    // rate limit
+    // detail flaps give way first when the page is busy: quieter, and they cost more of the rate budget
+    const big = smoothstep(0, 1, (c.size - A.detail.below) / A.detail.range);
+    const cost = 1 + (1 - big) * A.detail.cost * density;
     if (this.tokenT >= 0) this.tokens = Math.min(A.rate.burst, this.tokens + (at - this.tokenT) * A.rate.perSecond);
     this.tokenT = at;
-    if (this.tokens < 1) return;
+    // (details may not spend the last tokens: those are kept for the next real flap)
+    if (this.tokens < cost + (big < 0.5 ? A.rate.reserve : 0)) return null;
     const V = flapVoice(c.up, c.size, c.seed, this.lastSt);
-    const level = (V.level * c.gain * (1 - A.densityDuck * density)) / Math.sqrt(1 + A.overlapDuck * active);
+    const level = (V.level * c.gain * extGain * (1 - A.densityDuck * density * (1 + A.detail.duck * (1 - big)))) / Math.sqrt(1 + A.overlapDuck * active);
     const slot = this.claim(at, level);
-    if (!slot) return;
-    this.tokens -= 1;
+    if (!slot) return null;
+    this.tokens -= cost;
     this.lastSt = V.semitones;
     const data = slot.buffer.getChannelData(0);
     const n = synthFlap(data, this.sr, { ...V, tick: 1 - A.densityTickDuck * density, air: c.air }, mulberry32(V.synthSeed));
-    const start = at + A.onsetJitter * ((V.synthSeed & 1023) / 1023);
+    // events arrive on the frame grid: onsets spread over a frame, and a little more when the page is busy
+    const start = at + (A.onsetJitter + A.rippleJitter * density) * ((V.synthSeed & 1023) / 1023);
     this.launch(slot, start, n / this.sr, level, c.pan, V.dur);
-    this.nextOnset = start + A.flaps.spacing + A.flaps.spacingJitter * ((((V.synthSeed >>> 10) & 1023) / 1023) * 2 - 1);
+    return { at: start, seed: V.synthSeed };
   }
 
   private active(t: number): number {

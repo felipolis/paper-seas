@@ -151,10 +151,12 @@ What papertrails does, Paper Seas does the same way (its traveller is as tall as
 - **Footsteps** (`audio/paper-synth.ts`): a synthesised paper step on every footfall, its timbre set by the ground
   (grass, path, a deck). His legs walk by the skill's gait: each planted foot holds still under the moving hip (its
   stance angle covers the stride exactly), the other swings forward on a smoothstep.
-- **The mix** (`config/audio.ts`, `audio/paper-voices.ts`): the skill's approved levels: one flap per gesture (a land
-  cell, a patch of waves, within 0.5 s), 0.35-0.75 s between flaps, the nearest and largest winning, sounds falling away
-  fast with distance (silent beyond ~2.4 x 9 units); no wind; the sea is only a room tone at ~-63 dBFS so the silence is
-  never digital black.
+- **The mix** (`config/audio.ts`, `audio/paper-voices.ts`): papertrails' paper flap, sample for sample, and its
+  allocation: one flap per gesture (a land cell's cards and buildings, a patch of waves, within 0.5 s) voiced by its
+  largest piece (a piece's size is its height in papertrails' 2-unit tiles), 0.35-0.75 s between flaps, the nearest and
+  largest winning and a late one a little quieter, the smallest pieces giving way first when many sound at once, sounds
+  falling away fast with distance (silent beyond ~2.4 x 9 units, the skill); no wind; the sea is only a room tone at
+  ~-63 dBFS so the silence is never digital black.
 - **The camera** (`camera/follow-camera.ts`): at sea the ship has the same window (scaled with the zoom), so the camera
   stands still while the ship idles or turns and only travels once it sails on; boarding and going ashore glide over
   0.9 s on a smoothstep. On foot it is papertrails' follow camera as it is: a 27 degree lens at 10.8, 42

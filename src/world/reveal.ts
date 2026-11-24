@@ -173,6 +173,14 @@ export class Reveal {
   }
 }
 
+/**
+ * The sound gesture of the cell holding (x, z) (papertrails' tile): its cards and buildings moving one way speak as one
+ * flap (audio/paper-voices.ts).
+ */
+export function cellGesture(x: number, z: number): string {
+  return `c${Math.floor(x / CELL)},${Math.floor(z / CELL)}`;
+}
+
 /** The ripple jitter (s) of the cell holding (x, z): one for every card and building in it (papertrails' tiles). */
 export function cellJitter(x: number, z: number): number {
   return (hash01(JITTER_SALT, Math.floor(x / CELL), Math.floor(z / CELL)) - 0.5) * 2 * JITTER;

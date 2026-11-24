@@ -25,21 +25,41 @@ export const AUDIO = {
   panWidth: 0.5,
   /** World units across which a sound pans from centre to full side. */
   panSpan: 14,
-  /** New-voice rate limit (token bucket). */
-  rate: { perSecond: 30, burst: 9 },
-  /** Flap onsets are spread over up to one frame (events arrive on the frame grid). */
+  /** New-voice rate limit (token bucket); reserve: the last tokens, kept from detail flaps for the next real one. */
+  rate: { perSecond: 30, burst: 9, reserve: 3 },
+  /** Flap onsets are spread over up to one frame (events arrive on the frame grid), and rippleJitter more when busy. */
   onsetJitter: 0.016,
+  rippleJitter: 0.012,
+  /**
+   * Detail flaps (size under below + range, the smallest pieces) give way first when the page is busy: ducked duck x
+   * harder, and costing up to 1 + cost of the rate budget.
+   */
+  detail: { below: 0.12, range: 0.3, duck: 1.6, cost: 1.2 },
   densityDuck: 0.22,
   overlapDuck: 0.5,
   densityTickDuck: 0.55,
   /** Cards rising around the ship: a soft flap now and then, not a continuous rustle. */
   flaps: {
+    /** A flap's size: its piece's upright height in papertrails' tiles (world units), minSize .. 1 (fold.js there). */
+    tile: 2,
+    minSize: 0.05,
     /** Minimum time between flap onsets (+- jitter): 0.35-0.75 s, two flaps a second at most (the skill). */
     spacing: 0.55,
     spacingJitter: 0.2,
-    /** A flap that would start later than this after its card moved is dropped. */
+    /**
+     * A flap that would start later than this after its piece moved is dropped; one that waited is up to deferDb
+     * quieter.
+     */
     maxDefer: 0.08,
-    /** One sound per gesture: a piece's flaps the same way within this window (s) after one are left silent. */
+    deferDb: 3.5,
+    /** Rising pieces win the next slot against pieces folding away. */
+    downScore: 0.7,
+    /** Flaps are started this far ahead of the audio clock. */
+    lookahead: 0.03,
+    /**
+     * One sound per gesture: the flaps of one gesture (a cell's pieces, the same way) within this window (s) speak as
+     * one, its largest piece while it waits for its slot.
+     */
     groupWindow: 0.5,
   },
 
@@ -144,7 +164,7 @@ export const AUDIO = {
    * a flap), a little apart in pitch and pan from foot to foot, the timbre set by what is underfoot.
    */
   step: {
-    gain: 0.025,
+    gain: 0.02,
     refCrest: 7,
     /** To -40 dB (longer = softer). */
     dur: 0.07,

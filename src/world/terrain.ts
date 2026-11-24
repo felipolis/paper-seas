@@ -11,13 +11,14 @@
  */
 import * as THREE from 'three';
 import { POPUP } from '../config/popup';
+import { bus } from '../core/events';
 import { DEG, clamp, hexRgb, smoothstep } from '../core/math';
 import { hash2, mulberry32 } from '../core/rng';
 import { mirrorSkip } from '../render/reflection';
 import { toTexture } from '../art/card-painter';
 import { cardWidth, spriteSpan, spriteTop } from '../art/sprites';
 import { BAND_HI, BAND_LO, HULL_MAX, hullSegments, placeSegments, type Segment } from './blockers';
-import { cellJitter, type Reveal } from './reveal';
+import { cellGesture, cellJitter, type Reveal } from './reveal';
 import { contoursFromGrid, outlinesWithHoles, type Grid } from './contours';
 import { LAND_TOP, type LandField } from './land';
 import { valueNoise } from './noise';
@@ -598,12 +599,13 @@ export class Terrain {
         // the same rules as the cards (papertrails' tiles): the building is one cell
         const jitter = cellJitter(h.x, h.z);
         if (reveal.mayFlip(h.x, h.z, this.flips.get(h) ?? -99, this.clock)) {
-          if (h.fold.target !== 1 && reveal.wantsUp(h.x, h.z)) {
-            h.fold.setTarget(1, reveal.riseDelay(h.x, h.z, jitter));
+          const up = h.fold.target !== 1 && reveal.wantsUp(h.x, h.z);
+          if (up || (h.fold.target !== 0 && reveal.wantsDown(h.x, h.z))) {
+            const delay = up ? reveal.riseDelay(h.x, h.z, jitter) : reveal.foldDelay(h.x, h.z, jitter);
+            h.fold.setTarget(up ? 1 : 0, delay);
             this.flips.set(h, this.clock);
-          } else if (h.fold.target !== 0 && reveal.wantsDown(h.x, h.z)) {
-            h.fold.setTarget(0, reveal.foldDelay(h.x, h.z, jitter));
-            this.flips.set(h, this.clock);
+            // (one gesture with the cards of its cell: the largest piece speaks)
+            bus.emit('paper', { x: h.x, z: h.z, height: modelInfo(h.name)!.height, up, delay, key: cellGesture(h.x, h.z) });
           }
         }
         h.fold.update(dt);

@@ -5,6 +5,7 @@
  * holding S with the sails furled back-paddles slowly.
  */
 import { SHIP } from '../config/ship';
+import { activeShip } from '../config/ships';
 import { clamp } from '../core/math';
 import type { Input } from '../core/input';
 import { ShipModel } from './ship-model';
@@ -52,7 +53,9 @@ export class Ship {
   launch(delay: number): void {
     this.model.raiseMasts(true, delay);
     this.launched = true;
-    bus.emit('paper', { x: this.physics.x, z: this.physics.z, size: 2, up: true, delay, key: 'ship' });
+    // (as tall as her tallest mast)
+    const height = Math.max(...activeShip().masts.map((m) => m.height));
+    bus.emit('paper', { x: this.physics.x, z: this.physics.z, height, up: true, delay, key: 'ship' });
   }
 
   /**

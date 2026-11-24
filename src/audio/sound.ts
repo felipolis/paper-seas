@@ -48,7 +48,7 @@ export class Sound {
     window.addEventListener('pointerdown', start);
     window.addEventListener('keydown', (e) => { if (e.code === 'KeyM' && !e.repeat) this.toggleMute(); });
 
-    bus.on('paper', (e) => this.paper(e.x, e.z, e.size, e.up, e.delay ?? 0, e.key));
+    bus.on('paper', (e) => this.paper(e.x, e.z, e.height, e.up, e.delay ?? 0, e.key));
     bus.on('sails', () => this.sheet(0.8, true));
     bus.on('chart', () => this.sheet(1, false));
     bus.on('bump', (e) => this.knock(e.strength));
@@ -138,11 +138,13 @@ export class Sound {
     return this.graph && this.graph.ctx.state === 'running' && !this.muted ? this.graph : null;
   }
 
-  private paper(x: number, z: number, size: number, up: boolean, delay: number, key: string): void {
+  /** A piece height tall rose or folded at (x, z): a flap as large as it is in papertrails' tiles. */
+  private paper(x: number, z: number, height: number, up: boolean, delay: number, key: string): void {
     const g = this.live();
     if (!g) return;
     const p = this.place(x, z);
     if (p.gain <= 0) return;
+    const size = clamp(height / AUDIO.flaps.tile, AUDIO.flaps.minSize, 1);
     g.voices.flap(up, size, p.gain, p.pan, p.air, hashXZ(x, z, up ? 1 : 2), delay, false, key);
   }
 

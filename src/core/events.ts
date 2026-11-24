@@ -5,11 +5,11 @@ export type StepSurface = 'grass' | 'path' | 'bridge';
 
 export interface GameEvents {
   /**
-   * Paper cards started to rise / fold somewhere (size = 0 tiny .. 1 large card, delay = seconds until the card
-   * actually moves; key: the piece it belongs to, one sound per gesture: a piece's flaps within the group window speak
-   * as one).
+   * Paper pieces started to rise / fold somewhere (height: the piece's upright height, world units; delay: seconds
+   * until it actually moves; key: the gesture it belongs to, its cell: one sound per gesture, its largest piece
+   * speaking).
    */
-  paper: { x: number; z: number; size: number; up: boolean; delay?: number; key: string };
+  paper: { x: number; z: number; height: number; up: boolean; delay?: number; key: string };
   /** The sails were set or furled. */
   sails: { level: number };
   /** The voyage chart was unfolded or folded away. */

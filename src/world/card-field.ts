@@ -22,7 +22,7 @@ import { CARD_THICKNESS, cardGeometry, materialFor, thickCardGeometry, thickMate
 import { CROSSED, heightOf } from '../config/flora';
 import { cardWidth, spriteArt } from '../art/sprites';
 import { PAPER_FLAT_ATTRIBUTE, pencilPlan } from '../render/paper-material';
-import { CELL, cellJitter, type Reveal } from './reveal';
+import { CELL, cellGesture, cellJitter, type Reveal } from './reveal';
 import { SWAY_FADE_IN, SWAY_RADIUS, SWAY_RELEASE, swayAngle, swayOf, type Sway, windStrength } from './wind';
 import { Critters, type Habitat } from './critters';
 import { tintMaterial } from '../render/biome-tint';
@@ -302,7 +302,7 @@ export class CardField {
               c.halves?.setTarget(1, delay + POPUP.nested.lag);
               c.flipAt = this.time;
               c.held = 0;
-              if (!c.hidden) bus.emit('paper', { x: c.x, z: c.z, size: Math.min(1, c.height / 3), up: true, delay, key: `c${c.cx},${c.cz}` });
+              if (!c.hidden) bus.emit('paper', { x: c.x, z: c.z, height: c.height, up: true, delay, key: cellGesture(c.x, c.z) });
             }
           } else c.held = 0;
         } else if (may && reveal.wantsDown(c.cx, c.cz)) {
@@ -311,7 +311,7 @@ export class CardField {
           f.setTarget(0, delay);
           c.halves?.setTarget(0, delay);
           c.flipAt = this.time;
-          if (!c.hidden) bus.emit('paper', { x: c.x, z: c.z, size: Math.min(1, c.height / 3), up: false, delay, key: `c${c.cx},${c.cz}` });
+          if (!c.hidden) bus.emit('paper', { x: c.x, z: c.z, height: c.height, up: false, delay, key: cellGesture(c.x, c.z) });
         }
         const hv = c.halves;
         if (f.active || hv?.active) {
