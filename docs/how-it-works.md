@@ -74,6 +74,10 @@ What papertrails does, Paper Seas does the same way (its traveller is as tall as
   cardThickness); its face is shaded from 0.787 at the hinge to full colour 0.21 above it (papertrails' contact
   shading, baked per vertex), the cards of a clump darker toward its back (0.69 to 1, its instance colour), its cut edge is the piece's
   own tone darkened per channel (0.62, 0.65, 0.78); crossed trees turn 0.6 of the others' jitter, ferns stand single.
+  A crossed card is papertrails' slotted cross (its `tree` + `tree_xf` + `tree_xb`): the card, and two half cards 40 %
+  as thick hinged on its two faces down its middle, folded flat against it while it lies and pulled open by it as it
+  rises (the spring's nested linkage), so a lying cross reads as one card; the chimneys and the pier's posts
+  (`tools/blender/build_models.py` `cross_halves`) are built the same way.
 - **Biome tints** (`render/biome-tint.ts`): papertrails' colour transforms per biome on the printed ground (blended
   over a tile), on every card and model standing there and on the roads: the meadow takes its blossom row, the pine
   woods its pinewood (a teal wood, a pine-needle track, darker streams), the jungle and the rocks its heartland

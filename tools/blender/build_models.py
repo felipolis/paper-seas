@@ -321,11 +321,10 @@ def gable_house(name, W, front, side, roof, depth_scale=1.0, chimney=None, sign=
         top_y = H + rise * (1 - cx / half)
         base_y = top_y - 0.18
         cz = -D * 0.18
-        # two crossed cards: one across the roof (hinged on the slope), one along it (hinged on the first)
+        # a slotted cross: a card across the roof (hinged on the slope), the two halves of one along it on its faces
         ca = m.card("chimney", rr, chimney, rect_corners(V(cx - width / 2, base_y, cz), V(width, 0, 0), V(0, height, 0)), FULL,
                     (V(cx, top_y, cz), V(1, 0, 0)), V(0, 0, -1), 0.85, thin=True)
-        m.card("chimney_x", ca, chimney, rect_corners(V(cx, base_y, cz + width / 2), V(0, 0, -width), V(0, height, 0)), FULL,
-               (V(cx, base_y, cz + width / 2), V(0, 1, 0)), V(1, 0, 0), 0.9, thin=True)
+        cross_halves(m, "chimney", ca, chimney, V(cx, base_y, cz), V(0, 1, 0), V(1, 0, 0), V(0, 0, 1), width, height, 0.9, thin=True)
     if sign:
         sw2, sh2 = face(sign)["rect"][2:]
         width = 0.36
@@ -336,6 +335,22 @@ def gable_house(name, W, front, side, roof, depth_scale=1.0, chimney=None, sign=
         m.card("sign", wl, sign, rect_corners(V(-W / 2 - width, y0, zc), V(width, 0, 0), V(0, height, 0)), FULL,
                (V(-W / 2, y0, zc), V(0, 1, 0)), V(0, 0, -1), 0.8, thin=True)
     return m, {"W": W, "D": D, "H": A}
+
+
+def cross_halves(m, name, card, art, foot, up, along, normal, width, height, delay, thin=False):
+    """
+    papertrails' slotted cross (its tiles.glb: tree + tree_xf + tree_xb): the second plane of a crossed card as two
+    half cards, one on each of the card's faces, hinged on the vertical line down its middle (foot: the line's bottom,
+    up: its direction). Each lies folded flat against its face while the card lies (the front one along the card, the
+    back one the other way) and is pulled open square to it as the card rises (nested on it). along: the card's own
+    direction across; normal: its front's (the way the second plane runs); width, height: the second plane's.
+    """
+    off = (0 if thin else THICK) / 2 + 0.002
+    for tag, k, poly in (("xf", 1, ((0, 0), (0.5, 0), (0.5, 1), (0, 1))), ("xb", -1, ((0.5, 0), (1, 0), (1, 1), (0.5, 1)))):
+        o = foot + normal * (k * off)
+        # the whole second plane's face (a from its front end to its back end), cut to this half's side of the slot
+        corners = rect_corners(o + normal * (width / 2), normal * -width, up * height)
+        m.card(f"{name}_{tag}", card, art, corners, poly, (o, up), along * k, delay, thin=thin)
 
 
 # ------------------------------------------------------------------------------------------------------------------
@@ -581,16 +596,19 @@ def pier(name, L=3.0, W=0.62, H=0.16):
         # planks across the deck: the swatch's planks run along its width (a), so a runs across the pier
         m.card(f"deck{k}", left, art, (V(-W / 2 - ov, H, z1), V(W / 2 + ov, H, z1), V(W / 2 + ov, H, z0), V(-W / 2 - ov, H, z0)), FULL,
                (V(-W / 2, H, -L / 2), V(0, 0, 1)), V(0, -1, 0), 0.2 + 0.3 * k / max(1, n - 1))
-    # posts: two crossed narrow cards each, from below the waterline to a hand above the deck
+    # posts: a slotted cross of narrow cards each (a card on the page, the halves of the other on its faces), from
+    # below the waterline to a hand above the deck
     pw, top, foot = 0.07, H + 0.13, -0.3
     zs = [-L / 2 + 0.08 + (L - 0.16) * t / 3 for t in range(4)]
     for k, z in enumerate(zs):
         for side, x in (("l", -W / 2 - 0.04), ("r", W / 2 + 0.04)):
-            for j, (ux, uz) in enumerate(((0.7071, 0.7071), (0.7071, -0.7071))):
-                u = V(ux, 0, uz) * (pw / 2)
-                c = V(x, foot, z)
-                m.card(f"post{k}{side}{j}", None, art, (c - u, c + u, c + u + V(0, top - foot, 0), c - u + V(0, top - foot, 0)), FULL,
-                       (c, u), V(-uz, 0, ux), 0.6 + 0.1 * k, thin=True)
+            along = V(0.7071, 0, 0.7071)
+            normal = V(-0.7071, 0, 0.7071)
+            u = along * (pw / 2)
+            c = V(x, foot, z)
+            post = m.card(f"post{k}{side}", None, art, (c - u, c + u, c + u + V(0, top - foot, 0), c - u + V(0, top - foot, 0)), FULL,
+                          (c, u), normal, 0.6 + 0.1 * k, thin=True)
+            cross_halves(m, f"post{k}{side}", post, art, c, V(0, 1, 0), along, normal, pw, top - foot, 0.65 + 0.1 * k, thin=True)
     return m, {"W": W, "D": L, "H": H, "deck": H + THICK}
 
 

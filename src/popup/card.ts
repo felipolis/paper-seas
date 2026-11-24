@@ -194,16 +194,17 @@ export function prewarmSilhouettes(arts: CardArt[]): void {
  *          between palm fronds) and only shows as the card's depth when seen at an angle.
  *
  * With unit = true the card is 1 unit tall (to be scaled per instance) and 1 unit deep (the instance's z scale is
- * then the thickness).
+ * then the thickness). half cuts the card down its middle and keeps one side (+1: x >= 0, -1: x <= 0), its cut edge
+ * a wall like the rest: papertrails' half cards, the second plane of a slotted cross (world/card-field.ts).
  */
-export function thickCardGeometry(art: CardArt, o: { flipX?: boolean; unit?: boolean; height?: number; contact?: boolean } = {}): THREE.BufferGeometry | null {
+export function thickCardGeometry(art: CardArt, o: { flipX?: boolean; unit?: boolean; height?: number; contact?: boolean; half?: 1 | -1 } = {}): THREE.BufferGeometry | null {
   const loops = silhouette(art.texture);
   if (!loops) return null;
   const w = art.right - art.left;
   const hgt = art.top - art.bottom;
   const scale = o.unit ? 1 / hgt : 1;
   const depth = o.unit ? 1 : CARD_THICKNESS;
-  const key = `${(art.texture as THREE.Texture).uuid}|${art.left.toFixed(4)}|${art.right.toFixed(4)}|${art.bottom.toFixed(4)}|${art.top.toFixed(4)}|${o.flipX ? 1 : 0}|${o.unit ? 1 : 0}|${o.height ?? 1}|${o.contact === false ? 0 : 1}`;
+  const key = `${(art.texture as THREE.Texture).uuid}|${art.left.toFixed(4)}|${art.right.toFixed(4)}|${art.bottom.toFixed(4)}|${art.top.toFixed(4)}|${o.flipX ? 1 : 0}|${o.unit ? 1 : 0}|${o.height ?? 1}|${o.contact === false ? 0 : 1}|${o.half ?? 0}`;
   const cached = thickCache.get(key);
   if (cached) return cached;
   const toCard = (u: number, v: number) => new THREE.Vector2((art.left + (o.flipX ? 1 - u : u) * w) * scale, (art.bottom + v * hgt) * scale);
@@ -213,8 +214,8 @@ export function thickCardGeometry(art: CardArt, o: { flipX?: boolean; unit?: boo
   };
 
   // ---- the face: a strip at the foot (the contact shading rises over it) and the rest ----
-  const x0 = art.left * scale;
-  const x1 = art.right * scale;
+  const x0 = o.half === 1 ? 0 : art.left * scale;
+  const x1 = o.half === -1 ? 0 : art.right * scale;
   const y0 = art.bottom * scale;
   const y1 = art.top * scale;
   const zf = depth / 2;
@@ -233,9 +234,15 @@ export function thickCardGeometry(art: CardArt, o: { flipX?: boolean; unit?: boo
   // ---- the cut edge: only the walls of the extruded outline ----
   if (loops.length) {
     const shapes: THREE.Shape[] = [];
+    const cut = (loop: readonly Pt[]) => keepSide(loop.map(([u, v]) => toCard(u, v)), o.half);
     for (const { outer, holes } of outlinesWithHoles(loops)) {
-      const shape = new THREE.Shape(outer.map(([u, v]) => toCard(u, v)));
-      for (const hole of holes) shape.holes.push(new THREE.Path(hole.map(([u, v]) => toCard(u, v))));
+      const kept = cut(outer);
+      if (kept.length < 3) continue;
+      const shape = new THREE.Shape(kept);
+      for (const hole of holes) {
+        const h = cut(hole);
+        if (h.length >= 3) shape.holes.push(new THREE.Path(h));
+      }
       shapes.push(shape);
     }
     const uvGen = {
@@ -275,6 +282,20 @@ export function thickCardGeometry(art: CardArt, o: { flipX?: boolean; unit?: boo
   g.computeBoundingSphere();
   thickCache.set(key, g);
   return g;
+}
+
+/** The part of a closed outline on one side of the card's middle (x = 0; side undefined: all of it). */
+function keepSide(pts: THREE.Vector2[], side?: 1 | -1): THREE.Vector2[] {
+  if (!side) return pts;
+  const out: THREE.Vector2[] = [];
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i];
+    const b = pts[(i + 1) % pts.length];
+    const ia = a.x * side >= 0;
+    if (ia) out.push(a);
+    if (ia !== b.x * side >= 0) out.push(new THREE.Vector2(0, a.y + ((b.y - a.y) * a.x) / (a.x - b.x)));
+  }
+  return out;
 }
 
 /**

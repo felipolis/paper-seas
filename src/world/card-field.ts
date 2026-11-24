@@ -5,7 +5,10 @@
  * Each card has its own paper spring, but the land rises and folds by cells, like papertrails' tiles (which cells,
  * when, and how the rise ripples outward: world/reveal.ts): the cards of one cell start one after another over
  * STAGGER seconds in flat-stack order (they fold back, so the nearest lies on top and rises first) and fold down in the
- * reverse order, lying flat on the page, face up, until they rise again. Nothing stands plumb: each card leans a
+ * reverse order, lying flat on the page, face up, until they rise again. A crossed card is papertrails' slotted cross
+ * (its tiles.glb: tree + tree_xf + tree_xb): the card, and two half cards hinged on its two faces down its middle,
+ * folded flat against it while it lies and pulled open by it as it rises (the spring's NESTED linkage), so a lying cross
+ * is one card and a standing one two planes square to each other. Nothing stands plumb: each card leans a
  * little (LEAN), only as it stands, so it still lies exactly flat. A card settled upright rocks in the wind about its hinge (world/wind.ts),
  * fading in over SWAY_FADE_IN and relaxing away over SWAY_RELEASE once it moves; the animals live and take the captain
  * as world/critters.ts has them.
@@ -33,6 +36,15 @@ const STAGGER = 0.34;
 const LEAN = 2.5 * (Math.PI / 180);
 /** Crossed cards (papertrails' crossDeg): the nearer plane stands this far off the view axis, the other square to it. */
 export const CROSS_PLANES = [24 * (Math.PI / 180), -66 * (Math.PI / 180)];
+/**
+ * A cross's half cards (papertrails' tree_xf / tree_xb): about 40 % of a card thick, printed as the card is (folded
+ * against it they read as the card itself), their mid-planes clear of the card's faces they fold against.
+ */
+const HALF_THICKNESS = 0.4 * CARD_THICKNESS;
+const HALF_OFFSET = CARD_THICKNESS / 2 + HALF_THICKNESS / 2 + 0.0005;
+/** Which of a cross's pieces a batch draws: the card, or the half card on its front (x >= 0) or back (x <= 0) face. */
+type Part = 'card' | 'front' | 'back';
+const HALF_SIDE = { front: 1, back: -1 } as const;
 const X_AXIS = new THREE.Vector3(1, 0, 0);
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
@@ -48,7 +60,7 @@ export interface CardSpec {
   flip: boolean;
   /** Extra start delay (s) when rising. */
   delay: number;
-  /** Two cards crossing at right angles (CROSS_PLANES off the view), like a slotted pop-up tree. */
+  /** A slotted cross: the card and two half cards square to it (CROSS_PLANES off the view), like a pop-up tree. */
   cross?: boolean;
   /**
    * papertrails' vignette: an animal tied to a piece beside it (sitting on it, by it, at a door, behind it), which
@@ -64,6 +76,8 @@ export interface CardSpec {
 export interface Card extends CardSpec {
   id: number;
   flap: Flap;
+  /** A cross's half cards, riding on the card (NESTED: they open as it rises, never ahead of it). */
+  halves: Flap | null;
   hidden: boolean;
   phase: number;
   /** Centre of the card's cell, its place (0..1) in the cell's rise order, the cell's ripple jitter (s). */
@@ -86,6 +100,7 @@ export interface Card extends CardSpec {
 
 interface Batch {
   mesh: THREE.InstancedMesh;
+  part: Part;
   cards: Card[];
   dirty: boolean;
 }
@@ -110,6 +125,7 @@ function flatBounds(s: CardSpec): Box {
 const FLAT_CELL = 1;
 
 const _m = new THREE.Matrix4();
+const _mh = new THREE.Matrix4();
 const _q = new THREE.Quaternion();
 const _qa = new THREE.Quaternion();
 const _p = new THREE.Vector3();
@@ -143,10 +159,13 @@ export class CardField {
     for (const s of specs) {
       const i = Math.floor(s.x / CELL);
       const j = Math.floor(s.z / CELL);
+      const constants = flapConstants({ size: s.height, seed: (s.x * 0.137 + s.z * 0.291) % 1, wobble: 1 });
+      const flap = new Flap(constants);
       const card: Card = {
         ...s,
         id: this.nextId++,
-        flap: new Flap(flapConstants({ size: s.height, seed: (s.x * 0.137 + s.z * 0.291) % 1, wobble: 1 })),
+        flap,
+        halves: s.cross ? new Flap(constants) : null,
         hidden: false,
         phase: Math.abs(Math.sin(s.x * 12.9898 + s.z * 78.233)) % 1,
         cx: (i + 0.5) * CELL,
@@ -161,13 +180,15 @@ export class CardField {
         swayLevel: 0,
         flatBox: flatBounds(s),
       };
+      if (card.halves) card.halves.parent = flap;
       const key = `${i},${j}`;
       let cell = cells.get(key);
       if (!cell) cells.set(key, (cell = []));
       cell.push(card);
-      const b = this.batch(s.sprite, s.flip, s.biome);
-      b.cards.push(card);
-      b.dirty = true;
+      for (const b of this.batchesOf(card)) {
+        b.cards.push(card);
+        b.dirty = true;
+      }
       out.push(card);
     }
     // the rise order inside each cell, the flat stack's: the nearest first (the camera looks north, so the largest z),
@@ -230,7 +251,13 @@ export class CardField {
   /** Hides a card for good (a collected chest). */
   hide(card: Card): void {
     card.hidden = true;
-    this.batch(card.sprite, card.flip, card.biome).dirty = true;
+    for (const b of this.batchesOf(card)) b.dirty = true;
+  }
+
+  /** The batches drawing a card: its own, and a cross's two half cards'. */
+  private batchesOf(c: CardSpec): Batch[] {
+    const parts: Part[] = c.cross ? ['card', 'front', 'back'] : ['card'];
+    return parts.map((part) => this.batch(c.sprite, c.flip, c.biome, part));
   }
 
   /** reveal decides which cells stand; (focusX, focusZ): where the animals stir and the wind sways the cards. */
@@ -242,9 +269,13 @@ export class CardField {
     this.focusZ = focusZ;
     const steps = this.stepper.advance(dt);
     const h = POPUP.step;
+    // (a card moves once, from its own batch; the batches of the crosses' half cards redraw after, if one of theirs moved)
+    const moved = new Set<Card>();
     for (const b of this.batches.values()) {
+      if (b.part !== 'card') continue;
       let animate = b.dirty;
       for (const c of b.cards) {
+        let stirred = false;
         const d = Math.hypot(c.x - focusX, c.z - focusZ);
         const f = c.flap;
         const up = f.target === 1 || f.pendingTarget === 1;
@@ -255,6 +286,7 @@ export class CardField {
             else if (reveal.claimRise(c.cx, c.cz)) {
               const delay = c.delay + reveal.riseDelay(c.cx, c.cz, c.jitter) + c.order * STAGGER;
               f.setTarget(1, delay);
+              c.halves?.setTarget(1, delay + POPUP.nested.lag);
               c.flipAt = this.time;
               c.held = 0;
               if (!c.hidden) bus.emit('paper', { x: c.x, z: c.z, size: Math.min(1, c.height / 3), up: true, delay, key: `c${c.cx},${c.cz}` });
@@ -264,38 +296,50 @@ export class CardField {
           // folding, the cell closes in the reverse order: the farthest first
           const delay = reveal.foldDelay(c.cx, c.cz, c.jitter) + (1 - c.order) * STAGGER;
           f.setTarget(0, delay);
+          c.halves?.setTarget(0, delay);
           c.flipAt = this.time;
           if (!c.hidden) bus.emit('paper', { x: c.x, z: c.z, size: Math.min(1, c.height / 3), up: false, delay, key: `c${c.cx},${c.cz}` });
         }
-        if (f.active) {
-          for (let i = 0; i < steps; i++) f.step(h);
-          animate = true;
+        const hv = c.halves;
+        if (f.active || hv?.active) {
+          // (the card before the half cards riding on it, every fixed step)
+          for (let i = 0; i < steps; i++) {
+            f.step(h);
+            hv?.step(h);
+          }
+          stirred = true;
         }
         f.interpolate(this.stepper.alpha);
+        hv?.interpolate(this.stepper.alpha);
         if (f.target === 1 && f.atRest && f.pendingTarget < 0) {
           // settled upright: near the focus the wind owns the sway, fading in
           if (c.wind.amp > 0 && d < SWAY_RADIUS) {
             c.swayLevel = Math.min(1, c.swayLevel + dt / SWAY_FADE_IN);
             const yaw = c.cross ? c.yaw + CROSS_PLANES[0] : c.yaw;
             c.sway = c.swayLevel * swayAngle(c.wind, c.x, c.z, -Math.sin(yaw), -Math.cos(yaw), this.time, windStrength(c.biome));
-            animate = true;
+            stirred = true;
           }
         } else if (c.swayLevel > 0) {
           // the spring owns the card again: whatever sway is left relaxes away
           c.swayLevel *= relax;
           c.sway *= relax;
           if (c.swayLevel < 1e-4) c.swayLevel = c.sway = 0;
-          animate = true;
+          stirred = true;
         }
-        if (Critters.is(c.sprite) && f.p > 0.5 && d < SWAY_RADIUS) animate = true;
+        if (Critters.is(c.sprite) && f.p > 0.5 && d < SWAY_RADIUS) stirred = true;
+        if (stirred) {
+          animate = true;
+          if (hv) moved.add(c);
+        }
       }
       if (animate) this.rebuild(b);
     }
+    for (const b of this.batches.values()) if (b.part !== 'card' && (b.dirty || b.cards.some((c) => moved.has(c)))) this.rebuild(b);
   }
 
   private rebuild(b: Batch): void {
     let n = 0;
-    if (b.mesh.instanceMatrix.count < b.cards.length * 2) this.grow(b);
+    if (b.mesh.instanceMatrix.count < b.cards.length) this.grow(b);
     const mesh = b.mesh;
     const flat = mesh.geometry.getAttribute(PAPER_FLAT_ATTRIBUTE) as THREE.InstancedBufferAttribute;
     for (const c of b.cards) {
@@ -304,9 +348,7 @@ export class CardField {
       // from afar, and seen to fold down and to stand up again)
       if (c.hidden) continue;
       const sw = c.sway;
-      const tw = c.flap.twist;
       _p.set(c.x, c.y, c.z);
-      _s.set(c.height, c.height, CARD_THICKNESS);
       let lean = 0;
       let turn = 0;
       if (Critters.is(c.sprite)) {
@@ -318,29 +360,32 @@ export class CardField {
         lean = pose.lean;
         turn = pose.yaw;
       }
-      // a crossed card's second plane lies folded under the first while it is flat
-      const planes = c.cross && p > 0.04 ? 2 : 1;
-      const yaw0 = (c.cross ? c.yaw + CROSS_PLANES[0] : c.yaw) + turn;
-      for (let k = 0; k < planes; k++) {
-        // crossed cards: two planes slotted together (the nearer 24 degrees off the view); the second folds the other way
-        const yaw = (c.cross ? c.yaw + CROSS_PLANES[k] : c.yaw) + turn;
-        // the wind rocks the card about its (first plane's) hinge, the top tipping the way it folds, and twists it about
-        // its long axis; its lean grows with it as it stands; a crossed card rocks and leans as one piece
-        const tilt = sw + c.lean * p;
-        if (tilt !== 0) {
-          _q.setFromAxisAngle(Y_AXIS, yaw0);
-          _q.multiply(_qa.setFromAxisAngle(X_AXIS, -tilt));
-          _q.multiply(_qa.setFromAxisAngle(Y_AXIS, sw * c.wind.twist + yaw - yaw0));
-        } else _q.setFromAxisAngle(Y_AXIS, yaw);
-        _qa.setFromAxisAngle(X_AXIS, ((k === 0 ? -1 : 1) * Math.PI) / 2 * (1 - p));
-        _q.multiply(_qa);
-        if (lean !== 0) _q.multiply(_qa.setFromAxisAngle(Z_AXIS, lean));
-        if (tw !== 0) _q.multiply(_qa.setFromAxisAngle(Y_AXIS, k === 0 ? tw : -tw));
-        _m.compose(_p, _q, _s);
-        flat.setX(n, clamp(1 - p, 0, 1));
-        mesh.setColorAt(n, _tone.setScalar(c.tone ?? 1));
-        mesh.setMatrixAt(n++, _m);
+      // the wind rocks the card about its hinge, the top tipping the way it folds, and twists it about its long axis;
+      // its lean grows with it as it stands; a cross's half cards ride on it
+      const yaw = (c.cross ? c.yaw + CROSS_PLANES[0] : c.yaw) + turn;
+      const tilt = sw + c.lean * p;
+      _q.setFromAxisAngle(Y_AXIS, yaw);
+      if (tilt !== 0) {
+        _q.multiply(_qa.setFromAxisAngle(X_AXIS, -tilt));
+        _q.multiply(_qa.setFromAxisAngle(Y_AXIS, sw * c.wind.twist));
       }
+      _q.multiply(_qa.setFromAxisAngle(X_AXIS, (-Math.PI / 2) * (1 - p)));
+      if (lean !== 0) _q.multiply(_qa.setFromAxisAngle(Z_AXIS, lean));
+      if (c.flap.twist !== 0) _q.multiply(_qa.setFromAxisAngle(Y_AXIS, c.flap.twist));
+      if (b.part === 'card') {
+        _m.compose(_p, _q, _s.set(c.height, c.height, CARD_THICKNESS));
+      } else {
+        // a half card on the card's front or back face, hinged down its middle: folded flat against the face while the
+        // card lies (0), square to it standing (1); both turn the same way round, so together they make the cross's
+        // second plane
+        _m.compose(_p, _q, _s.set(1, 1, 1));
+        _m.multiply(_mh.makeTranslation(0, 0, HALF_SIDE[b.part] * HALF_OFFSET));
+        _m.multiply(_mh.makeRotationY((-Math.PI / 2) * c.halves!.p));
+        _m.multiply(_mh.makeScale(c.height, c.height, HALF_THICKNESS));
+      }
+      mesh.setColorAt(n, _tone.setScalar(c.tone ?? 1));
+      flat.setX(n, clamp(1 - p, 0, 1));
+      mesh.setMatrixAt(n++, _m);
     }
     mesh.count = n;
     // (kept visible even when empty: an InstancedMesh with count 0 draws nothing, and its shader stays compiled)
@@ -365,8 +410,8 @@ export class CardField {
     b.mesh = mesh;
   }
 
-  private batch(sprite: string, flip: boolean, biome: Biome = 'jungle'): Batch {
-    const key = `${sprite}|${flip ? 'f' : ''}|${biome}`;
+  private batch(sprite: string, flip: boolean, biome: Biome = 'jungle', part: Part = 'card'): Batch {
+    const key = `${sprite}|${flip ? 'f' : ''}|${biome}|${part}`;
     let b = this.batches.get(key);
     if (!b) {
       const art = spriteArt(sprite, { height: 1 });
@@ -375,7 +420,7 @@ export class CardField {
       // thick die-cut cardstock (unit height and depth: the instance scale sets height and thickness)
       // (its contact shading measured at the height the sprite is usually drawn)
       const height = heightOf(sprite, 0.5);
-      const thick = thickCardGeometry(art, { flipX: flip, unit: true, height });
+      const thick = thickCardGeometry(art, { flipX: flip, unit: true, height, half: part === 'card' ? undefined : HALF_SIDE[part] });
       let g: THREE.BufferGeometry;
       let material: THREE.Material | THREE.Material[];
       if (thick) {
@@ -391,7 +436,7 @@ export class CardField {
       }
       const mesh = batchMesh(g, material, 64);
       this.group.add(mesh);
-      b = { mesh, cards: [], dirty: true };
+      b = { mesh, part, cards: [], dirty: true };
       this.batches.set(key, b);
     }
     return b;
