@@ -29,7 +29,7 @@ import { ROAD_WIDTH } from './roads';
 import { Streams } from './streams';
 import type { Places } from './places';
 import { polylineDistance, type Box, type Pt } from './polyline';
-import { heightOf } from '../config/flora';
+import { CROSSED, heightOf } from '../config/flora';
 import { CROSS_PLANES, type Card, type CardField, type CardSpec } from './card-field';
 import { islandName } from './island-names';
 import { buildModel, modelFoot, modelInfo, type Building, type ModelInfo } from './models';
@@ -200,11 +200,6 @@ const C = {
   rock: hexRgb('#8f9070'),
 };
 
-/**
- * Symmetric trees are two cards slotted together (a crossed pop-up). Only where the print is symmetric about its
- * trunk: a leaning palm, a palm cluster or a twisted dead tree would not cross cleanly, so they stay single cards.
- */
-const CROSSED = new Set(['palm-1', 'pine', 'pine-1', 'pine-2', 'cypress', 'tree-broad', 'tree-broad-1', 'tree-broad-2', 'tree-broad-3', 'tree-broad-4', 'tree-blossom', 'tree-blossom-1', 'tree-blossom-2', 'tree-blossom-3', 'mangrove', 'acacia', 'banana']);
 /** papertrails' crossed cards turn only this share of the camera-facing cards' jitter (world.js cardJ). */
 const CROSS_JITTER = 0.6;
 
@@ -217,34 +212,34 @@ interface FieldEntry {
   field: ClearanceField | null;
 }
 
-/** The square of land a chunk answers for. */
 /** How near a wall's corners must lie to a side of its chunk's square to be a seam wall. */
 const SEAM_EPS = 1e-4;
 
 /**
  * Leaves out the cut-edge walls a layer's outline has where it was cut back onto its chunk's square (world/contours.ts
- * clip): the land runs on into the next chunk there, so they only ever showed in the mirror, which leaves the land's
- * tops out (render/reflection.ts), as straight cream lines across the streams. The extruded layer has no index; its
- * kept triangles become one, its groups (caps 0, walls 1, per shape) re-counted over it.
+ * clip): the land runs on into the next chunk there, so they are no shore, only walls back to back with the next
+ * chunk's; the mirror, which leaves the land's tops out (render/reflection.ts), showed them as straight cream lines
+ * across the streams. The extruded layer has no index; its kept triangles become one, its groups (caps 0, walls 1, per
+ * shape) re-counted over it.
  */
-function withoutSeamWalls(g: THREE.BufferGeometry, x0: number, z0: number, x1: number, z1: number): void {
+function withoutSeamWalls(g: THREE.BufferGeometry, [x0, z0, x1, z1]: Box): void {
   const pos = g.getAttribute('position');
-  const on = (k: number, side: number) => {
-    const v = side < 2 ? pos.getX(k) : pos.getZ(k);
-    return Math.abs(v - [x0, x1, z0, z1][side]) < SEAM_EPS;
-  };
-  const seam = (k: number) => [0, 1, 2, 3].some((side) => on(k, side) && on(k + 1, side) && on(k + 2, side));
+  // (the square's sides: x = x0, x = x1, z = z0, z = z1)
+  const sides = [x0, x1, z0, z1];
+  const on = (k: number, side: number) => Math.abs((side < 2 ? pos.getX(k) : pos.getZ(k)) - sides[side]) < SEAM_EPS;
+  const seam = (k: number) => sides.some((_, side) => on(k, side) && on(k + 1, side) && on(k + 2, side));
   const index: number[] = [];
   const groups = g.groups.map((gr) => ({ ...gr }));
   g.clearGroups();
   for (const gr of groups) {
     const start = index.length;
     for (let k = gr.start; k < gr.start + gr.count; k += 3) if (gr.materialIndex !== 1 || !seam(k)) index.push(k, k + 1, k + 2);
-    g.addGroup(start, index.length - start, gr.materialIndex);
+    if (index.length > start) g.addGroup(start, index.length - start, gr.materialIndex);
   }
   g.setIndex(index);
 }
 
+/** The square of land a chunk answers for. */
 function chunkSquare(c: Chunk): Box {
   return [c.i * CHUNK, c.j * CHUNK, (c.i + 1) * CHUNK, (c.j + 1) * CHUNK];
 }
@@ -1203,7 +1198,7 @@ export class Terrain {
     const g = new THREE.ExtrudeGeometry(shapes, { depth, bevelEnabled: false, curveSegments: 1, UVGenerator: uvGen });
     g.rotateX(-Math.PI / 2);
     g.translate(0, base, 0);
-    withoutSeamWalls(g, x0, z0, x0 + CHUNK, z0 + CHUNK);
+    withoutSeamWalls(g, [x0, z0, x0 + CHUNK, z0 + CHUNK]);
     const mesh = new THREE.Mesh(g, [top, edge]);
     mesh.receiveShadow = true;
     mesh.castShadow = true;

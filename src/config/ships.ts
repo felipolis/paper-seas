@@ -1,7 +1,7 @@
 /**
- * The ships the player can sail, and the captains who can stand at the helm. The choice is made in the shipyard
- * (Esc menu) and kept in the browser (core/storage.ts); a new choice reloads the page, so every module sees one ship from the start
- * (config/ship.ts takes the hull size and the handling from it).
+ * The ships the player can sail, and the captains who can stand at the helm. The choice is made in the shipyard (Esc
+ * menu) and kept in the browser (core/storage.ts); a new choice reloads the page, so every module sees one ship from
+ * the start (config/ship.ts takes the hull size and the handling from it).
  *
  * Each ship has its own structure (HullSpec: which decks and castles she has, how high, her plan and sweep, her gun
  * decks, cabins and carvings), built in Blender from paper and printed wood (public/models/ship-<id>.glb, by
@@ -308,30 +308,26 @@ export const SHIP_TYPES: ShipType[] = [
  * How a captain's paper model is cut and coloured (player/crew-model.ts), after the captain's own picture in the
  * shipyard (assets-src/flow/30-captains.png).
  */
-export interface Outfit {
+interface OutfitBase {
   skin: string;
   hair: string;
   /** How the hair falls under the hat (default: cropped close round the head). */
   hairdo?: 'ponytail' | 'curls' | 'bob';
-  /** A beard (with a moustache on it), a moustache alone, a thin moustache and a goatee. */
-  beard?: 'full' | 'moustache' | 'goatee';
-  /** Touches on the face: rosy cheeks, freckles, lashes and a red mouth, gold hoops in the ears. */
-  face?: readonly ('blush' | 'freckles' | 'lips' | 'hoops')[];
-  /**
-   * A long coat open on a waistcoat, a navy officer's coat buttoned double, a shirt with short sleeves (its forearms
-   * bare), an apron over a shirt with its sleeves rolled up, a skeleton in a shirt.
-   */
-  cut: 'coat' | 'navy' | 'shirt' | 'apron' | 'bones';
-  coat: string;
-  /** What shows under the coat (a waistcoat, a shirt), or the shirt itself. */
+  /** A full beard (a moustache on it), or a thin moustache and a goatee. */
+  beard?: 'full' | 'goatee';
+  /** The nose on the profile's front edge: a round bulb, a long straight one, a small one (default: papertrails'). */
+  nose?: 'bulb' | 'long' | 'small';
+  /** Touches on the face: rosy cheeks, freckles, lashes, a red mouth, gold hoops in the ears. */
+  face?: readonly ('blush' | 'freckles' | 'lashes' | 'lips' | 'hoops')[];
+  /** What shows under a coat (a waistcoat, a shirt), or the shirt itself. */
   shirt: string;
   /** The braid's and the buttons' colour (default: the shirt's own, gilded). */
   trim?: string;
-  /** A shirt's stripes; a shirt torn at its hem and its sleeves. */
+  /** A shirt's stripes; a shirt torn at its hem. */
   stripes?: string;
   ragged?: boolean;
-  /** A lace jabot, a striped scarf (its stripes' colour). */
-  neck?: { kind: 'jabot' | 'scarf'; colour: string; stripes?: string };
+  /** A lace jabot, or a striped scarf. */
+  neck?: { kind: 'jabot'; colour: string } | { kind: 'scarf'; colour: string; stripes?: string };
   trousers: string;
   /** Trousers rolled up to mid-shin, or torn there. */
   shins?: 'rolled' | 'torn';
@@ -349,6 +345,12 @@ export interface Outfit {
   extras?: readonly ('belt' | 'sash' | 'strap' | 'parrot' | 'epaulettes' | 'gloves' | 'ladle' | 'peg')[];
 }
 
+/**
+ * The cut: a long coat open on a waistcoat or a navy officer's coat buttoned double (each in its coat's colour); a
+ * shirt with short sleeves (its forearms bare), an apron over a shirt with its sleeves rolled up, a skeleton in a shirt.
+ */
+export type Outfit = OutfitBase & ({ cut: 'coat' | 'navy'; coat: string } | { cut: 'shirt' | 'apron' | 'bones' });
+
 export interface Captain {
   id: string;
   name: string;
@@ -360,14 +362,14 @@ export interface Captain {
 const LACE = '#f4efe4';
 
 export const CAPTAINS: Captain[] = [
-  { id: 'rogue', name: 'Captain Rufus Redwhisker', sprite: 'captain-rogue', outfit: { beard: 'full', skin: '#f2c3a0', hair: '#c9773a', coat: '#3f7f84', cut: 'coat', shirt: '#d9a441', trousers: '#5a3a28', boots: '#3a2418', hat: 'tricorn', hatColour: '#2f4f4a', girth: 1.2, height: 1, extras: ['belt'] } },
-  { id: 'scarlet', name: 'Captain Ines Scarlet', sprite: 'captain-scarlet', outfit: { skin: '#f0c4a4', hair: '#a8582e', hairdo: 'ponytail', face: ['lips', 'hoops'], coat: '#8a2e2a', cut: 'coat', shirt: '#efe0c2', trim: '#d98a3a', trousers: '#7f8a5a', boots: '#6a4028', feet: 'tall', hat: 'wide', hatColour: '#6a2226', feather: LACE, girth: 0.88, height: 1, extras: ['sash', 'strap'] } },
-  { id: 'oldsalt', name: 'Old Salt Barnaby', sprite: 'captain-oldsalt', outfit: { beard: 'full', skin: '#e8b898', hair: '#b8b4aa', coat: '#6a8ab0', cut: 'shirt', shirt: '#6a8ab0', ragged: true, neck: { kind: 'scarf', colour: LACE, stripes: '#d98a3a' }, trousers: '#7a5a3a', shins: 'torn', boots: '#5a3a28', hat: 'bandana', hatColour: '#d98a3a', girth: 1.1, height: 0.97, extras: ['parrot', 'peg'] } },
-  { id: 'commodore', name: 'Commodore Ashworth', sprite: 'captain-commodore', outfit: { skin: '#f2cdb0', hair: '#d8d4ca', coat: '#2a3a6a', cut: 'navy', shirt: '#2a3a6a', trim: '#d8b04a', trousers: '#26304e', boots: '#1e1a18', feet: 'tall', hat: 'bicorne', hatColour: '#1e2638', girth: 0.85, height: 1.05, extras: ['epaulettes', 'gloves'] } },
-  { id: 'bones', name: 'Mister Bones', sprite: 'captain-bones', outfit: { skin: '#ece2c8', hair: '#ece2c8', coat: '#5a7aa0', cut: 'bones', shirt: '#5a7aa0', stripes: LACE, ragged: true, trousers: '#7a5a3a', shins: 'torn', boots: '#ece2c8', feet: 'bones', hat: 'bandana', hatColour: '#c23a2e', dots: LACE, girth: 0.85, height: 1 } },
-  { id: 'wren', name: 'Wren the Deckhand', sprite: 'captain-wren', outfit: { skin: '#f4caa8', hair: '#c9773a', hairdo: 'bob', face: ['freckles', 'blush'], coat: '#8aa86a', cut: 'shirt', shirt: '#8aa86a', stripes: '#efe6d0', trousers: '#5a7aa0', shins: 'rolled', boots: '#8a5a3a', feet: 'shoes', hat: 'bandana', hatColour: '#c94a32', girth: 0.88, height: 0.85 } },
-  { id: 'lord', name: 'Lord Shen of the Jade Sea', sprite: 'captain-lord', outfit: { skin: '#f0c8a8', hair: '#4a2e1e', hairdo: 'curls', beard: 'goatee', coat: '#9a2e22', cut: 'coat', shirt: '#7a2420', trim: '#d9a441', neck: { kind: 'jabot', colour: LACE }, trousers: '#3a2418', boots: '#4a2e1e', hat: 'tricorn', hatColour: '#4a2a1e', feather: '#d98a3a', girth: 1, height: 1.02 } },
-  { id: 'cook', name: 'Cookie the Galley Cook', sprite: 'captain-cook', outfit: { skin: '#f2c3a0', hair: '#8a5a3a', face: ['blush'], coat: '#7a9ac0', cut: 'apron', shirt: '#7a9ac0', trousers: '#6a5a4a', boots: '#3a2418', feet: 'shoes', hat: 'cap', hatColour: LACE, girth: 1.3, height: 0.95, extras: ['ladle'] } },
+  { id: 'rogue', name: 'Captain Rufus Redwhisker', sprite: 'captain-rogue', outfit: { beard: 'full', nose: 'bulb', skin: '#f2c3a0', hair: '#c9773a', coat: '#3f7f84', cut: 'coat', shirt: '#d9a441', trousers: '#5a3a28', boots: '#3a2418', hat: 'tricorn', hatColour: '#2f4f4a', girth: 1.2, height: 1, extras: ['belt'] } },
+  { id: 'scarlet', name: 'Captain Ines Scarlet', sprite: 'captain-scarlet', outfit: { skin: '#f0c4a4', hair: '#a8582e', hairdo: 'ponytail', nose: 'small', face: ['lashes', 'lips', 'hoops'], coat: '#8a2e2a', cut: 'coat', shirt: '#efe0c2', trim: '#d98a3a', trousers: '#7f8a5a', boots: '#6a4028', feet: 'tall', hat: 'wide', hatColour: '#6a2226', feather: LACE, girth: 0.88, height: 1, extras: ['sash', 'strap'] } },
+  { id: 'oldsalt', name: 'Old Salt Barnaby', sprite: 'captain-oldsalt', outfit: { beard: 'full', nose: 'bulb', skin: '#e8b898', hair: '#b8b4aa', cut: 'shirt', shirt: '#6a8ab0', ragged: true, neck: { kind: 'scarf', colour: LACE, stripes: '#d98a3a' }, trousers: '#7a5a3a', shins: 'torn', boots: '#5a3a28', hat: 'bandana', hatColour: '#d98a3a', girth: 1.1, height: 0.97, extras: ['parrot', 'peg'] } },
+  { id: 'commodore', name: 'Commodore Ashworth', sprite: 'captain-commodore', outfit: { skin: '#f2cdb0', hair: '#d8d4ca', nose: 'long', coat: '#2a3a6a', cut: 'navy', shirt: '#2a3a6a', trim: '#d8b04a', trousers: '#26304e', boots: '#1e1a18', feet: 'tall', hat: 'bicorne', hatColour: '#1e2638', girth: 0.85, height: 1.05, extras: ['epaulettes', 'gloves'] } },
+  { id: 'bones', name: 'Mister Bones', sprite: 'captain-bones', outfit: { skin: '#ece2c8', hair: '#ece2c8', cut: 'bones', shirt: '#5a7aa0', stripes: LACE, ragged: true, trousers: '#7a5a3a', shins: 'torn', boots: '#ece2c8', feet: 'bones', hat: 'bandana', hatColour: '#c23a2e', dots: LACE, girth: 0.85, height: 1 } },
+  { id: 'wren', name: 'Wren the Deckhand', sprite: 'captain-wren', outfit: { skin: '#f4caa8', hair: '#c9773a', hairdo: 'bob', nose: 'small', face: ['freckles', 'blush'], cut: 'shirt', shirt: '#8aa86a', stripes: '#efe6d0', trousers: '#5a7aa0', shins: 'rolled', boots: '#8a5a3a', feet: 'shoes', hat: 'bandana', hatColour: '#c94a32', girth: 0.88, height: 0.85 } },
+  { id: 'lord', name: 'Lord Shen of the Jade Sea', sprite: 'captain-lord', outfit: { skin: '#f0c8a8', hair: '#4a2e1e', hairdo: 'curls', beard: 'goatee', nose: 'long', coat: '#9a2e22', cut: 'coat', shirt: '#7a2420', trim: '#d9a441', neck: { kind: 'jabot', colour: LACE }, trousers: '#3a2418', boots: '#4a2e1e', hat: 'tricorn', hatColour: '#4a2a1e', feather: '#d98a3a', girth: 1, height: 1.02, extras: ['belt'] } },
+  { id: 'cook', name: 'Cookie the Galley Cook', sprite: 'captain-cook', outfit: { skin: '#f2c3a0', hair: '#8a5a3a', nose: 'bulb', face: ['blush'], cut: 'apron', shirt: '#7a9ac0', trousers: '#6a5a4a', boots: '#3a2418', feet: 'shoes', hat: 'cap', hatColour: LACE, girth: 1.3, height: 0.95, extras: ['ladle'] } },
 ];
 
 const SHIP_KEY = 'paper-seas:ship';

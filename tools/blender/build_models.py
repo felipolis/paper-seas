@@ -11,7 +11,7 @@ side walls, the chimney pops up from the roof... Each piece is a node whose orig
 local X axis is the hinge axis; its rest pose is the assembled model, and the game draws it at
     quaternion = rest * RotX(foldAngle * (1 - p))
 so at p = 0 every piece lies folded flat onto its parent (or onto the page). Node extras (glTF): hinge, foldAngle,
-delay (0..1 start order). The model root carries extras { model }.
+delay (0..1 start order), and where set layer (flat stacking) and liftSign. The model root carries extras { model }.
 
 The printed faces come from the atlas (tools/art/pack-atlas.mjs -> assets-src/models/atlas.json +
 public/models/atlas.png); their gable measurements size the walls and roofs, so a roof sits exactly on its gable.
@@ -81,6 +81,7 @@ class Piece:
         self.faces = faces
         self.thin = thin
         self.layer = 0  # stacking order when folded flat (higher lies on top)
+        self.lift_sign = 1  # folded flat, the game lifts it off its parent along its face's normal (-1: against it)
 
 
 class Model:
@@ -324,7 +325,7 @@ def gable_house(name, W, front, side, roof, depth_scale=1.0, chimney=None, sign=
         # a slotted cross: a card across the roof (hinged on the slope), the two halves of one along it on its faces
         ca = m.card("chimney", rr, chimney, rect_corners(V(cx - width / 2, base_y, cz), V(width, 0, 0), V(0, height, 0)), FULL,
                     (V(cx, top_y, cz), V(1, 0, 0)), V(0, 0, -1), 0.85, thin=True)
-        cross_halves(m, "chimney", ca, chimney, V(cx, base_y, cz), V(0, 1, 0), V(1, 0, 0), V(0, 0, 1), width, height, 0.9, thin=True)
+        cross_halves(m, "chimney", ca, chimney, V(cx, base_y, cz), V(0, 1, 0), V(1, 0, 0), V(0, 0, 1), width, height, 0.9)
     if sign:
         sw2, sh2 = face(sign)["rect"][2:]
         width = 0.36
@@ -337,20 +338,23 @@ def gable_house(name, W, front, side, roof, depth_scale=1.0, chimney=None, sign=
     return m, {"W": W, "D": D, "H": A}
 
 
-def cross_halves(m, name, card, art, foot, up, along, normal, width, height, delay, thin=False):
+def cross_halves(m, name, card, art, foot, up, along, normal, width, height, delay):
     """
     papertrails' slotted cross (its tiles.glb: tree + tree_xf + tree_xb): the second plane of a crossed card as two
     half cards, one on each of the card's faces, hinged on the vertical line down its middle (foot: the line's bottom,
     up: its direction). Each lies folded flat against its face while the card lies (the front one along the card, the
     back one the other way) and is pulled open square to it as the card rises (nested on it). along: the card's own
-    direction across; normal: its front's (the way the second plane runs); width, height: the second plane's.
+    direction across; normal: its front's (the way the second plane runs); width, height: the second plane's. The
+    halves are thin, and so is the card they ride on (off: the air between them and its plane). Folded, the front
+    half's face points into the card, so the game lifts it the other way (liftSign), off the card's front.
     """
-    off = (0 if thin else THICK) / 2 + 0.002
+    off = 0.002
     for tag, k, poly in (("xf", 1, ((0, 0), (0.5, 0), (0.5, 1), (0, 1))), ("xb", -1, ((0.5, 0), (1, 0), (1, 1), (0.5, 1)))):
         o = foot + normal * (k * off)
         # the whole second plane's face (a from its front end to its back end), cut to this half's side of the slot
         corners = rect_corners(o + normal * (width / 2), normal * -width, up * height)
-        m.card(f"{name}_{tag}", card, art, corners, poly, (o, up), along * k, delay, thin=thin)
+        half = m.card(f"{name}_{tag}", card, art, corners, poly, (o, up), along * k, delay, thin=True)
+        half.lift_sign = -k
 
 
 # ------------------------------------------------------------------------------------------------------------------
@@ -608,7 +612,7 @@ def pier(name, L=3.0, W=0.62, H=0.16):
             c = V(x, foot, z)
             post = m.card(f"post{k}{side}", None, art, (c - u, c + u, c + u + V(0, top - foot, 0), c - u + V(0, top - foot, 0)), FULL,
                           (c, u), normal, 0.6 + 0.1 * k, thin=True)
-            cross_halves(m, f"post{k}{side}", post, art, c, V(0, 1, 0), along, normal, pw, top - foot, 0.65 + 0.1 * k, thin=True)
+            cross_halves(m, f"post{k}{side}", post, art, c, V(0, 1, 0), along, normal, pw, top - foot, 0.65 + 0.1 * k)
     return m, {"W": W, "D": L, "H": H, "deck": H + THICK}
 
 
@@ -738,6 +742,8 @@ def build_blender(models):
             obj["delay"] = round(min(1.0, max(0.0, p.delay)), 3)
             if p.layer:
                 obj["layer"] = p.layer
+            if p.lift_sign != 1:
+                obj["liftSign"] = p.lift_sign
             objs[p.name] = obj
     bpy.ops.export_scene.gltf(
         filepath=OUT,

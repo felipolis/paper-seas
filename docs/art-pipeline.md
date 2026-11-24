@@ -88,11 +88,12 @@ the nose and the chin), a thicker hair card round the profile and a hair card be
 face and on both sides of the profile; the body is a frontal and a profile card in a cross with what is worn layered on
 it (a waistcoat, braid, buttons, a belt in a cross of its own, a jabot, a scarf); the arms and the legs are profile cards
 only (a sleeve bent forward, a thicker cuff, a hand; trousers, a thicker cuff, a boot with its toe); a hat is level discs
-stacked from the brim up, tilted a little back. Pieces on one joint are slotted together on purpose; pieces on joints
-that move against each other never cut into each other: the arms hang beside the body, what hangs below the waist (a
-coat's tails, an apron) is cut in two and hung on the legs, and `node tools/qa/crew-clips.mjs` poses every captain
-standing, walking, turning and at the helm and lists any pair that does. `src/player/puppet.ts` walks with papertrails' gait (legs and arms on the
-step's phase, the torso and the head lagging it, the lean and roll springs, the lantern a lagging pendulum) and steers.
+stacked from the brim up, tilted a little back. Pieces on one joint are slotted together on purpose (and merged into
+one mesh, a draw per joint); pieces on joints that move against each other never cut into each other: the arms hang
+beside the body, what hangs below the waist (a coat's tails, an apron) is cut in two and hung on the legs, and
+`node tools/qa/crew-clips.mjs` poses every captain standing, walking, turning and at the helm and lists any pair that
+does. `src/player/puppet.ts` walks with papertrails' gait (legs and arms on the step's phase, the torso and the head
+lagging it, the lean and roll springs, the lantern a lagging pendulum) and steers.
 
 ## Mountains
 

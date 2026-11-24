@@ -76,6 +76,8 @@ export class Game {
   readonly dayNight: DayNight;
   readonly distanceMap: DistanceMap;
   readonly reflection = new Reflection(0.5);
+  /** What the mirror leaves out: the sea itself. */
+  private readonly unmirrored: THREE.Object3D[] = [this.sea.mesh];
   private time = 0;
   private readonly post: PostChain;
   private readonly hud: Hud;
@@ -325,12 +327,13 @@ export class Game {
     // (papertrails' page: full colour round the traveller, the unpainted book further out)
     setPageFocus(fx, fz);
     this.post.setFocus(this.lensFocus);
-    // mirror pass first (it also refreshes the shadow map for this frame), then the main render; the sea and the
-    // streams read the one image (sea/mirror.ts)
-    this.renderer.shadowMap.needsUpdate = true;
+    // mirror pass first, then the main render; the sea and the streams read the one image (sea/mirror.ts). The shadow
+    // map is refreshed by the main render, the first after needsUpdate: the mirror pass hides the land's printed tops
+    // (mirrorSkip), and a shadow map drawn then would lose their shadows (the mirror makes do with last frame's)
     const mirror = this.quality === 'high' && !this.chart.isOpen;
-    if (mirror) this.reflection.render(this.renderer, this.scene, this.view.camera, [this.sea.mesh]);
+    if (mirror) this.reflection.render(this.renderer, this.scene, this.view.camera, this.unmirrored);
     setMirror(mirror ? this.reflection : null);
+    this.renderer.shadowMap.needsUpdate = true;
     this.post.render(this.time);
     this.frames++;
   }

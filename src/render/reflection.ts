@@ -5,9 +5,9 @@
  * by an oblique near plane on the water (not by clipping planes, which would compile a second variant of every
  * material and slow every one of them down).
  *
- * Materials in mirrorSkip are left out of the mirror: the printed tops of the land's paper layers. A ray reflected
- * up off the water meets a layer's cut wall before it could reach its top, so the tops never show in the sea, and
- * they are most of the pixels the mirror would otherwise shade.
+ * Materials in mirrorSkip are left out of the mirror: the printed tops of the land's paper layers, and the streams
+ * lying on them. A ray reflected up off the water meets a layer's cut wall before it could reach its top, so the tops
+ * never show in the sea, and they are most of the pixels the mirror would otherwise shade.
  */
 import * as THREE from 'three';
 
@@ -30,7 +30,7 @@ const _dir = new THREE.Vector3();
 
 export class Reflection {
   readonly target: THREE.WebGLRenderTarget;
-  /** World position -> mirror image uv (with w), for the sea shader. */
+  /** World position -> mirror image uv (with w), for the water shaders (sea/mirror.ts). */
   readonly matrix = new THREE.Matrix4();
   private readonly camera = new THREE.PerspectiveCamera();
   private readonly bias = new THREE.Matrix4().set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1);

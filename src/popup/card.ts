@@ -284,7 +284,11 @@ export function thickCardGeometry(art: CardArt, o: { flipX?: boolean; unit?: boo
   return g;
 }
 
-/** The part of a closed outline on one side of the card's middle (x = 0; side undefined: all of it). */
+/**
+ * The part of a closed outline on one side of the card's middle (x = 0; side undefined: all of it). An outline that
+ * crosses the middle more than twice comes back as one loop joined along x = 0, gaps and all: its wall there is the
+ * half card's hinge edge, pressed against the card's face once standing and lying no taller than the half is thick.
+ */
 function keepSide(pts: THREE.Vector2[], side?: 1 | -1): THREE.Vector2[] {
   if (!side) return pts;
   const out: THREE.Vector2[] = [];
@@ -300,8 +304,8 @@ function keepSide(pts: THREE.Vector2[], side?: 1 | -1): THREE.Vector2[] {
 
 /**
  * The material of a thick card: the face's own print material, reading the vertex colour (the contact shading on the
- * face, the edge tint on the walls). The walls stand inside the print's outline, so the print's alpha cut leaves them whole.
- * Plane cards (cardGeometry) carry the face's shading too, so the same material serves both.
+ * face, the edge tint on the walls). The walls stand inside the print's outline, so the print's alpha cut leaves them
+ * whole. Plane cards (cardGeometry) carry the face's shading too, so the same material serves both.
  */
 export function thickMaterial<M extends THREE.Material>(print: M): M {
   if (!(print as THREE.Material & { vertexColors: boolean }).vertexColors) {

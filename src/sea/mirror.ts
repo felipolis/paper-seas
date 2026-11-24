@@ -72,9 +72,10 @@ export function frameMirrorRipple(cameraDistance: number, fx: number, fz: number
 }
 
 /**
- * mirrorImage(p, h, col, clear): the mirror at the water point p (world x, z) at the height h of its water (see
- * above), over the water colour col; clear: how much of that pixel is open water (dashes and foam hide the image). It leaves the image's colour in
- * gMirror and how much of the paper it replaces in gMirrorW (0 with no mirror this frame). After WATER_GLSL (uTime).
+ * mirrorImage(p, h, col, clear): the mirror at the water point p (world x, z) at the height h of its water (see above),
+ * over the water colour col; clear: how much of that pixel is open water (dashes and foam hide the image). It leaves
+ * the image's colour in gMirror and how much of the paper it replaces in gMirrorW (0 with no mirror this frame). After
+ * WATER_GLSL (uTime).
  */
 export const MIRROR_GLSL = /* glsl */ `
 uniform sampler2D uRefl;

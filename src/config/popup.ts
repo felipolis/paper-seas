@@ -64,4 +64,6 @@ export const POPUP = {
    * z^2 / (near * 2^24)); closer, two faces in one plane flicker, the depth test picking either one frame by frame.
    */
   flatStep: 0.001,
+  /** Two flat pieces nearer each other than this lie on one step and fight (a step, less the float error of a sum). */
+  flatNear: 0.0009,
 } as const;

@@ -1,24 +1,25 @@
 /**
  * Every standing card of the land (trees, rocks, props, animals...) in one instanced field: one InstancedMesh per
- * sprite (and per mirrored sprite), so thousands of cards cost a few dozen draw calls.
+ * sprite, facing, biome tint and piece (a card, or a cross's front or back half card), so thousands of cards cost a few
+ * dozen draw calls.
  *
  * Each card has its own paper spring, but the land rises and folds by cells, like papertrails' tiles (which cells,
- * when, and how the rise ripples outward: world/reveal.ts): the cards of one cell start one after another over
- * STAGGER seconds in flat-stack order (they fold back, so the nearest lies on top and rises first) and fold down in the
- * reverse order, lying flat on the page, face up, until they rise again. A crossed card is papertrails' slotted cross
- * (its tiles.glb: tree + tree_xf + tree_xb): the card, and two half cards hinged on its two faces down its middle,
- * folded flat against it while it lies and pulled open by it as it rises (the spring's NESTED linkage), so a lying cross
- * is one card and a standing one two planes square to each other. Nothing stands plumb: each card leans a
- * little (LEAN), only as it stands, so it still lies exactly flat. A card settled upright rocks in the wind about its hinge (world/wind.ts),
- * fading in over SWAY_FADE_IN and relaxing away over SWAY_RELEASE once it moves; the animals live and take the captain
- * as world/critters.ts has them.
+ * when, and how the rise ripples outward: world/reveal.ts): the cards of one cell start one after another over STAGGER
+ * seconds in flat-stack order (they fold back, so the nearest lies on top and rises first) and fold down in the reverse
+ * order, lying flat on the page, face up, until they rise again. A crossed card is papertrails' slotted cross (its
+ * tiles.glb: tree + tree_xf + tree_xb): the card, and two half cards hinged on its two faces down its middle, folded
+ * flat against it while it lies and pulled open by it as it rises (the spring's NESTED linkage), so a lying cross is
+ * one card and a standing one two planes square to each other. Nothing stands plumb: each card leans a little (LEAN),
+ * only as it stands, so it still lies exactly flat. A card settled upright rocks in the wind about its hinge
+ * (world/wind.ts), fading in over SWAY_FADE_IN and relaxing away over SWAY_RELEASE once it moves; the animals live and
+ * take the captain as world/critters.ts has them.
  */
 import * as THREE from 'three';
 import { bus } from '../core/events';
 import { POPUP } from '../config/popup';
 import { Flap, FixedStepper, flapConstants } from '../popup/spring';
 import { CARD_THICKNESS, cardGeometry, materialFor, thickCardGeometry, thickMaterial } from '../popup/card';
-import { heightOf } from '../config/flora';
+import { CROSSED, heightOf } from '../config/flora';
 import { cardWidth, spriteArt } from '../art/sprites';
 import { PAPER_FLAT_ATTRIBUTE, pencilPlan } from '../render/paper-material';
 import { CELL, cellJitter, type Reveal } from './reveal';
@@ -38,11 +39,17 @@ const LEAN = 2.5 * (Math.PI / 180);
 export const CROSS_PLANES = [24 * (Math.PI / 180), -66 * (Math.PI / 180)];
 /**
  * A cross's half cards (papertrails' tree_xf / tree_xb): about 40 % of a card thick, printed as the card is (folded
- * against it they read as the card itself), their mid-planes clear of the card's faces they fold against.
+ * against it they read as the card itself), their mid-planes clear of the card's faces they fold against, with half a
+ * millimetre of air between (so no face of a half card ever lies in the plane of one of the card's).
  */
 const HALF_THICKNESS = 0.4 * CARD_THICKNESS;
 const HALF_OFFSET = CARD_THICKNESS / 2 + HALF_THICKNESS / 2 + 0.0005;
-/** Which of a cross's pieces a batch draws: the card, or the half card on its front (x >= 0) or back (x <= 0) face. */
+/** How far above a lying cross's card face its front half card's face lies (the back one lies under the card). */
+const HALF_RISE = HALF_OFFSET + HALF_THICKNESS / 2 - CARD_THICKNESS / 2;
+/**
+ * Which of a cross's pieces a batch draws: the card, or the half card on its front face (the second plane's side
+ * x >= 0) or on its back face (x <= 0).
+ */
 type Part = 'card' | 'front' | 'back';
 const HALF_SIDE = { front: 1, back: -1 } as const;
 const X_AXIS = new THREE.Vector3(1, 0, 0);
@@ -103,11 +110,13 @@ interface Batch {
   part: Part;
   cards: Card[];
   dirty: boolean;
+  /** A card batch of crosses: the batches of their half cards, which redraw when a card of this one moves. */
+  halves: Batch[];
 }
 
 /**
  * The bounds of the page a card covers lying folded flat: it folds back (away from the camera) about its hinge, so it
- * lies from its foot back by its height, as wide as it is drawn (a crossed card lies as its first plane).
+ * lies from its foot back by its height, as wide as it is drawn (a cross lies as its card, the half cards folded on it).
  */
 function flatBounds(s: CardSpec): Box {
   const half = cardWidth(s.sprite, s.height) / 2;
@@ -207,6 +216,8 @@ export class CardField {
    * least that far from each of them (the lowest such height, so the flat stacks stay a few hundredths thin).
    */
   private layFlat(c: Card): void {
+    // (a lying cross shows two faces: its card's and, above it, its front half card's)
+    const faces = (o: Card) => (o.cross ? [0, HALF_RISE] : [0]);
     const [x0, z0, x1, z1] = c.flatBox;
     const over = new Set<Card>();
     for (let j = Math.floor(z0 / FLAT_CELL); j <= Math.floor(z1 / FLAT_CELL); j++) {
@@ -218,8 +229,9 @@ export class CardField {
         else this.flats.set(key, [c]);
       }
     }
-    const heights = [...over].map((o) => o.y);
-    while (heights.some((y) => Math.abs(y - c.y) < POPUP.flatStep * 0.9)) c.y += POPUP.flatStep;
+    const heights = [...over].flatMap((o) => faces(o).map((f) => o.y + f));
+    const fights = () => faces(c).some((f) => heights.some((y) => Math.abs(y - c.y - f) < POPUP.flatNear));
+    while (fights()) c.y += POPUP.flatStep;
   }
 
   remove(cards: Card[]): void {
@@ -237,13 +249,13 @@ export class CardField {
   }
 
   /**
-   * Creates the batch of every given sprite (both facings) up front, so their shaders compile at load time; and one of
-   * the first in every biome, for the biome tints' shader variants.
+   * Creates the batches of every given sprite (both facings, a cross's half cards too) up front, so their shaders
+   * compile and their shapes are cut at load time; and one of the first in every biome, for the biome tints' shader
+   * variants.
    */
   prewarm(sprites: string[]): void {
-    for (const s of sprites) {
-      this.batch(s, false);
-      this.batch(s, true);
+    for (const sprite of sprites) {
+      for (const flip of [false, true]) this.batchesOf({ sprite, flip, cross: CROSSED.has(sprite) });
     }
     for (const biome of BIOMES) this.batch(sprites[0], false, biome);
   }
@@ -254,10 +266,12 @@ export class CardField {
     for (const b of this.batchesOf(card)) b.dirty = true;
   }
 
-  /** The batches drawing a card: its own, and a cross's two half cards'. */
-  private batchesOf(c: CardSpec): Batch[] {
-    const parts: Part[] = c.cross ? ['card', 'front', 'back'] : ['card'];
-    return parts.map((part) => this.batch(c.sprite, c.flip, c.biome, part));
+  /** The batches drawing a card: its own, and a cross's two half cards' (filed on its own). */
+  private batchesOf(c: Pick<CardSpec, 'sprite' | 'flip' | 'biome' | 'cross'>): Batch[] {
+    const card = this.batch(c.sprite, c.flip, c.biome, 'card');
+    if (!c.cross) return [card];
+    if (!card.halves.length) card.halves = [this.batch(c.sprite, c.flip, c.biome, 'front'), this.batch(c.sprite, c.flip, c.biome, 'back')];
+    return [card, ...card.halves];
   }
 
   /** reveal decides which cells stand; (focusX, focusZ): where the animals stir and the wind sways the cards. */
@@ -269,8 +283,7 @@ export class CardField {
     this.focusZ = focusZ;
     const steps = this.stepper.advance(dt);
     const h = POPUP.step;
-    // (a card moves once, from its own batch; the batches of the crosses' half cards redraw after, if one of theirs moved)
-    const moved = new Set<Card>();
+    // (a card moves once, from its own batch; the batches of its cross's half cards redraw after, marked by it)
     for (const b of this.batches.values()) {
       if (b.part !== 'card') continue;
       let animate = b.dirty;
@@ -327,14 +340,14 @@ export class CardField {
           stirred = true;
         }
         if (Critters.is(c.sprite) && f.p > 0.5 && d < SWAY_RADIUS) stirred = true;
-        if (stirred) {
-          animate = true;
-          if (hv) moved.add(c);
-        }
+        if (stirred) animate = true;
       }
-      if (animate) this.rebuild(b);
+      if (animate) {
+        this.rebuild(b);
+        for (const half of b.halves) half.dirty = true;
+      }
     }
-    for (const b of this.batches.values()) if (b.part !== 'card' && (b.dirty || b.cards.some((c) => moved.has(c)))) this.rebuild(b);
+    for (const b of this.batches.values()) if (b.part !== 'card' && b.dirty) this.rebuild(b);
   }
 
   private rebuild(b: Batch): void {
@@ -379,9 +392,8 @@ export class CardField {
         // card lies (0), square to it standing (1); both turn the same way round, so together they make the cross's
         // second plane
         _m.compose(_p, _q, _s.set(1, 1, 1));
-        _m.multiply(_mh.makeTranslation(0, 0, HALF_SIDE[b.part] * HALF_OFFSET));
-        _m.multiply(_mh.makeRotationY((-Math.PI / 2) * c.halves!.p));
-        _m.multiply(_mh.makeScale(c.height, c.height, HALF_THICKNESS));
+        _mh.makeRotationY((-Math.PI / 2) * c.halves!.p).scale(_s.set(c.height, c.height, HALF_THICKNESS));
+        _m.multiply(_mh.setPosition(0, 0, HALF_SIDE[b.part] * HALF_OFFSET));
       }
       mesh.setColorAt(n, _tone.setScalar(c.tone ?? 1));
       flat.setX(n, clamp(1 - p, 0, 1));
@@ -427,6 +439,8 @@ export class CardField {
         g = thick;
         material = tintMaterial(thickMaterial(print), biome, sprite);
       } else {
+        // (a plane card has no outline to cut in half)
+        if (part !== 'card') throw new Error(`no outline for the half cards of "${sprite}"`);
         g = cardGeometry(art, { height });
         if (flip) {
           const uv = g.getAttribute('uv') as THREE.BufferAttribute;
@@ -436,7 +450,7 @@ export class CardField {
       }
       const mesh = batchMesh(g, material, 64);
       this.group.add(mesh);
-      b = { mesh, part, cards: [], dirty: true };
+      b = { mesh, part, cards: [], dirty: true, halves: [] };
       this.batches.set(key, b);
     }
     return b;

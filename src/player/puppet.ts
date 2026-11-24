@@ -1,12 +1,12 @@
 /**
  * The captains as small paper models (player/crew-model.ts: flat card pieces slotted and layered as papertrails'
- * traveller is, a lantern carried in the right hand). Every part hangs on its joint and moves by rotation only: papertrails' walk ashore
- * (walk), steering at the helm (helm).
+ * traveller is, a lantern carried in the right hand). Every part hangs on its joint and moves by rotation only:
+ * papertrails' walk ashore (walk), steering at the helm (helm).
  */
 import * as THREE from 'three';
 import { CAPTAINS } from '../config/ships';
 import { PLAYER } from '../config/player';
-import { buildCaptain, type PartName } from './crew-model';
+import { buildCaptain, type PartName, type Piece } from './crew-model';
 import { stream } from '../core/rng';
 
 /** This module's seeded randomness (core/rng.ts stream). */
@@ -56,8 +56,8 @@ export class Puppet {
   /** Hop, lean, twist and roll of the whole figure. */
   private readonly rig = new THREE.Group();
   private readonly parts: Record<PartName, THREE.Object3D>;
-  /** Every card of the model (named; tools/qa/crew-clips.mjs checks them). */
-  readonly cards: THREE.Mesh[];
+  /** Every piece of the model, named (tools/qa/crew-clips.mjs checks them). */
+  readonly pieces: Piece[];
   private phase = 0;
   private t = random() * 10;
   private gait = 0;
@@ -76,7 +76,7 @@ export class Puppet {
   constructor(id: string) {
     const model = buildCaptain((CAPTAINS.find((c) => c.id === id) ?? CAPTAINS[0]).outfit);
     this.parts = model.parts;
-    this.cards = model.cards;
+    this.pieces = model.pieces;
     this.rig.add(model.root);
     this.root.add(this.rig);
     this.root.updateMatrixWorld(true);
@@ -91,11 +91,11 @@ export class Puppet {
   /**
    * Walking ashore, papertrails' gait (player/traveller.js there) with the skill's legs: the step's phase follows the
    * distance walked (stride per half-cycle), each leg's stance angle is the one that keeps its planted foot still (so
-   * the feet never skate) and it swings forward on a smoothstep, a gait weight eases between standing and walking, the lean is
-   * an under-damped spring on the forward speed (he rocks back when he stops, leans back braking), he rolls into turns,
-   * the torso and head lag the footfall, the lantern swings as a pendulum. moved: distance this frame; speed and
-   * forward: speed and its forward part (u/s); yawRate: rad / s.
-   * Returns the foot that came down this frame (0 / 1, each whole half-cycle), or null.
+   * the feet never skate) and it swings forward on a smoothstep, a gait weight eases between standing and walking, the
+   * lean is an under-damped spring on the forward speed (he rocks back when he stops, leans back braking), he rolls
+   * into turns, the torso and head lag the footfall, the lantern swings as a pendulum. moved: distance this frame;
+   * speed and forward: speed and its forward part (u/s); yawRate: rad / s. Returns the foot that came down this frame
+   * (0 / 1, each whole half-cycle), or null.
    */
   walk(dt: number, moved: number, speed: number, forward: number, yawRate: number): 0 | 1 | null {
     const W = WALK;

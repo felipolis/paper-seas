@@ -47,6 +47,7 @@ function streamMaterial(): THREE.MeshLambertMaterial {
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${MIRROR_APPLY.emissive}`);
   };
   m.customProgramCacheKey = () => 'river-v4';
+  // (it lies on the land's tops, which never show in the sea: render/reflection.ts)
   mirrorSkip.add(m);
   material = m;
   return m;

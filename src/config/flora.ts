@@ -176,6 +176,12 @@ export function variantOf(sprite: string, r: number): string {
   return family ? family[Math.floor(r * family.length) % family.length] : sprite;
 }
 
+/**
+ * Symmetric trees are two cards slotted together (a crossed pop-up). Only where the print is symmetric about its
+ * trunk: a leaning palm, a palm cluster or a twisted dead tree would not cross cleanly, so they stay single cards.
+ */
+export const CROSSED = new Set<string>(['palm-1', 'pine', 'pine-1', 'pine-2', 'cypress', 'tree-broad', 'tree-broad-1', 'tree-broad-2', 'tree-broad-3', 'tree-broad-4', 'tree-blossom', 'tree-blossom-1', 'tree-blossom-2', 'tree-blossom-3', 'mangrove', 'acacia', 'banana']);
+
 /** How far a kind's height varies about the middle of its range (+-). */
 const SIZE_VARY = 0.15;
 

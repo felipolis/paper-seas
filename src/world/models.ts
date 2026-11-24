@@ -41,11 +41,15 @@ interface Prototype {
   /** The bone tree (root first), in rest pose; cloned per building. */
   bones: THREE.Bone[];
   boneInverses: THREE.Matrix4[];
-  /** Per bone (index > 0): its fold; size, the upright height (world units) of the piece with all that rides on it. */
-  folds: Array<{ foldAngle: number; delay: number; size: number; layer: number }>;
-  /** Per bone (index > 0): how far its piece stands off its own face while folded flat (model units). */
+  /**
+   * Per bone (index > 0): its fold; size, the upright height (world units) of the piece with all that rides on it;
+   * layer, its place in a flat stack; liftSign, -1 for a piece whose face points into the one it folds against (a
+   * slotted cross's front half).
+   */
+  folds: Array<{ foldAngle: number; delay: number; size: number; layer: number; liftSign: number }>;
+  /** Per bone (index > 0): how far its piece stands off its own face while folded flat (model units; < 0: behind it). */
   lifts: number[];
-  /** Per bone: what lifts it clear of the pieces it would lie on folded flat (its parent's space), or null: separateFlat. */
+  /** Per bone: what lifts it clear of the pieces it would lie on folded flat (its parent's space; see separateFlat). */
   stacks: Array<THREE.Vector3 | null>;
   /** What blocks the feet once it stands (model space, scaled): see blockers.ts. */
   foot: Segment[];
@@ -75,16 +79,17 @@ export async function loadModels(base = `${import.meta.env.BASE_URL}models/`): P
   atlas.flipY = false;
   atlas.colorSpace = THREE.SRGBColorSpace;
   atlas.anisotropy = 8;
-  material = createPaperMaterial({ map: atlas });
+  const paper = createPaperMaterial({ map: atlas });
   glow.flipY = false;
   glow.colorSpace = THREE.SRGBColorSpace;
-  addGlowMap(material, glow);
-  pencilPlan(material, 'object');
+  addGlowMap(paper, glow);
+  pencilPlan(paper, 'object');
+  material = paper;
   for (const node of gltf.scene.children) {
     const name = node.userData.model as string | undefined;
     if (!name) continue;
     const proto = prototype(node, SCALE[name] ?? 1, SOLID.test(name));
-    separateFlat(proto);
+    separateFlat(proto, paper);
     prototypes.set(name, proto);
   }
 }
@@ -118,7 +123,7 @@ function prototype(root: THREE.Object3D, scale: number, solid: boolean): Prototy
   const parts: THREE.BufferGeometry[] = [];
   const rootBone = new THREE.Bone();
   bones.push(rootBone);
-  folds.push({ foldAngle: 0, delay: 0, size: 0, layer: 0 });
+  folds.push({ foldAngle: 0, delay: 0, size: 0, layer: 0, liftSign: 1 });
   boneOf.set(root, rootBone);
   const local = new THREE.Matrix4();
   let smoke: THREE.Vector3 | null = null;
@@ -162,7 +167,7 @@ function prototype(root: THREE.Object3D, scale: number, solid: boolean): Prototy
       }
       parts.push(g2);
     }
-    folds.push({ foldAngle: Number(o.userData.foldAngle ?? -Math.PI / 2), delay: Number(o.userData.delay ?? 0), size: 0, layer: Number(o.userData.layer ?? 0) });
+    folds.push({ foldAngle: Number(o.userData.foldAngle ?? -Math.PI / 2), delay: Number(o.userData.delay ?? 0), size: 0, layer: Number(o.userData.layer ?? 0), liftSign: Number(o.userData.liftSign ?? 1) });
   });
   // papertrails' flap size (fold.js there): the upright height of the piece with all that rides on it, in world units
   // (its 0.05 to 1 tile), 0.3 tile for a piece without geometry; the bones come after their parents, so walking back
@@ -179,7 +184,7 @@ function prototype(root: THREE.Object3D, scale: number, solid: boolean): Prototy
   const lifts = parentOf.map((_, i) => {
     let depth = 0;
     for (let p = parentOf[i]; p > 0; p = parentOf[p]) depth++;
-    return 0.006 * (depth + 1) + 0.012 * folds[i].layer;
+    return (0.006 * (depth + 1) + 0.012 * folds[i].layer) * folds[i].liftSign;
   });
   const geometry = merge(parts);
   // bind pose: every bone's world matrix in model space
@@ -348,8 +353,10 @@ interface Face {
  * the pieces riding on it going along. A face wholly under the model's base lies under the page, covered: it fights
  * nothing (so a piece may also clear a crossing by going down under it).
  */
-function separateFlat(proto: Prototype): void {
-  const { faces, turn, parent } = foldedFlat(proto);
+function separateFlat(proto: Prototype, paper: THREE.Material): void {
+  const { faces, turn, parent } = foldedFlat(proto, paper);
+  // (the farthest a piece could move: faces farther apart never meet)
+  const reach = (MAX_STEPS + 1) * POPUP.flatStep;
   const rides = (i: number, j: number) => {
     for (let p = parent[i]; p > 0; p = parent[p]) if (p === j) return true;
     return false;
@@ -374,7 +381,6 @@ function separateFlat(proto: Prototype): void {
           if (g.seen === f) continue;
           g.seen = f;
           // (farther apart than any move could bring them, or crossing)
-          const reach = (MAX_STEPS + 1) * POPUP.flatStep;
           if (f.bottom + f.lift > g.top + g.lift + reach || g.bottom + g.lift > f.top + f.lift + reach) continue;
           if (f.box[0] >= g.box[2] || g.box[0] >= f.box[2] || f.box[1] >= g.box[3] || g.box[1] >= f.box[3]) continue;
           if (Math.hypot(f.gx - g.gx, f.gz - g.gz) > CROSS_SLOPE) continue;
@@ -392,12 +398,18 @@ function separateFlat(proto: Prototype): void {
       if (g.top + up < 0 || g.under < 0) return false;
       const lo = g.lo + up;
       const hi = g.hi + up;
-      const within = Math.min(hi, 0.9 * s) - Math.max(lo, -0.9 * s);
+      const within = Math.min(hi, POPUP.flatNear) - Math.max(lo, -POPUP.flatNear);
       return within > 0 && g.area * (hi - lo > 1e-9 ? within / (hi - lo) : 1) > FIGHT_AREA;
     };
-    // (0, 1, -1, 2, -2 ... steps)
+    // the fewest steps that clear every fight (0, 1, -1, 2, -2 ...); none within MAX_STEPS: the piece stays
     let k = 0;
-    for (let n = 1; n <= 2 * MAX_STEPS && gaps.some((g) => fights(g, k * s)); n++) k = n % 2 ? (n + 1) / 2 : -n / 2;
+    for (let n = 0; n <= 2 * MAX_STEPS; n++) {
+      const step = n % 2 ? (n + 1) / 2 : -n / 2;
+      if (!gaps.some((g) => fights(g, step * s))) {
+        k = step;
+        break;
+      }
+    }
     if (k !== 0) {
       // (k steps up in the world, down if negative, in the parent's space as it lies folded; the bones are in model
       // units, the world scaled)
@@ -469,8 +481,8 @@ function area(poly: Array<[number, number]>): number {
  * The model folded flat at the origin (world units): its flat faces, how each bone is turned in the model (its rotation
  * under the root, folded) and the bone each is hinged to.
  */
-function foldedFlat(proto: Prototype): { faces: Face[]; turn: THREE.Quaternion[]; parent: number[] } {
-  const { mesh, fold } = rig(proto, material!, 0, 0);
+function foldedFlat(proto: Prototype, paper: THREE.Material): { faces: Face[]; turn: THREE.Quaternion[]; parent: number[] } {
+  const { mesh, fold } = rig(proto, paper, 0, 0);
   fold.snap(0);
   mesh.updateMatrixWorld(true);
   mesh.skeleton.update();
