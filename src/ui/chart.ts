@@ -33,7 +33,7 @@ import { hexRgb, clamp } from '../core/math';
 import { hash01, mulberry32 } from '../core/rng';
 import { bus } from '../core/events';
 import { spriteImage } from '../art/sprites';
-import { mix } from '../art/painters/paper-print';
+import { mix } from '../art/paper-colour';
 
 const INK = PALETTE.ink;
 /** papertrails' accent (its north point and pin head): a terracotta red. */

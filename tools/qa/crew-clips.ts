@@ -1,9 +1,10 @@
 /**
  * The captains' clip check (the papercraft skill's __papercraft.clips(), mechanisms.md section 12), run in the dev
  * build's page by tools/qa/crew-clips.mjs: each captain is posed standing, through two stride cycles walking straight
- * and turning, and at the helm, and every pair of its cards is tested for cutting into each other. A card is its
- * outline (card units, mesh.userData.outline) extruded by the card's thickness; points sampled through card A's slab
- * are taken into card B's frame and counted when they fall inside B's slab.
+ * and turning, and at the helm, and every pair of its pieces on different joints is tested for cutting into each
+ * other (pieces on one joint never move apart; papertrails slots them through each other on purpose). A piece is its
+ * outline (mesh.userData.outline) extruded by its thickness (userData.thickness); points sampled through piece A's
+ * slab are taken into piece B's frame and counted when they fall inside B's slab.
  */
 import * as THREE from 'three';
 import { CAPTAINS } from '../../src/config/ships';
@@ -15,6 +16,9 @@ type Pt = readonly [number, number];
 
 interface Slab {
   name: string;
+  /** Its joint (the node it hangs on), and half its thickness. */
+  joint: string;
+  half: number;
   outline: readonly Pt[];
   toWorld: THREE.Matrix4;
   toLocal: THREE.Matrix4;
@@ -22,7 +26,6 @@ interface Slab {
 }
 
 const SPACING = 0.004;
-const HALF = CARD_THICKNESS / 2;
 
 function inside(poly: readonly Pt[], x: number, y: number): boolean {
   let hit = false;
@@ -35,14 +38,14 @@ function inside(poly: readonly Pt[], x: number, y: number): boolean {
 }
 
 /** Points through a card's slab, in its own frame: a grid over its outline, at its two faces and its middle. */
-function samplesOf(outline: readonly Pt[]): THREE.Vector3[] {
+function samplesOf(outline: readonly Pt[], half: number): THREE.Vector3[] {
   const xs = outline.map((p) => p[0]);
   const ys = outline.map((p) => p[1]);
   const out: THREE.Vector3[] = [];
   for (let x = Math.min(...xs); x <= Math.max(...xs); x += SPACING) {
     for (let y = Math.min(...ys); y <= Math.max(...ys); y += SPACING) {
       if (!inside(outline, x, y)) continue;
-      for (const z of [-HALF * 0.95, 0, HALF * 0.95]) out.push(new THREE.Vector3(x, y, z));
+      for (const z of [-half * 0.95, 0, half * 0.95]) out.push(new THREE.Vector3(x, y, z));
     }
   }
   return out;
@@ -52,7 +55,8 @@ function slabs(p: Puppet): Slab[] {
   p.root.updateMatrixWorld(true);
   return p.cards.map((m) => {
     const outline = m.userData.outline as readonly Pt[];
-    return { name: m.name, outline, toWorld: m.matrixWorld.clone(), toLocal: m.matrixWorld.clone().invert(), samples: samplesOf(outline) };
+    const half = ((m.userData.thickness as number | undefined) ?? CARD_THICKNESS) / 2;
+    return { name: m.name, joint: m.userData.joint as string, half, outline, toWorld: m.matrixWorld.clone(), toLocal: m.matrixWorld.clone().invert(), samples: samplesOf(outline, half) };
   });
 }
 
@@ -66,13 +70,13 @@ function clips(p: Puppet): Map<string, { points: number; at: string }> {
   const v = new THREE.Vector3();
   for (let a = 0; a < s.length; a++) {
     for (let b = 0; b < s.length; b++) {
-      if (a === b) continue;
+      if (s[a].joint === s[b].joint) continue;
       let n = 0;
       let deepest = Infinity;
       let at = '';
       for (const q of s[a].samples) {
         v.copy(q).applyMatrix4(s[a].toWorld).applyMatrix4(s[b].toLocal);
-        if (Math.abs(v.z) < HALF && inside(s[b].outline, v.x, v.y)) {
+        if (Math.abs(v.z) < s[b].half && inside(s[b].outline, v.x, v.y)) {
           n++;
           if (Math.abs(v.z) < deepest) [deepest, at] = [Math.abs(v.z), `${s[a].name} at (${q.x.toFixed(3)}, ${q.y.toFixed(3)})`];
         }

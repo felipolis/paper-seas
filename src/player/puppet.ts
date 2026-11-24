@@ -1,6 +1,6 @@
 /**
- * The captains as small paper models (player/crew-model.ts: printed cards built as the papercraft skill's T-cards, a
- * lantern in the right hand). Every part hangs on its joint and moves by rotation only: papertrails' walk ashore
+ * The captains as small paper models (player/crew-model.ts: flat card pieces slotted and layered as papertrails'
+ * traveller is, a lantern carried in the right hand). Every part hangs on its joint and moves by rotation only: papertrails' walk ashore
  * (walk), steering at the helm (helm).
  */
 import * as THREE from 'three';
@@ -181,8 +181,9 @@ export class Puppet {
   helm(dt: number, steer: number): void {
     this.t += dt;
     const P = this.parts;
-    P.arm_l.rotation.set(-1.05 + steer * 0.25, 0, 0.25);
-    P.arm_r.rotation.set(-1.05 - steer * 0.25, 0, -0.25);
+    // (the sleeves are cut bent forward, the right one further: the left reaches up a little more to the spokes)
+    P.arm_l.rotation.set(-0.75 + steer * 0.25, 0, 0.25);
+    P.arm_r.rotation.set(-0.5 - steer * 0.25, 0, -0.25);
     P.leg_l.rotation.set(0, 0, 0);
     P.leg_r.rotation.set(0, 0, 0);
     P.body.rotation.set(0, 0, 0);

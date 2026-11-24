@@ -1,59 +1,105 @@
 /**
- * The captains as small 3D paper models (the papercraft skill's characters from cards, mechanisms.md section 12),
- * built from their outfits (config/ships.ts) out of the game's own printed cards (art/painters/paper-print.ts,
- * popup/card.ts): every card a slab of cardstock printed as a layered paper collage, its cut edge printed with it and
- * its side the print's own tone darkened.
- *
- * Built the way a paper doll is built, so no card ever cuts into another, standing, mid-stride or at the helm
- * (tools/qa/crew-clips.mjs checks it):
- *   - every part is a T: a frontal card with a profile card standing wholly BEHIND it (a cross would put an edge line
- *     through the face), a step darker, so the build reads as construction;
- *   - overlapping cards sit in their own layers, a card's thickness and a gap apart, front to back: the hat, the face,
- *     the coat, the coat's tails, the legs, then the profiles, the coat's back and the hair;
- *   - the arms hang beside the body (their shoulders just outside its widest), the legs side by side, never overlapping;
- *   - what hangs below the waist (a long coat's tails, a robe, an apron) is cut in two and hung on the legs, like a
- *     paper doll's skirt, so it swings with them instead of being swept through;
- *   - every hat sits on a level disc over the head (a brim, a band, a bandana's crown), the head's cards below it.
+ * The captains as small 3D paper models, built the way papertrails builds its traveller (public/models/traveller.glb
+ * there, read piece by piece): every piece a die-cut slab of card in one flat colour, its cut edge pale cream, the
+ * pieces layered and slotted through each other so the figure reads from every side:
+ *   - the head: a frontal face card (its back the hair's colour) with the head's profile card slotted through its
+ *     middle, whose front edge is the nose and the chin; a thicker card of hair round the profile, a card of hair
+ *     behind the face, small eye cards on the face and on both sides of the profile; a neck card below;
+ *   - the body: a frontal and a profile card slotted into a cross, and what is worn on it layered in front (a
+ *     waistcoat, its braid, a jabot, a scarf, a belt or a sash slotted into a cross of its own) and behind (the coat's
+ *     back);
+ *   - the arms and the legs: profile cards only (a sleeve bent forward, a thicker cuff, a hand; trousers, a thicker
+ *     boot cuff, a boot with its toe), the right hand carrying the lantern in front of the body as the traveller does;
+ *   - the hat: level discs stacked from the brim up, tilted a little back.
+ * What hangs below the waist (a coat's tails, an apron) is cut in two and hung on the legs, so it swings with
+ * them; nothing that moves against another piece cuts into it (tools/qa/crew-clips.mjs; pieces on one joint are
+ * slotted through each other on purpose and never move apart).
  * The figure faces +z, stands on y = 0 and is papertrails' 0.6 tall (times its outfit's height). Its nodes, each on
  * its joint so the puppet moves them by rotation only: body (on the hips, carrying the arms and the head), leg_l and
- * leg_r, arm_l and arm_r, head, and the lantern on the right hand.
+ * leg_r, arm_l and arm_r, head, and the lantern below the right hand.
  */
 import * as THREE from 'three';
 import type { Outfit } from '../config/ships';
-import { CARD_THICKNESS, createCard } from '../popup/card';
 import { createPaperMaterial } from '../render/paper-material';
-import { polygonPath } from '../art/card-painter';
-import { chevrons, dots, ellipse, mix, printCard, rect, tone, type Print, type Pt } from '../art/painters/paper-print';
+import { mix, tone } from '../art/paper-colour';
+import type { Pt } from '../world/polyline';
 
 export type PartName = 'body' | 'head' | 'leg_l' | 'leg_r' | 'arm_l' | 'arm_r' | 'lantern';
 
-const T = CARD_THICKNESS;
-/** Air between two layers, and between two cards side by side. */
-const GAP = 0.008;
-const SIDE = 0.006;
-/** From one layer's mid-plane to the next. */
-const STEP = T + GAP;
-/** A profile card's front edge stands this far behind its frontal card's mid-plane. */
-const BEHIND = T / 2 + GAP;
-/** The profile cards and the backs a step darker than the fronts. */
-const PROFILE_TONE = -0.07;
-/** Between cards on one joint (a head and its hat): they never move apart, so a hair's breadth of air is enough. */
-const TOUCH = 0.002;
-const BACK_TONE = -0.04;
-/** papertrails' cream boot cuff; the lantern's dark frame; a bone's dark gaps. */
-const CUFF = '#e7d2ab';
-const FRAME = '#523729';
-const GAPS = '#4a3c30';
-const INK = '#2a1608';
+export interface CaptainModel {
+  root: THREE.Group;
+  parts: Record<PartName, THREE.Object3D>;
+  /** Every piece, named (the clip check reports by name). */
+  cards: THREE.Mesh[];
+}
 
-/** A node of the puppet: its joint (absolute, in the figure's frame) and the cards hung on it. */
+/** papertrails' cut edge, its boot cuff, its lantern's frame; the warm dark of an eye. */
+const CREAM = '#fbf6ea';
+const CUFF = '#e8d3ac';
+const FRAME = '#513424';
+const EYE = '#2a1a10';
+const GAPS = '#4a3c30';
+/** Gold braid and buckles, lace, a cook's apron, a sash, leather straps, a wooden peg. */
+const GOLD = '#d9a341';
+const LACE = '#f4efe4';
+const APRON = '#f4efe4';
+const SASH = '#b8443a';
+const LEATHER = '#4a2a18';
+const WOOD = '#8a5a34';
+/** papertrails' card thicknesses: a card, a thicker band (a cuff, a belt), a thin layer laid on another, an eye. */
+const CARD = 0.011;
+const BAND = 0.017;
+const LAYER = 0.004;
+const INK = 0.001;
+
+// ---- the pieces ----------------------------------------------------------------------------------------------------
+
+/** A slab's colours: its front face, its back face and its cut edge. */
+interface Colours {
+  front: string;
+  back?: string;
+  edge?: string;
+}
+
+let paper: THREE.Material | null = null;
+/** One matte card material for every piece: its colours are the slab's vertex colours. */
+function paperMaterial(): THREE.Material {
+  if (!paper) {
+    paper = createPaperMaterial({ back: null, side: THREE.FrontSide });
+    (paper as THREE.MeshLambertMaterial).vertexColors = true;
+  }
+  return paper;
+}
+
+/** A die-cut slab: the outline pts (and holes) extruded by t round z = 0, coloured front, back and edge. */
+function slab(pts: readonly Pt[], t: number, c: Colours, holes: readonly Pt[][] = []): THREE.BufferGeometry {
+  const shape = new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(x, y)));
+  for (const h of holes) shape.holes.push(new THREE.Path(h.map(([x, y]) => new THREE.Vector2(x, y))));
+  const g = new THREE.ExtrudeGeometry(shape, { depth: t, bevelEnabled: false, curveSegments: 1 });
+  g.translate(0, 0, -t / 2);
+  const front = new THREE.Color(c.front);
+  const back = new THREE.Color(c.back ?? c.front);
+  const edge = new THREE.Color(c.edge ?? CREAM);
+  const wall = g.groups.find((gr) => gr.materialIndex === 1);
+  const N = g.getAttribute('normal');
+  const col = new Float32Array(N.count * 3);
+  for (let i = 0; i < N.count; i++) {
+    const k = wall && i >= wall.start && i < wall.start + wall.count ? edge : N.getZ(i) > 0 ? front : back;
+    col.set([k.r, k.g, k.b], i * 3);
+  }
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.clearGroups();
+  return g;
+}
+
+/** A node of the puppet: its joint (absolute, in the figure's frame) and the pieces hung on it. */
 class Node {
   readonly group = new THREE.Group();
 
   constructor(
     name: string,
     readonly pivot: THREE.Vector3,
-    private readonly cards: THREE.Mesh[],
+    private readonly pieces: THREE.Mesh[],
     parent?: Node,
   ) {
     this.group.name = name;
@@ -61,441 +107,604 @@ class Node {
     parent?.group.add(this.group);
   }
 
-  private add(name: string, pts: readonly Pt[], base: string, paint: (p: Print) => void, place: (m: THREE.Mesh) => void, back?: string): void {
-    const art = printCard(pts, base, paint);
-    // (a plain back: the print shows on the front only, its back in one colour, the skill's plain() back)
-    const mesh = createCard(art, { contact: false, material: back ? createPaperMaterial({ back, map: art.texture }) : undefined });
+  /** A slab cut to pts (its own x, y), placed by at (its frame to the figure's). */
+  piece(name: string, pts: readonly Pt[], t: number, c: Colours, at: THREE.Matrix4, holes?: readonly Pt[][]): THREE.Mesh {
+    const mesh = new THREE.Mesh(slab(pts, t, c, holes), paperMaterial());
     mesh.name = name;
-    // its outline in card units, for the clip check (tools/qa/crew-clips.mjs)
-    mesh.userData.outline = pts;
-    place(mesh);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    // its outline, thickness and joint, for the clip check
+    mesh.userData = { outline: pts, thickness: t, joint: this.group.name };
+    mesh.applyMatrix4(new THREE.Matrix4().makeTranslation(-this.pivot.x, -this.pivot.y, -this.pivot.z).multiply(at));
     this.group.add(mesh);
-    this.cards.push(mesh);
+    this.pieces.push(mesh);
+    return mesh;
   }
 
-  /** A frontal card in the plane z: pts are (x, y) in the figure's frame; back, a plain colour for its back. */
-  front(name: string, pts: readonly Pt[], z: number, base: string, paint: (p: Print) => void, back?: string): void {
-    this.add(name, pts, base, paint, (m) => m.position.set(-this.pivot.x, -this.pivot.y, z - this.pivot.z), back);
+  /** A frontal piece in the plane z: pts are (x, y) in the figure's frame. */
+  front(name: string, pts: readonly Pt[], z: number, t: number, c: Colours, holes?: readonly Pt[][]): THREE.Mesh {
+    return this.piece(name, pts, t, c, new THREE.Matrix4().makeTranslation(0, 0, z), holes);
   }
 
-  /** A profile card in the plane x: pts are (z, y) in the figure's frame (its print's +x faces forward). */
-  profile(name: string, pts: readonly Pt[], x: number, base: string, paint: (p: Print) => void): void {
-    this.add(name, pts, base, paint, (m) => {
-      m.rotation.y = -Math.PI / 2;
-      m.position.set(x - this.pivot.x, -this.pivot.y, -this.pivot.z);
-    });
+  /** A profile piece in the plane x: pts are (z, y) in the figure's frame; its front faces +x. */
+  side(name: string, pts: readonly Pt[], x: number, t: number, c: Colours, holes?: readonly Pt[][]): THREE.Mesh {
+    return this.piece(name, pts, t, c, new THREE.Matrix4().makeTranslation(x, 0, 0).multiply(new THREE.Matrix4().makeRotationY(-Math.PI / 2)), holes);
   }
 
-  /** A level card (a disc, a brim) at height y: pts are (x, -z) in the figure's frame (its print seen from above). */
-  level(name: string, pts: readonly Pt[], y: number, base: string, paint: (p: Print) => void): void {
-    this.add(name, pts, base, paint, (m) => {
-      m.rotation.x = -Math.PI / 2;
-      m.position.set(-this.pivot.x, y - this.pivot.y, -this.pivot.z);
-    });
+  /** A level piece at height y: pts are (x, -z) in the figure's frame; its front faces up. */
+  level(name: string, pts: readonly Pt[], y: number, t: number, c: Colours, tilt?: THREE.Matrix4): THREE.Mesh {
+    const at = new THREE.Matrix4().makeTranslation(0, y, 0).multiply(new THREE.Matrix4().makeRotationX(-Math.PI / 2));
+    return this.piece(name, pts, t, c, tilt ? tilt.clone().multiply(at) : at);
   }
 }
 
 const mirrorX = (pts: readonly Pt[]): Pt[] => pts.map(([x, y]) => [-x, y] as Pt).reverse();
-const circle = (cx: number, cy: number, rx: number, ry: number, n = 18): Pt[] =>
-  Array.from({ length: n }, (_, k) => [cx + Math.cos((2 * Math.PI * k) / n) * rx, cy + Math.sin((2 * Math.PI * k) / n) * ry] as Pt);
-
-export interface CaptainModel {
-  root: THREE.Group;
-  parts: Record<PartName, THREE.Object3D>;
-  /** Every card, named (the clip check reports by name). */
-  cards: THREE.Mesh[];
+const box = (x0: number, y0: number, x1: number, y1: number): Pt[] => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+/** A disc of n corners (a hat's tier): rx across, rz deep, round (cx, cz), as a level piece's (x, -z). */
+const disc = (rx: number, rz: number, n: number, cx = 0, cz = 0): Pt[] =>
+  Array.from({ length: n }, (_, k) => {
+    const a = (2 * Math.PI * k) / n;
+    return [cx + Math.cos(a) * rx, -(cz + Math.sin(a) * rz)] as Pt;
+  });
+/** A band across the stroke from a to b, w wide. */
+function bar(a: Pt, b: Pt, w: number): Pt[] {
+  const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+  const nx = (-(b[1] - a[1]) / l) * (w / 2);
+  const ny = ((b[0] - a[0]) / l) * (w / 2);
+  return [[a[0] - nx, a[1] - ny], [b[0] - nx, b[1] - ny], [b[0] + nx, b[1] + ny], [a[0] + nx, a[1] + ny]];
 }
+
+// ---- the captain -----------------------------------------------------------------------------------------------
 
 export function buildCaptain(o: Outfit): CaptainModel {
   const s = o.height;
   const g = o.girth;
-  const cards: THREE.Mesh[] = [];
+  const dg = Math.sqrt(g);
+  const pieces: THREE.Mesh[] = [];
   const root = new THREE.Group();
+  const parts: Partial<Record<PartName, THREE.Object3D>> = {};
+  const extras = new Set(o.extras ?? []);
   const hip = 0.197 * s;
   const shoulder = 0.354 * s;
   const neck = 0.371 * s;
-  const torsoTop = 0.362 * s;
-  const coated = o.cut === 'coat' || o.cut === 'jacket' || o.cut === 'robe';
-  const skin = o.cut === 'bones' ? o.skin : tone(o.skin, 0.1);
-  const accent = o.extra === 'epaulettes' ? '#d8b04a' : mix(o.shirt, '#d9a441', 0.55);
-  // what the coat is cut down to: below the hips it hangs on the legs
-  const hem = { coat: 0.085, robe: 0.03, apron: 0.08, jacket: 0.165, bones: hip / s }[o.cut] * s;
-  const skirt = hem < hip - 0.01;
-  // the body's half width at the waist and at the chest (the arms hang outside the widest)
-  const waist = (coated ? 0.084 : 0.064) * g;
-  const chest = (coated ? 0.074 : 0.07) * g;
-  const halfWide = Math.max(waist, chest);
-  const torsoDepth = 0.08 * Math.sqrt(g);
+  const bones = o.cut === 'bones';
+  const coated = o.cut === 'coat' || o.cut === 'navy';
+  const skin = bones ? o.skin : tone(o.skin, 0.1);
+  const accent = o.trim ?? mix(o.shirt, GOLD, 0.55);
+  const coatColour = coated ? o.coat : o.shirt;
 
-  // ---- the body (on the hips): the coat's front (its back printed plain) and its profile behind ----
-  const body = new Node('body', new THREE.Vector3(0, hip, 0), cards);
+  // ---- the body: a frontal and a profile card in a cross, what is worn layered on them ----
+  const body = new Node('body', new THREE.Vector3(0, hip, 0), pieces);
   root.add(body.group);
-  // (its foot just above the hip joint, the tails' tops just below: a tail leaning forward stays clear of it)
-  const coatFoot = hip + 0.006;
-  const torsoFront: Pt[] = [[-waist, coatFoot], [waist, coatFoot], [chest, 0.33 * s], [0.058 * g, torsoTop], [-0.058 * g, torsoTop], [-chest, 0.33 * s]];
-  const profileFront = -BEHIND;
-  const profileBack = profileFront - torsoDepth;
-  const torsoSide: Pt[] = [[profileFront, hip + 0.03], [profileBack, hip + 0.03], [profileBack, 0.33 * s], [profileBack + 0.016, torsoTop - 0.002], [profileFront - 0.016, torsoTop - 0.002], [profileFront, 0.33 * s]];
-  const coatBase = o.cut === 'robe' ? o.coat : o.cut === 'bones' ? o.skin : o.shirt;
-  const coatBack = tone(coated ? o.coat : o.cut === 'bones' ? o.skin : o.shirt, BACK_TONE);
-  body.front('coat', torsoFront, 0, coatBase, (p) => printTorsoFront(p, o, s, g, accent), coatBack);
-  const sideColour = tone(coated ? o.coat : o.cut === 'bones' ? o.skin : o.shirt, PROFILE_TONE);
-  body.profile('coat side', torsoSide, 0, sideColour, (p) => {
-    p.paper();
-    if (o.cut === 'bones') {
-      for (let k = 0; k < 4; k++) p.ink(rect(profileBack, 0.22 * s + k * 0.03 * s, profileFront, 0.229 * s + k * 0.03 * s), GAPS);
-      return;
+  parts.body = body.group;
+  const top = 0.366 * s;
+  // its half width at the foot, the chest and the shoulders; its depth before and behind the cross
+  const foot = hip + 0.006;
+  const wFoot = 0.07 * g;
+  const wChest = 0.066 * g;
+  const wTop = 0.058 * g;
+  const zFront = 0.052 * dg;
+  const zBack = -0.048 * dg;
+  const chestY = 0.275 * s;
+  const widthAt = (y: number) => (y < chestY ? wFoot + ((wChest - wFoot) * (y - foot)) / (chestY - foot) : wChest + ((wTop - wChest) * (y - chestY)) / (top - chestY));
+  // its foot (a shirt torn at its hem: notches cut up into it)
+  const hemEdge: Pt[] = o.ragged ? Array.from({ length: 9 }, (_, i) => [-wFoot + (2 * wFoot * i) / 8, foot + (i % 2 ? 0.012 * s : 0)] as Pt) : [[-wFoot, foot], [wFoot, foot]];
+  const front: Pt[] = [...hemEdge, [wChest, chestY], [wTop, top], [-wTop, top], [-wChest, chestY]];
+  body.front('torso', front, 0, CARD, { front: coatColour, back: tone(coatColour, -0.06) });
+  body.side('torso side', [[zBack, foot], [zFront, foot], [zFront * 0.92, chestY], [zFront * 0.7, top], [zBack * 0.7, top], [zBack, chestY]], 0, CARD, { front: tone(coatColour, -0.05) });
+  const backZ = zBack + 0.004;
+  if (coated) {
+    // the coat's back, a step behind the cross, narrower at its foot than the tails hung below it
+    // (its foot higher than the front's: a leg swinging back turns its upper back up behind the hips)
+    const backFoot = hip + 0.024 * s;
+    body.front('coat back', [[-wFoot * 0.86, backFoot], [wFoot * 0.86, backFoot], [wChest, chestY], [wTop * 0.92, top], [-wTop * 0.92, top], [-wChest, chestY]], backZ, CARD, { front: tone(o.coat, -0.08), back: tone(o.coat, -0.04) });
+  }
+  // what shows at the front, in layers: the shirt (a waistcoat between a coat's fronts), braid, buttons, an apron
+  const z1 = CARD / 2 + LAYER / 2 + 0.0005;
+  const z2 = z1 + LAYER + 0.0005;
+  const z3 = z2 + LAYER + 0.0005;
+  // (the layers in front start a little above the body's foot: a leg's top swinging forward passes under them)
+  const lay = foot + 0.008 + (o.ragged ? 0.012 * s : 0);
+  if (o.cut === 'coat') {
+    const open = (y: number) => 0.016 + 0.014 * ((y - foot) / (top - foot));
+    const shirtPts: Pt[] = [[-open(foot), lay], [open(foot), lay], [open(top), top - 0.006], [0, top - 0.03 * s], [-open(top), top - 0.006]];
+    body.front('shirt', shirtPts, z1, LAYER, { front: o.shirt });
+    for (const side of [1, -1]) {
+      // the coat's front edge, faced in a darker cloth, and its lapel at the neck
+      const lapel = Math.min(open(top) + 0.03, wTop - 0.004);
+      const edge: Pt[] = [[open(foot) + 0.002, lay], [open(foot) + 0.012, lay], [open(top) + 0.014, top - 0.014], [lapel, top], [open(top) + 0.006, top], [open(top) + 0.002, top - 0.03 * s]];
+      body.front(`facing ${side > 0 ? 'l' : 'r'}`, side > 0 ? edge : mirrorX(edge), z1, LAYER, { front: tone(o.coat, -0.14) });
+      // braid across the front, as frogging
+      for (let k = 0; k < 3; k++) {
+        const y = foot + 0.045 * s + k * 0.03 * s;
+        const x0 = side * (open(y) + 0.012);
+        body.front(`braid ${side > 0 ? 'l' : 'r'} ${k}`, bar([x0, y], [x0 + side * Math.min(0.026, wChest * 0.92 - open(y) - 0.012), y], 0.007), z2, LAYER, { front: accent });
+      }
     }
-    p.line(polygonPath([[(profileFront + profileBack) / 2, hip + 0.03], [(profileFront + profileBack) / 2, torsoTop]], false), tone(sideColour, -0.25), 0.003);
-    if (coated) p.layer(rect(profileFront - 0.028, 0.24 * s, profileFront - 0.008, 0.265 * s), tone(sideColour, -0.12));
-  });
-  if (o.extra === 'epaulettes') {
-    for (const k of [1, -1]) {
-      const ep: Pt[] = [[0.042 * g, 0.352 * s], [0.08 * g, 0.352 * s], [0.08 * g, 0.322 * s], [0.042 * g, 0.322 * s]];
-      body.front(k > 0 ? 'epaulette l' : 'epaulette r', k > 0 ? ep : mirrorX(ep), STEP, '#d8b04a', (p) => {
-        p.paper();
-        for (let i = 0; i < 4; i++) p.ink(rect(k * (0.046 + i * 0.009) * g, 0.322 * s, k * (0.05 + i * 0.009) * g, 0.334 * s), '#a8802a');
-      });
+    for (let k = 0; k < 3; k++) body.front(`button ${k}`, box(-0.004, foot + 0.05 * s + k * 0.026 * s, 0.004, foot + 0.058 * s + k * 0.026 * s), z2, LAYER, { front: accent });
+  } else if (o.cut === 'navy') {
+    // buttoned double: a lighter breast panel, two rows of gold buttons
+    body.front('breast', [[-0.034 * g, lay], [0.034 * g, lay], [0.042 * g, top - 0.004], [-0.042 * g, top - 0.004]], z1, LAYER, { front: tone(o.coat, 0.08) });
+    for (let k = 0; k < 4; k++) {
+      for (const side of [1, -1]) {
+        const y = foot + 0.04 * s + k * 0.03 * s;
+        body.front(`button ${side > 0 ? 'l' : 'r'} ${k}`, box(side * 0.018 - 0.0045, y, side * 0.018 + 0.0045, y + 0.009), z2, LAYER, { front: accent });
+      }
+    }
+  } else {
+    // a shirt (or the shirt under an apron): open at the neck, its stripes front and back
+    if (o.stripes) {
+      for (let y = lay + 0.006 * s; y < top - 0.03 * s; y += 0.026 * s) {
+        const w = widthAt(y + 0.006 * s) - 0.002;
+        for (const [z, tag] of [[z1, 'front'], [-z1, 'back']] as const) body.front(`stripe ${tag} ${y.toFixed(3)}`, box(-w, y, w, y + 0.011 * s), z, LAYER, { front: o.stripes });
+      }
+    }
+    body.front('open neck', [[-0.02, top + 0.001], [0.02, top + 0.001], [0, top - 0.04 * s]], z2, LAYER, { front: bones ? GAPS : tone(skin, -0.04) });
+    if (bones) body.front('collarbone', bar([-0.016, top - 0.012], [0.016, top - 0.012], 0.006), z3, LAYER, { front: o.skin });
+    if (o.cut === 'apron') {
+      // (further forward than the shirt's layers, so higher off the foot: a leg's top swings up further there)
+      body.front('apron bib', [[-0.046 * g, lay + 0.012], [0.046 * g, lay + 0.012], [0.04 * g, 0.31 * s], [-0.04 * g, 0.31 * s]], z3, LAYER, { front: APRON });
+      body.front('apron pocket', box(-0.02 * g, 0.24 * s, 0.02 * g, 0.27 * s), z3 + LAYER + 0.0005, LAYER, { front: tone(APRON, -0.08) });
+      for (const side of [1, -1]) body.front(`apron strap ${side > 0 ? 'l' : 'r'}`, bar([side * 0.036 * g, 0.31 * s], [side * 0.03 * g, top], 0.008), z3, LAYER, { front: APRON });
     }
   }
-  if (o.extra === 'parrot') {
-    const x = 0.078 * g;
-    const y0 = shoulder + 0.022;
-    const bird: Pt[] = [[-0.014, y0], [0.016, y0], [0.022, y0 + 0.04], [0.016, y0 + 0.074], [-0.004, y0 + 0.084], [-0.016, y0 + 0.064], [-0.044, y0 - 0.034], [-0.034, y0 - 0.04]];
-    body.profile('parrot', bird, x, '#5e9a4a', (p) => {
-      p.paper();
-      p.layer(polygonPath([[-0.012, y0 + 0.01], [0.0, y0 + 0.012], [-0.04, y0 - 0.036], [-0.046, y0 - 0.03]]), '#b4442e');
-      p.layer(polygonPath([[0.012, y0 + 0.07], [0.03, y0 + 0.062], [0.014, y0 + 0.052]]), '#d9a441');
-      p.ink(ellipse(0.006, y0 + 0.068, 0.0035, 0.0035), INK);
-      p.layer(ellipse(0.002, y0 + 0.035, 0.012, 0.02), tone('#5e9a4a', 0.15));
-    });
+  // the collar round the neck: a frontal band and a profile band (papertrails' scarf)
+  const collar = o.neck?.kind === 'scarf' ? o.neck.colour : coated ? tone(o.coat, -0.12) : bones ? o.skin : tone(o.shirt, -0.06);
+  // (below the neck's joint: the head turns and nods above it)
+  const collarTop = neck - 0.004;
+  const collarFoot = top - 0.022 * s;
+  body.front('collar', [[-wTop, collarFoot], [wTop, collarFoot], [wTop * 0.8, collarTop], [-wTop * 0.8, collarTop]], 0, BAND, { front: collar, back: tone(collar, -0.06) });
+  body.side('collar side', [[zBack * 0.8, collarFoot], [zFront * 0.8, collarFoot], [zFront * 0.7, collarTop], [zBack * 0.7, collarTop]], 0, BAND, { front: collar });
+  const onCollar = BAND / 2 + LAYER / 2 + 0.0005;
+  if (o.cut === 'navy') body.front('collar braid', box(-wTop * 0.8, collarTop - 0.006, wTop * 0.8, collarTop - 0.002), onCollar, LAYER, { front: accent });
+  if (o.neck?.kind === 'scarf') {
+    // a striped scarf: stripes round the collar, its two ends hanging down the chest
+    const stripe = o.neck.stripes ?? tone(collar, -0.3);
+    for (const x of [-0.03, -0.006, 0.018]) body.front(`scarf stripe ${x}`, box(x, collarFoot + 0.002, x + 0.01, collarTop - 0.002), onCollar, LAYER, { front: stripe });
+    for (const [i, x0, drop] of [[0, 0.01, 0.075], [1, 0.03, 0.06]] as const) {
+      const y1 = collarFoot - drop * s;
+      const fringe: Pt[] = Array.from({ length: 5 }, (_, k) => [x0 + 0.02 - (0.02 * k) / 4, y1 + (k % 2 ? 0.006 : 0)] as Pt);
+      body.front(`scarf end ${i}`, [[x0, collarFoot + 0.004], [x0 + 0.02, collarFoot + 0.004], ...fringe], z2 + i * (LAYER + 0.0005), LAYER, { front: collar });
+      for (let k = 0; k < 2; k++) {
+        const y = collarFoot - (0.018 + k * 0.022) * s;
+        body.front(`scarf end ${i} stripe ${k}`, box(x0, y, x0 + 0.02, y + 0.007), z3 + 0.001 + i * (LAYER + 0.0005), LAYER, { front: stripe });
+      }
+    }
   }
+  if (o.neck?.kind === 'jabot') {
+    // a lace jabot falling from the collar, in two tiers
+    const tierPts = (w: number, y0: number, y1: number): Pt[] => [[-w, y0], [w, y0], [w * 1.1, y0 - (y0 - y1) * 0.5], [w * 0.5, y0 - (y0 - y1) * 0.62], [w * 0.7, y0 - (y0 - y1) * 0.8], [0, y1], [-w * 0.7, y0 - (y0 - y1) * 0.8], [-w * 0.5, y0 - (y0 - y1) * 0.62], [-w * 1.1, y0 - (y0 - y1) * 0.5]];
+    body.front('jabot', tierPts(0.02, collarFoot + 0.004, collarFoot - 0.06 * s), z3, LAYER, { front: o.neck.colour });
+    body.front('jabot tier', tierPts(0.013, collarFoot + 0.002, collarFoot - 0.036 * s), z3 + LAYER + 0.0005, LAYER, { front: tone(o.neck.colour, -0.06) });
+  }
+  // round the waist: a belt or a sash, each a band slotted into a cross of its own round the body
+  const waistBand = (name: string, colour: string, h: number) => {
+    const y0 = foot + 0.024 * s;
+    const y1 = y0 + h * s;
+    body.front(name, box(-wFoot - 0.002, y0, wFoot + 0.002, y1), 0, BAND, { front: colour });
+    body.side(`${name} side`, box(zBack - 0.003, y0, zFront + 0.003, y1), 0, BAND, { front: colour });
+    return [y0, y1] as const;
+  };
+  const onBand = BAND / 2 + LAYER / 2 + 0.0005;
+  if (extras.has('sash')) {
+    const [y0, y1] = waistBand('sash', SASH, 0.03);
+    body.front('sash knot', [[wFoot * 0.55, y1 + 0.004], [wFoot * 0.85, y1 + 0.002], [wFoot * 0.92, y0 - 0.002], [wFoot * 0.6, y0 - 0.004]], onBand, LAYER, { front: tone(SASH, -0.12) });
+  } else if (extras.has('belt') || o.cut === 'coat') {
+    const [y0, y1] = waistBand('belt', LEATHER, 0.02);
+    body.front('buckle', box(-0.013, y0 - 0.003, 0.013, y1 + 0.003), onBand, LAYER, { front: '#d9a341' });
+  }
+  if (extras.has('strap')) {
+    // a baldric from the right shoulder down to the left hip, its buckle on the chest
+    const a: Pt = [-wTop * 0.75, top - 0.004];
+    const b: Pt = [wFoot * 0.8, foot + 0.064 * s];
+    body.front('strap', bar(a, b, 0.016), z3, LAYER, { front: LEATHER });
+    const m: Pt = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    body.front('strap buckle', box(m[0] - 0.007, m[1] - 0.007, m[0] + 0.007, m[1] + 0.007), z3 + LAYER + 0.0005, LAYER, { front: GOLD });
+  }
+  const armX = coated ? armXFor(g, wTop * 1.06, CARD) : armXFor(g, wChest, BAND + 0.006);
+  if (extras.has('epaulettes')) buildEpaulettes(body, shoulder, armX, accent);
+  if (extras.has('parrot')) buildParrot(body, shoulder, armX);
 
-  // ---- arms (on the shoulders, just outside the body's widest): sleeve, cuff and hand; the lantern in the right ----
-  const armHalf = 0.02;
-  const sx = halfWide + armHalf + SIDE;
-  const sleeve = coated ? o.coat : o.cut === 'bones' ? o.skin : o.shirt;
-  const parts: Partial<Record<PartName, THREE.Object3D>> = { body: body.group };
-  let rightArm: Node | null = null;
+  // ---- the arms: profile cards on the shoulders beside the body, bent forward; the lantern in the right hand ----
+  const short = !coated;
+  const hand = extras.has('gloves') ? LACE : skin;
   for (const side of [1, -1]) {
     const name: PartName = side > 0 ? 'arm_l' : 'arm_r';
-    const arm = new Node(name, new THREE.Vector3(side * sx, shoulder, 0), cards, body);
+    const tag = side > 0 ? 'l' : 'r';
+    const arm = new Node(name, new THREE.Vector3(side * armX, shoulder, 0), pieces, body);
     parts[name] = arm.group;
-    if (side < 0) rightArm = arm;
-    const x = side * sx;
-    const y = (v: number) => shoulder + v * s;
-    const outline: Pt[] = [[x - 0.02, y(0.008)], [x + 0.02, y(0.008)], [x + 0.018, y(-0.15)], [x + 0.015, y(-0.17)], [x + 0.008, y(-0.186)], [x - 0.01, y(-0.186)], [x - 0.015, y(-0.17)], [x - 0.018, y(-0.15)]];
-    const paintArm = (c: string) => (p: Print) => {
-      p.paper(c);
-      if (coated) {
-        p.layer(rect(x - 0.019, y(-0.152), x + 0.019, y(-0.126)), o.shirt);
-        p.ink(chevrons(x - 0.019, x + 0.019, y(-0.122), y(-0.108), 3), accent);
-      }
-      p.layer(polygonPath([[x - 0.015, y(-0.15)], [x + 0.015, y(-0.15)], [x + 0.015, y(-0.17)], [x + 0.008, y(-0.186)], [x - 0.01, y(-0.186)], [x - 0.015, y(-0.17)]]), skin);
-    };
-    arm.front(`arm ${side > 0 ? 'l' : 'r'}`, outline, 0, sleeve, paintArm(sleeve));
-    const zf = -BEHIND;
-    const sideOutline: Pt[] = [[zf, y(0.004)], [zf - 0.032, y(0.004)], [zf - 0.03, y(-0.15)], [zf - 0.026, y(-0.18)], [zf - 0.006, y(-0.184)], [zf, y(-0.15)]];
-    arm.profile(`arm ${side > 0 ? 'l' : 'r'} side`, sideOutline, x, tone(sleeve, PROFILE_TONE), (p) => {
-      p.paper();
-      if (coated) p.layer(rect(zf - 0.031, y(-0.152), zf, y(-0.126)), tone(o.shirt, PROFILE_TONE));
-      p.layer(polygonPath([[zf, y(-0.15)], [zf - 0.03, y(-0.15)], [zf - 0.026, y(-0.18)], [zf - 0.006, y(-0.184)]]), tone(skin, PROFILE_TONE));
-    });
-    if (o.extra === 'ladle' && side > 0) {
+    const x = side * armX;
+    // papertrails' sleeves (z, y from the shoulder): the right one reaches forward to the lantern, the left hangs lower
+    const reach: Pt = side < 0 ? [0.11, -0.095] : [0.058, -0.138];
+    const along = (t: number): Pt => [reach[0] * t, shoulder + reach[1] * t * s];
+    const elbow: Pt = [reach[0] * 0.15, shoulder + 0.01 * s];
+    if (short) {
+      // a short sleeve to the elbow (rolled up on a cook), the forearm bare below it
+      const end = o.cut === 'apron' ? 0.5 : 0.46;
+      arm.side(`forearm ${tag}`, bar(along(end - 0.06), along(0.92), bones ? 0.011 : 0.024), x, bones ? 0.009 : CARD, { front: skin });
+      arm.side(`sleeve ${tag}`, bar(elbow, along(end), 0.034), x, BAND, { front: o.shirt });
+      if (o.stripes) for (const t of [0.22, 0.38]) arm.side(`sleeve ${tag} stripe ${t}`, bar(along(t - 0.04), along(t + 0.02), 0.036), x, BAND + 2 * LAYER + 0.001, { front: o.stripes });
+      if (o.cut === 'apron') arm.side(`roll ${tag}`, bar(along(end - 0.08), along(end + 0.02), 0.038), x, BAND + 0.006, { front: tone(o.shirt, 0.18) });
+    } else {
+      arm.side(`sleeve ${tag}`, bar(elbow, along(0.9), 0.034), x, CARD, { front: o.coat });
+      arm.side(`cuff ${tag}`, bar(along(0.74), along(0.9), 0.036), x, BAND, { front: o.cut === 'navy' ? o.coat : accent });
+      if (o.cut === 'navy') for (const t of [0.78, 0.84]) arm.side(`cuff ${tag} braid ${t}`, bar(along(t), along(t + 0.025), 0.037), x, BAND + 2 * LAYER + 0.001, { front: accent });
+    }
+    const hc = along(1);
+    arm.side(`hand ${tag}`, Array.from({ length: 7 }, (_, k) => [hc[0] + Math.cos((2 * Math.PI * k) / 7) * 0.018, hc[1] + Math.sin((2 * Math.PI * k) / 7) * 0.018] as Pt), x, 0.015, { front: hand });
+    if (extras.has('ladle') && side > 0) {
       // carried beside the hand, never across the arm
-      const lx = x + armHalf + SIDE + T / 2;
-      const ladle: Pt[] = [[0.0, y(-0.17)], [0.008, y(-0.17)], [0.046, y(-0.05)], [0.07, y(-0.05)], [0.066, y(-0.018)], [0.05, y(-0.008)], [0.034, y(-0.018)], [0.038, y(-0.046)]];
-      arm.profile('ladle', ladle, lx, '#a8a49a', (p) => {
-        p.paper();
-        p.layer(ellipse(0.052, y(-0.03), 0.012, 0.012), tone('#a8a49a', -0.2));
-      });
+      const [lz, ly] = hc;
+      const ladle: Pt[] = [[lz - 0.004, ly + 0.012], [lz + 0.004, ly + 0.012], [lz + 0.004, ly - 0.05], [lz + 0.018, ly - 0.06], [lz + 0.018, ly - 0.078], [lz, ly - 0.086], [lz - 0.018, ly - 0.078], [lz - 0.018, ly - 0.06], [lz - 0.004, ly - 0.05]];
+      arm.side('ladle', ladle, x + 0.0075 + CARD / 2 + 0.004, CARD, { front: '#a8a49a' });
     }
+    if (side < 0) parts.lantern = buildLantern(arm, armX, shoulder, s, pieces).group;
   }
 
-  // the lantern: a box of four dark frame cards round a glowing cross, a cap and a base, hung from the right hand
-  const lanY = shoulder - 0.186 * s - GAP;
-  const lanX = -(sx + 0.028);
-  const lantern = new Node('lantern', new THREE.Vector3(lanX, lanY, 0.006), cards, rightArm!);
-  parts.lantern = lantern.group;
-  {
-    const h = 0.024;
-    const inner = h - T / 2 - GAP;
-    const lx = lanX;
-    const lz = 0.006;
-    // the box's frame cards from top to bottom below the joint; the cap and base discs a gap clear of them
-    const top = lanY - 0.04;
-    const bottom = lanY - 0.1;
-    const capY = top + T / 2 + GAP / 2 + 0.002;
-    const framePts = (w: number): Pt[] => [[-w, bottom], [w, bottom], [w, top], [-w, top]];
-    const paintFrame = (cx: number, w: number) => (p: Print) => {
-      p.paper();
-      const win = rect(cx - w + 0.006, bottom + 0.008, cx + w - 0.006, top - 0.008);
-      p.ctx.save();
-      p.ctx.globalCompositeOperation = 'destination-out';
-      p.ctx.fill(win);
-      p.ctx.restore();
-      p.line(win, tone(FRAME, -0.4), 0.003);
-    };
-    lantern.front('lantern front', framePts(inner).map(([x, y]) => [x + lx, y] as Pt), lz + h, FRAME, paintFrame(lx, inner));
-    lantern.front('lantern back', framePts(inner).map(([x, y]) => [x + lx, y] as Pt), lz - h, FRAME, paintFrame(lx, inner));
-    for (const k of [1, -1]) {
-      lantern.profile(`lantern side ${k > 0 ? 'l' : 'r'}`, framePts(h + T / 2).map(([z, y]) => [z + lz, y] as Pt), lx + k * h, FRAME, paintFrame(lz, h + T / 2));
-    }
-    lantern.level('lantern cap', circle(lx, -lz, 0.03, 0.03, 8), capY, FRAME, (p) => p.paper());
-    lantern.level('lantern base', circle(lx, -lz, 0.03, 0.03, 8), bottom - T / 2 - GAP / 2 - 0.002, FRAME, (p) => p.paper());
-    // the bail it hangs by, from the cap up to the joint below the hand
-    const y0 = capY + T / 2 + GAP / 2;
-    const bail: Pt[] = [[lz - 0.016, y0], [lz - 0.01, y0], [lz - 0.006, lanY - 0.006], [lz + 0.006, lanY - 0.006], [lz + 0.01, y0], [lz + 0.016, y0], [lz + 0.01, lanY], [lz - 0.01, lanY]];
-    lantern.profile('lantern bail', bail, lx, FRAME, (p) => p.paper());
-    const glowA = new THREE.Mesh(new THREE.PlaneGeometry(0.03, top - bottom - 0.012), glowMaterial());
-    glowA.name = 'lantern glow';
-    glowA.position.set(lx - lanX, (top + bottom) / 2 - lanY, 0);
-    const glowB = glowA.clone();
-    glowB.rotation.y = Math.PI / 2;
-    lantern.group.add(glowA, glowB);
-  }
-
-  // ---- legs (on the hips, side by side): trousers and boot, and what of the coat hangs below the waist ----
-  const hx = Math.max(0.022 + T / 2 + SIDE, 0.032 * g);
-  const tailZ = -STEP;
-  const legZ = -2 * STEP;
+  // ---- the legs: profile cards on the hips (trousers, cuff, boot), and what of the coat hangs below the waist ----
+  const legX = Math.max(0.031 * g, 0.022);
+  const hem = (o.cut === 'coat' ? 0.085 : o.cut === 'navy' ? 0.1 : 0.08) * s;
+  const skirt = coated || o.cut === 'apron';
+  // (the tails' sides just outside the body's foot, so a side turned up as its leg swings back never meets it)
+  const tailW = o.cut === 'apron' ? 0.055 * g : wFoot + 0.008;
   for (const side of [1, -1]) {
     const name: PartName = side > 0 ? 'leg_l' : 'leg_r';
-    // (the hip joint in the tails' plane: a tail swings in its own plane, never up through the coat; the legs behind
-    // it dip as they swing forward)
-    const leg = new Node(name, new THREE.Vector3(side * hx, hip, tailZ), cards);
+    const tag = side > 0 ? 'l' : 'r';
+    const leg = new Node(name, new THREE.Vector3(side * legX, hip, 0), pieces);
     root.add(leg.group);
     parts[name] = leg.group;
-    const x = side * hx;
-    const boot = 0.074 * s;
-    const outline: Pt[] = [[x - 0.022, hip + 0.006], [x + 0.022, hip + 0.006], [x + 0.021, boot], [x + 0.026, boot], [x + 0.026, 0], [x - 0.026, 0], [x - 0.026, boot], [x - 0.021, boot]];
-    const tag = side > 0 ? 'l' : 'r';
-    leg.front(`leg ${tag}`, outline, legZ, o.trousers, (p) => {
-      p.paper();
-      p.line(polygonPath([[x, hip], [x, boot]], false), tone(o.trousers, -0.25), 0.0025);
-      p.layer(rect(x - 0.026, 0, x + 0.026, boot + 0.002), o.boots);
-      p.layer(rect(x - 0.025, boot - 0.004, x + 0.025, boot + 0.012), CUFF);
-    });
-    const zf = legZ - BEHIND;
-    const sideOutline: Pt[] = [[zf, hip], [zf - 0.024, hip], [zf - 0.024, boot + 0.01], [zf - 0.036, boot], [zf - 0.036, 0], [zf, 0]];
-    leg.profile(`leg ${tag} side`, sideOutline, x, tone(o.trousers, PROFILE_TONE), (p) => {
-      p.paper();
-      p.layer(rect(zf - 0.036, 0, zf, boot + 0.002), tone(o.boots, PROFILE_TONE));
-      p.layer(rect(zf - 0.035, boot - 0.004, zf, boot + 0.012), tone(CUFF, PROFILE_TONE));
-    });
+    buildLeg(leg, o, side * legX, hip, s, tag, extras.has('peg') && side < 0, skin);
     if (skirt) {
-      // the coat's tail (the robe's half, the apron's half) on this leg, a layer in front of it
-      const innerX = side * (T / 2 + SIDE + 0.002);
-      const outerX = side * (o.cut === 'apron' ? 0.058 * g : waist);
-      // (its top just above the joint: leaning back it comes forward less than a gap)
-      const tt = hip + 0.004;
-      const tail: Pt[] = side > 0 ? [[innerX, tt], [outerX, tt], [outerX, hem], [innerX, hem]] : [[outerX, tt], [innerX, tt], [innerX, hem], [outerX, hem]];
-      const colour = o.cut === 'apron' ? '#f4efe4' : o.coat;
-      leg.front(`tail ${tag}`, tail, tailZ, colour, (p) => {
-        p.paper();
-        const lo = Math.min(innerX, outerX);
-        const hi = Math.max(innerX, outerX);
-        if (o.cut === 'apron') {
-          p.ink(dots(lo + 0.008, hi - 0.008, hem + 0.012, 0.003, 4), tone(o.shirt, -0.1));
-          return;
-        }
-        if (o.cut === 'robe') p.layer(rect(side > 0 ? lo : hi - 0.016, hem, side > 0 ? lo + 0.016 : hi, tt), o.shirt);
-        p.layer(rect(lo, hem, hi, hem + 0.022), tone(o.coat, -0.18));
-        p.ink(chevrons(lo, hi, hem + 0.004, hem + 0.018, 3), accent);
-        if (o.cut === 'coat') p.layer(rect(side > 0 ? hi - 0.034 : lo + 0.008, hip - 0.04, side > 0 ? hi - 0.008 : lo + 0.034, hip - 0.03), tone(o.coat, -0.14));
-      });
-    }
-  }
-
-  // ---- head (on the neck): the face in front of the coat, its profile behind, the hair at the back ----
-  const head = new Node('head', new THREE.Vector3(0, neck, 0.004), cards, body);
-  parts.head = head.group;
-  // (a little more than a layer forward: a beard below the chin clears the coat when the head turns at the helm)
-  const faceZ = STEP + 0.01;
-  const brimY = neck + 0.15 * s;
-  const headTop = brimY - T / 2 - TOUCH;
-  const faceTop = headTop;
-  const full = o.beard === 'full';
-  const chin = full ? neck - 0.03 * s : neck;
-  const face: Pt[] = full
-    ? [[-0.05, neck], [-0.02, chin], [0.02, chin], [0.05, neck], [0.062, neck + 0.03 * s], [0.062, neck + 0.11 * s], [0.045, faceTop], [-0.045, faceTop], [-0.062, neck + 0.11 * s], [-0.062, neck + 0.03 * s]]
-    : [[-0.045, neck], [0.045, neck], [0.062, neck + 0.03 * s], [0.062, neck + 0.11 * s], [0.045, faceTop], [-0.045, faceTop], [-0.062, neck + 0.11 * s], [-0.062, neck + 0.03 * s]];
-  const bones = o.cut === 'bones';
-  head.front('face', face, faceZ, skin, (p) => {
-    p.paper();
-    const ey = neck + 0.075 * s;
-    if (bones) {
-      for (const x of [-0.024, 0.024]) p.ink(ellipse(x, ey, 0.013, 0.015), GAPS);
-      p.ink(polygonPath([[-0.007, neck + 0.04 * s], [0.007, neck + 0.04 * s], [0, neck + 0.056 * s]]), GAPS);
-      p.ink(rect(-0.03, neck + 0.016 * s, 0.03, neck + 0.027 * s), GAPS);
-      for (let k = -2; k <= 2; k++) p.ink(rect(k * 0.012 - 0.0015, neck + 0.016 * s, k * 0.012 + 0.0015, neck + 0.027 * s), o.skin);
-    } else {
-      p.layer(rect(-0.062, faceTop - 0.022 * s, 0.062, faceTop), o.hair);
-      for (const x of [-0.022, 0.022]) p.ink(ellipse(x, ey, 0.0065, 0.0085), INK);
-      for (const x of [-0.034, 0.034]) p.ink(ellipse(x, ey - 0.02 * s, 0.009, 0.006), mix(skin, '#d0684a', 0.35));
-      if (full) {
-        p.layer(polygonPath([[-0.062, neck + 0.062 * s], [-0.04, neck + 0.05 * s], [0.04, neck + 0.05 * s], [0.062, neck + 0.062 * s], [0.05, neck], [0.02, chin], [-0.02, chin], [-0.05, neck]]), o.hair);
-      } else if (o.beard === 'moustache') {
-        p.layer(polygonPath([[-0.034, neck + 0.036 * s], [0, neck + 0.046 * s], [0.034, neck + 0.036 * s], [0.03, neck + 0.028 * s], [0, neck + 0.036 * s], [-0.03, neck + 0.028 * s]]), o.hair);
-      } else {
-        p.line(polygonPath([[-0.01, neck + 0.03 * s], [0.01, neck + 0.03 * s]], false), tone(skin, -0.45), 0.003);
+      // the tail on this leg: its front in the hip joint's plane (so its top turns in place), its side outside the body
+      const colour = o.cut === 'apron' ? APRON : o.coat;
+      const inner = side * 0.01;
+      const outer = side * tailW;
+      const flare = side * 0.008;
+      const tTop = hip - 0.002;
+      const tail: Pt[] = side > 0 ? [[inner, hem], [outer + flare, hem], [outer, tTop], [inner, tTop]] : [[outer + flare, hem], [inner, hem], [inner, tTop], [outer, tTop]];
+      leg.front(`tail ${tag}`, tail, 0, CARD, { front: colour, back: tone(colour, -0.1) });
+      if (o.cut !== 'apron') {
+        leg.front(`tail hem ${tag}`, side > 0 ? box(inner, hem, outer + flare, hem + 0.016 * s) : box(outer + flare, hem, inner, hem + 0.016 * s), z1, LAYER, { front: accent });
+        leg.side(`tail side ${tag}`, [[backZ, hem], [0, hem], [0, tTop], [backZ * 0.9, tTop]], outer + flare * 0.5, CARD, { front: tone(colour, -0.06) });
       }
     }
-    printHatBand(p, o, s, faceTop, -0.062, 0.062);
-  }, bones ? tone(o.skin, BACK_TONE) : tone(o.hair, BACK_TONE));
-  const hzf = faceZ - BEHIND;
-  const hzb = hzf - 0.105;
-  const hy0 = torsoTop + GAP;
-  const headSide: Pt[] = [[hzf, hy0], [hzf - 0.05, hy0], [hzb + 0.02, hy0 + 0.02], [hzb, neck + 0.1 * s], [hzb + 0.025, headTop], [hzf - 0.01, headTop], [hzf, neck + 0.1 * s]];
-  head.profile('head side', headSide, 0, tone(skin, PROFILE_TONE), (p) => {
-    p.paper();
-    if (!bones) {
-      p.layer(polygonPath([[hzb, neck + 0.02 * s], [hzf - 0.05, neck + 0.04 * s], [hzf - 0.03, headTop], [hzb, headTop]]), tone(o.hair, PROFILE_TONE));
-      p.layer(ellipse(hzf - 0.055, neck + 0.07 * s, 0.009, 0.013), tone(skin, -0.05));
-      p.ink(ellipse(hzf - 0.008, neck + 0.075 * s, 0.004, 0.006), INK);
-      if (full) p.layer(polygonPath([[hzf, neck + 0.06 * s], [hzf - 0.045, neck + 0.05 * s], [hzf - 0.04, hy0], [hzf, hy0]]), tone(o.hair, PROFILE_TONE));
-    } else {
-      p.ink(ellipse(hzf - 0.014, neck + 0.075 * s, 0.009, 0.012), GAPS);
-    }
-    printHatBand(p, o, s, headTop, hzb, hzf);
-  });
-  buildHat(head, o, s, brimY, faceZ, hzb);
-
-  return { root, parts: parts as Record<PartName, THREE.Object3D>, cards };
-}
-
-/** The coat's front: shirt between open coat panels, buttons, belt and collar (or the robe, the apron, the ribs). */
-function printTorsoFront(p: Print, o: Outfit, s: number, g: number, accent: string): void {
-  const hip = 0.197 * s;
-  const top = 0.362 * s;
-  const waist = 0.084 * g;
-  p.paper();
-  if (o.cut === 'coat' || o.cut === 'jacket') {
-    for (const k of [1, -1]) {
-      const panel: Pt[] = [[k * 0.018 * g, hip], [k * waist, hip], [k * 0.074 * g, 0.33 * s], [k * 0.058 * g, top], [k * 0.03 * g, top], [k * 0.016 * g, 0.27 * s]];
-      p.layer(polygonPath(panel), o.coat);
-      p.layer(polygonPath([[k * 0.03 * g, top], [k * 0.016 * g, 0.27 * s], [k * 0.03 * g, 0.29 * s], [k * 0.045 * g, top]]), tone(o.coat, -0.15));
-      p.ink(dots(k * 0.028 * g, k * 0.028 * g, 0.25 * s, 0.0035, 1), accent);
-      p.ink(dots(k * 0.024 * g, k * 0.024 * g, 0.225 * s, 0.0035, 1), accent);
-    }
-    p.layer(polygonPath([[-0.022, top], [0.022, top], [0, 0.322 * s]]), tone(o.shirt, 0.12));
-  } else if (o.cut === 'robe') {
-    p.layer(rect(-0.014, hip, 0.014, top), o.shirt);
-    p.ink(chevrons(-0.014, 0.014, 0.3 * s, 0.32 * s, 1), accent);
-    p.layer(polygonPath([[-0.058 * g, top], [0.058 * g, top], [0.03 * g, top - 0.02], [-0.03 * g, top - 0.02]]), tone(o.coat, -0.18));
-    p.layer(rect(-waist, hip + 0.004, waist, hip + 0.02), accent);
-  } else if (o.cut === 'apron') {
-    p.layer(polygonPath([[-0.058 * g, hip], [0.058 * g, hip], [0.056 * g, 0.3 * s], [0.035 * g, 0.33 * s], [-0.035 * g, 0.33 * s], [-0.056 * g, 0.3 * s]]), '#f4efe4');
-    p.layer(rect(-0.02 * g, 0.24 * s, 0.02 * g, 0.27 * s), tone('#f4efe4', -0.08));
-    p.ink(dots(-0.04 * g, 0.04 * g, 0.315 * s, 0.003, 5), tone(o.shirt, -0.1));
-  } else {
-    for (let k = 0; k < 4; k++) p.ink(rect(-0.05 * g, 0.22 * s + k * 0.03 * s, 0.05 * g, 0.229 * s + k * 0.03 * s), GAPS);
-    p.ink(rect(-0.004, hip, 0.004, top), GAPS);
   }
-  if (o.extra === 'belt' || o.cut === 'coat' || o.cut === 'jacket') {
-    p.layer(rect(-waist, hip, waist, hip + 0.01), '#3a2418');
-    p.layer(rect(-0.012, hip, 0.012, hip + 0.012), '#c9973f');
-  }
-}
 
-/** A bandana's or a scarf's band round the top of the head, printed on the head's cards. */
-function printHatBand(p: Print, o: Outfit, s: number, top: number, x0: number, x1: number): void {
-  if (o.hat !== 'bandana' && o.hat !== 'scarf') return;
-  const lo = Math.min(x0, x1);
-  const hi = Math.max(x0, x1);
-  p.layer(rect(lo, top - 0.032 * s, hi, top), o.hatColour);
-  p.ink(dots(lo + 0.01, hi - 0.01, top - 0.016 * s, 0.003, Math.max(2, Math.round((hi - lo) / 0.022))), tone(o.hatColour, 0.4));
+  // ---- the head: the face and the profile slotted through it, the hair round them, the eyes, the hat ----
+  const head = new Node('head', new THREE.Vector3(0, neck, 0.004), pieces, body);
+  parts.head = head.group;
+  buildHead(head, o, s, skin);
+  return { root, parts: parts as Record<PartName, THREE.Object3D>, cards: pieces };
 }
 
 /**
- * The hat on its level disc at brimY (a brim, a band, a bandana's crown): its crown a T standing on the disc, centred
- * over the head, between the face's layer and the back of the head's profile.
+ * Where the arms hang: papertrails' shoulders, outside the body wherever the sleeve crosses its front (a coat's sleeve
+ * near the shoulders, wTop; a short sleeve, thicker with its stripes or its roll, swings across the chest, wChest).
  */
-function buildHat(head: Node, o: Outfit, s: number, brimY: number, faceZ: number, backZ: number): void {
-  const c = o.hatColour;
-  const cz = (faceZ + backZ) / 2;
-  const on = brimY + T / 2 + TOUCH;
-  const disc = (name: string, r: number, colour: string, paint?: (p: Print) => void) =>
-    head.level(name, circle(0, -cz, r, r, 20), brimY, colour, paint ?? ((p) => {
-      p.paper();
-      p.layer(ellipse(0, -cz, r * 0.55, r * 0.55), tone(colour, -0.12), { lip: 0.003, shadow: 0 });
-    }));
-  const crown = (w: number, h: number, depth: number, colour: string, band?: string) => {
-    const zf = cz + depth / 2;
-    const pts: Pt[] = [[-w, on], [w, on], [w * 0.92, on + h * 0.85], [w * 0.6, on + h], [-w * 0.6, on + h], [-w * 0.92, on + h * 0.85]];
-    head.front('hat', pts, zf, colour, (p) => {
-      p.paper();
-      if (band) p.layer(rect(-w, on, w, on + h * 0.25), band);
-    });
-    const pzf = zf - BEHIND;
-    const pzb = cz - depth / 2;
-    if (pzf - pzb > 0.012) {
-      const side: Pt[] = [[pzf, on], [pzb, on], [pzb + 0.004, on + h * 0.85], [pzb + 0.012, on + h - 0.004], [pzf - 0.006, on + h - 0.004], [pzf, on + h * 0.85]];
-      head.profile('hat side', side, 0, tone(colour, PROFILE_TONE), (p) => {
-        p.paper();
-        if (band) p.layer(rect(pzb, on, pzf, on + h * 0.25), tone(band, PROFILE_TONE));
-      });
+const armXFor = (g: number, body: number, sleeve: number) => Math.max(0.071 * g, body + sleeve / 2 + 0.006);
+
+/**
+ * A leg, papertrails' (z, y from the hip, its top just below the joint so it never rises into the body): trousers,
+ * their cuff and a boot; trousers to mid-shin (rolled up, or torn) over a bare shin and a shoe or a bone's foot; tall
+ * boots to the knee; a wooden peg.
+ */
+function buildLeg(leg: Node, o: Outfit, x: number, hip: number, s: number, tag: string, peg: boolean, skin: string): void {
+  const y = (v: number) => hip + v * s;
+  const short = o.shins !== undefined;
+  // (long trousers come down to the boot's cuff, or to the shoe)
+  const foot = short ? y(-0.112) : o.feet === 'shoes' ? 0.026 : y(-0.119);
+  const torn: Pt[] = o.shins === 'torn' ? [[-0.016, foot + 0.002], [-0.006, foot + 0.012], [0.004, foot], [0.012, foot + 0.01]] : [];
+  leg.side(`trousers ${tag}`, [[-0.026, foot], ...torn, [0.024, foot], [0.029, hip - 0.006], [-0.031, hip - 0.006]], x, CARD, { front: o.trousers });
+  if (o.shins === 'rolled') leg.side(`turn-up ${tag}`, box(-0.03, foot, 0.028, foot + 0.02 * s), x, BAND, { front: tone(o.trousers, 0.18) });
+  if (peg) {
+    leg.side(`peg ${tag}`, [[-0.006, 0], [0.006, 0], [0.014, foot + 0.004], [-0.014, foot + 0.004]], x, CARD, { front: WOOD });
+    leg.side(`peg band ${tag}`, box(-0.016, foot - 0.012, 0.016, foot - 0.004), x, BAND, { front: tone(WOOD, -0.3) });
+    return;
+  }
+  if (short) {
+    const bone = o.feet === 'bones';
+    leg.side(`shin ${tag}`, box(bone ? -0.006 : -0.014, 0.012, bone ? 0.006 : 0.012, foot + 0.004), x, bone ? 0.009 : CARD, { front: skin });
+  } else if (o.feet === undefined) {
+    leg.side(`cuff ${tag}`, [[-0.033, y(-0.116)], [0.031, y(-0.116)], [0.031, y(-0.094)], [-0.033, y(-0.094)]], x, BAND, { front: CUFF });
+  }
+  switch (o.feet) {
+    case 'shoes':
+      leg.side(`shoe ${tag}`, [[-0.026, 0], [0.056, 0], [0.058, 0.014], [0.03, 0.028], [-0.026, 0.028]], x, 0.015, { front: o.boots });
+      break;
+    case 'bones':
+      leg.side(`foot ${tag}`, [[-0.018, 0], [0.05, 0], [0.05, 0.01], [0.012, 0.02], [-0.018, 0.02]], x, 0.012, { front: o.boots });
+      break;
+    case 'tall':
+      leg.side(`boot ${tag}`, [[-0.029, 0], [0.064, 0], [0.068, y(-0.177)], [0.033, y(-0.151)], [0.03, y(-0.07)], [-0.03, y(-0.07)]], x, 0.015, { front: o.boots });
+      leg.side(`boot top ${tag}`, [[-0.034, y(-0.082)], [0.034, y(-0.082)], [0.036, y(-0.058)], [-0.036, y(-0.058)]], x, BAND + 0.002, { front: tone(o.boots, 0.12) });
+      break;
+    default:
+      leg.side(`boot ${tag}`, [[-0.029, 0], [0.064, 0], [0.068, y(-0.177)], [0.033, y(-0.151)], [0.027, y(-0.105)], [-0.029, y(-0.105)]], x, 0.015, { front: o.boots });
+  }
+}
+
+// ---- the head ----------------------------------------------------------------------------------------------------
+
+function buildHead(head: Node, o: Outfit, s: number, skin: string): void {
+  const neck = head.pivot.y;
+  const pz = head.pivot.z;
+  const bones = o.cut === 'bones';
+  const marks = new Set(o.face ?? []);
+  const k = 1 + (o.girth - 1) * 0.4;
+  // (z, y) from the head's joint; (x, y) from the neck
+  const zy = (pts: readonly Pt[]): Pt[] => pts.map(([z, y]) => [pz + z, neck + y * s] as Pt);
+  const xy = (pts: readonly Pt[]): Pt[] => pts.map(([x, y]) => [x * k, neck + y * s] as Pt);
+  const hair = bones ? o.skin : o.hair;
+  // the neck (from its joint up: the collar stands below it)
+  head.side('neck', zy([[-0.026, 0.001], [0.021, 0.001], [0.021, 0.032], [-0.026, 0.032]]), 0, 0.014, { front: tone(skin, -0.08) });
+  // the face: papertrails' ten-sided card, its back the hair
+  const faceZ = pz + 0.011;
+  const onFace = faceZ + 0.006 + INK;
+  const face = xy([[0.067, 0.08], [0.054, 0.12], [0.021, 0.145], [-0.021, 0.145], [-0.054, 0.12], [-0.067, 0.08], [-0.054, 0.039], [-0.021, 0.014], [0.021, 0.014], [0.054, 0.039]]);
+  head.front('face', face, faceZ, 0.012, { front: skin, back: hair });
+  // the profile slotted through it: its front edge the nose and the chin, the back of the head behind
+  const nose: Pt[] =
+    o.beard === 'full' || (marks.has('blush') && o.girth > 1.1)
+      ? [[0.069, 0.056], [0.084, 0.056], [0.096, 0.066], [0.09, 0.08], [0.074, 0.087]]
+      : o.cut === 'navy' || o.beard === 'goatee'
+        ? [[0.069, 0.06], [0.1, 0.062], [0.074, 0.09]]
+        : o.hairdo
+          ? [[0.069, 0.062], [0.084, 0.068], [0.072, 0.084]]
+          : [[0.069, 0.06], [0.091, 0.068], [0.074, 0.087]];
+  head.side('head side', zy(bones ? [[-0.064, 0.03], [0.019, 0.004], [0.06, 0.02], [0.07, 0.06], [0.066, 0.113], [0.031, 0.143], [-0.029, 0.149], [-0.07, 0.119], [-0.083, 0.077]] : [[-0.064, 0.03], [0.019, 0.013], [0.055, 0.03], ...nose, [0.064, 0.113], [0.031, 0.143], [-0.029, 0.149], [-0.07, 0.119], [-0.083, 0.077]]), 0, 0.014, { front: skin });
+  // the eyes: small cards on the face and on both sides of the profile
+  const eyeY = 0.077;
+  for (const side of [1, -1]) {
+    const tag = side > 0 ? 'l' : 'r';
+    if (bones) {
+      head.front(`socket ${tag}`, xy(box(side * 0.014, 0.07, side * 0.036, 0.098)), onFace, INK, { front: GAPS, edge: GAPS });
+      continue;
     }
-  };
+    head.front(`eye ${tag}`, xy(box(side * 0.019, eyeY, side * 0.033, eyeY + 0.017)), onFace, INK, { front: EYE, edge: EYE });
+    head.side(`eye side ${tag}`, zy(box(0.038, eyeY, 0.052, eyeY + 0.017)), side * (0.007 + INK), INK, { front: EYE, edge: EYE });
+    // lashes: a small flick off the eye's outer corner
+    if (marks.has('lips')) head.front(`lash ${tag}`, xy([[side * 0.029, eyeY + 0.017], [side * 0.034, eyeY + 0.012], [side * 0.039, eyeY + 0.019], [side * 0.036, eyeY + 0.021]]), onFace, INK, { front: EYE, edge: EYE });
+    if (marks.has('blush')) head.front(`cheek ${tag}`, xy(disc(0.011, 0.007, 6, side * 0.044, 0).map(([px, pzz]) => [px, -pzz + 0.05] as Pt)), onFace, INK, { front: mix(skin, '#e0705a', 0.45), edge: mix(skin, '#e0705a', 0.45) });
+    if (marks.has('hoops')) {
+      const hx = side * 0.064 * k;
+      head.front(`hoop ${tag}`, disc(0.008, 0.008, 8, hx, 0).map(([px, pzz]) => [px, -pzz + neck + 0.042 * s] as Pt), faceZ, 0.004, { front: GOLD, edge: GOLD }, [disc(0.0048, 0.0048, 8, hx, 0).map(([px, pzz]) => [px, -pzz + neck + 0.042 * s] as Pt)]);
+    }
+  }
+  if (marks.has('freckles')) for (const [fx, fy] of [[-0.03, 0.06], [-0.022, 0.054], [-0.038, 0.054], [0.03, 0.06], [0.022, 0.054], [0.038, 0.054]]) head.front(`freckle ${fx} ${fy}`, xy(box(fx - 0.002, fy - 0.002, fx + 0.002, fy + 0.002)), onFace, INK, { front: tone(skin, -0.35), edge: tone(skin, -0.35) });
+  if (bones) {
+    head.front('nose hole', xy([[-0.007, 0.05], [0.007, 0.05], [0, 0.066]]), onFace, INK, { front: GAPS, edge: GAPS });
+    head.front('teeth', xy(box(-0.03, 0.022, 0.03, 0.034)), onFace, INK, { front: GAPS, edge: GAPS });
+    for (let i = -2; i <= 2; i++) head.front(`tooth ${i}`, xy(box(i * 0.012 - 0.0045, 0.024, i * 0.012 + 0.0045, 0.032)), onFace + INK + 0.0002, INK, { front: o.skin, edge: o.skin });
+  } else {
+    buildHair(head, o, faceZ, zy, xy, hair);
+    buildWhiskers(head, o, faceZ, xy, zy, hair, skin, marks.has('lips'));
+  }
+  buildHat(head, o, s, neck + 0.16 * s, pz - 0.008);
+}
+
+/**
+ * The hair: a thick card round the profile and a card behind the face, wider than it, a fringe under the hat; a tail
+ * tied behind; a bob or a curly wig framing the face, cut longer, with a lock beside each cheek.
+ */
+function buildHair(head: Node, o: Outfit, faceZ: number, zy: (p: readonly Pt[]) => Pt[], xy: (p: readonly Pt[]) => Pt[], hair: string): void {
+  const pz = head.pivot.z;
+  const long = o.hairdo === 'bob' || o.hairdo === 'curls';
+  const curls = o.hairdo === 'curls';
+  // (a long cut ends just above the neck's joint, clear of the collar and the shoulders)
+  const low = curls ? 0.022 : 0.034;
+  const wavy = (x0: number, x1: number, y: number, n: number): Pt[] => Array.from({ length: n + 1 }, (_, i) => [x0 + ((x1 - x0) * i) / n, y + (curls && i % 2 ? 0.012 : 0)] as Pt);
+  head.side('hair side', zy(long
+    ? [[-0.05, 0.07], [-0.019, 0.101], [0.031, 0.121], [0.064, 0.113], [0.074, 0.139], [0.019, 0.17], [-0.04, 0.17], [-0.1, 0.139], [-0.122, 0.1], ...wavy(-0.12, -0.04, low, 6)]
+    : [[-0.091, 0.042], [-0.046, 0.056], [-0.019, 0.101], [0.031, 0.121], [0.064, 0.113], [0.074, 0.139], [0.019, 0.17], [-0.04, 0.17], [-0.091, 0.139], [-0.112, 0.113], [-0.095, 0.092], [-0.117, 0.068]]), 0, 0.025, { front: hair });
+  head.front('hair back', xy(long
+    ? [[-0.06, 0.13], [-0.09, 0.1], ...wavy(-0.092, 0.092, low, 10), [0.09, 0.1], [0.06, 0.13], [0.036, 0.16], [-0.036, 0.16]]
+    : [[-0.06, 0.124], [-0.083, 0.096], [-0.066, 0.065], [-0.058, 0.033], [-0.025, 0.024], [0.005, 0.011], [0.032, 0.028], [0.068, 0.044], [0.071, 0.081], [0.081, 0.109], [0.055, 0.129], [0.036, 0.16], [-0.002, 0.155], [-0.042, 0.157]]), pz - 0.033, 0.014, { front: tone(hair, -0.08), back: hair });
+  head.front('fringe', xy([[-0.062, 0.112], [0.062, 0.112], [0.05, 0.13], [0.021, 0.147], [-0.021, 0.147], [-0.05, 0.13]]), faceZ + 0.006 + LAYER / 2 + 0.0005, LAYER, { front: hair });
+  if (long) {
+    // a lock beside each cheek, between the face and the hair behind
+    for (const side of [1, -1]) {
+      const lock = xy([[0.056, 0.13], [0.082, 0.12], [0.094, 0.08], ...wavy(0.092, 0.06, low + 0.004, 3), [0.06, 0.06]]);
+      head.front(`lock ${side > 0 ? 'l' : 'r'}`, side > 0 ? lock : mirrorX(lock), faceZ - 0.006 - 0.0005 - CARD / 2, CARD, { front: tone(hair, 0.06), back: hair });
+    }
+  }
+  if (o.hairdo === 'ponytail') {
+    head.side('ponytail', zy([[-0.1, 0.075], [-0.118, 0.094], [-0.136, 0.062], [-0.142, -0.02], [-0.128, -0.075], [-0.116, -0.036], [-0.11, 0.024]]), 0, 0.02, { front: hair });
+    head.side('ponytail tie', zy(box(-0.13, 0.052, -0.106, 0.064)), 0, 0.03, { front: LEATHER });
+  }
+}
+
+/** A beard (a card over the jaw and its profile over the chin, the mouth and the moustache on it), a moustache, a goatee. */
+function buildWhiskers(head: Node, o: Outfit, faceZ: number, xy: (p: readonly Pt[]) => Pt[], zy: (p: readonly Pt[]) => Pt[], hair: string, skin: string, red: boolean): void {
+  const on = faceZ + 0.006 + LAYER / 2 + 0.0005;
+  const onFace = faceZ + 0.006 + INK;
+  const mouthColour = red ? '#b8443a' : tone(skin, -0.45);
+  const moustache = xy([[-0.004, 0.058], [-0.03, 0.052], [-0.046, 0.04], [-0.036, 0.036], [-0.014, 0.044], [0, 0.046], [0.014, 0.044], [0.036, 0.036], [0.046, 0.04], [0.03, 0.052], [0.004, 0.058]]);
+  switch (o.beard) {
+    case 'full':
+      // (down to the neck's joint, no further: the collar and the chest are below it)
+      head.front('beard', xy([[-0.066, 0.078], [-0.04, 0.05], [0.04, 0.05], [0.066, 0.078], [0.058, 0.03], [0.03, 0.006], [0, 0.001], [-0.03, 0.006], [-0.058, 0.03]]), on, LAYER, { front: hair });
+      head.side('beard side', zy([[-0.04, 0.072], [-0.004, 0.044], [0.05, 0.05], [0.072, 0.05], [0.07, 0.03], [0.05, 0.006], [0.02, 0.001], [-0.02, 0.006], [-0.05, 0.04]]), 0, 0.02, { front: hair });
+      head.front('mouth', xy([[-0.012, 0.03], [0.012, 0.03], [0.008, 0.022], [-0.008, 0.022]]), on + LAYER / 2 + INK / 2 + 0.0003, INK, { front: '#5a2a1e', edge: '#5a2a1e' });
+      head.front('moustache', moustache, on + LAYER + 0.0005, LAYER, { front: tone(hair, 0.12) });
+      return;
+    case 'moustache':
+      head.front('moustache', moustache, on, LAYER, { front: hair });
+      head.front('mouth', xy([[-0.01, 0.031], [0.01, 0.031], [0.006, 0.025], [-0.006, 0.025]]), onFace, INK, { front: mouthColour, edge: mouthColour });
+      return;
+    case 'goatee':
+      // (a thin moustache, its ends turned up)
+      head.front('moustache', xy([[-0.004, 0.054], [-0.026, 0.05], [-0.042, 0.058], [-0.036, 0.05], [-0.014, 0.045], [0, 0.046], [0.014, 0.045], [0.036, 0.05], [0.042, 0.058], [0.026, 0.05], [0.004, 0.054]]), on, LAYER, { front: hair });
+      head.front('mouth', xy([[-0.01, 0.034], [0.01, 0.034], [0.006, 0.029], [-0.006, 0.029]]), onFace, INK, { front: mouthColour, edge: mouthColour });
+      head.front('goatee', xy([[-0.009, 0.026], [0.009, 0.026], [0.006, 0.01], [0, 0.002], [-0.006, 0.01]]), on, LAYER, { front: hair });
+      return;
+    default:
+      head.front('mouth', xy([[-0.012, 0.034], [0.012, 0.034], [0.007, 0.027], [-0.007, 0.027]]), onFace, INK, { front: mouthColour, edge: mouthColour });
+  }
+}
+
+// ---- the hat -----------------------------------------------------------------------------------------------------
+
+/**
+ * The hat on its brim at height brim: level discs stacked from the brim up (papertrails' straw hat: a brim, a band,
+ * two tiers of crown), tilted a little back; a tricorn's brim a rounded triangle with three flaps turned up on it.
+ */
+function buildHat(head: Node, o: Outfit, s: number, brim: number, cz: number): void {
+  const c = o.hatColour;
+  const shade = tone(c, -0.18);
+  const tilt = new THREE.Matrix4().makeTranslation(0, brim, cz).multiply(new THREE.Matrix4().makeRotationX(-0.1)).multiply(new THREE.Matrix4().makeTranslation(0, -brim, -cz));
+  // a tier: a disc of n corners, its bottom at y, t thick
+  const tier = (name: string, rx: number, rz: number, n: number, y: number, t: number, colour: string, edge = tone(colour, -0.15)) =>
+    head.level(name, disc(rx, rz, n, 0, cz), y + t / 2, t, { front: colour, back: tone(colour, -0.2), edge }, tilt);
   switch (o.hat) {
     case 'wide':
-      disc('brim', 0.15, c);
-      crown(0.07, 0.06 * s, 0.13, c, '#b4442e');
-      head.profile('feather', [[cz - 0.02, on + 0.02], [cz - 0.004, on + 0.03], [cz - 0.06, on + 0.12], [cz - 0.072, on + 0.11]], 0.05, '#efe0c2', (p) => {
-        p.paper();
-        p.line(polygonPath([[cz - 0.012, on + 0.025], [cz - 0.066, on + 0.115]], false), tone('#efe0c2', -0.3), 0.002);
-      });
+      tier('hat brim', 0.157, 0.168, 16, brim - 0.006, 0.012, c, CREAM);
+      tier('hat band', 0.088, 0.092, 12, brim + 0.002, 0.02 * s, '#bb6140');
+      tier('hat crown', 0.079, 0.083, 12, brim + 0.016 * s, 0.026 * s, c, shade);
+      tier('hat top', 0.06, 0.06, 10, brim + 0.04 * s, 0.022 * s, tone(c, 0.12), shade);
+      if (o.feather) plume(head, o.feather, 0.1, brim + 0.012, cz, s, 1, tilt);
       break;
     case 'tricorn': {
-      const lobes: Pt[] = [];
-      for (let k = 0; k < 3; k++) {
-        const a = Math.PI / 2 + (k * 2 * Math.PI) / 3;
-        for (const d of [-0.5, 0, 0.5]) {
-          const r = d === 0 ? 0.14 : 0.09;
-          // (x, -z): the lobe at a = pi/2 points forward (+z)
-          lobes.push([Math.cos(a + d) * r, -cz - Math.sin(a + d) * r]);
-        }
+      // the brim seen from above: a triangle, its point forward, its corners rounded; gold along its cut edge
+      const tri: Pt[] = [];
+      const corners: Pt[] = [[0, cz + 0.17], [0.15, cz - 0.1], [-0.15, cz - 0.1]];
+      for (let i = 0; i < 3; i++) {
+        const [ax, az] = corners[i];
+        const [bx, bz] = corners[(i + 1) % 3];
+        for (const t of [0.1, 0.5, 0.9]) tri.push([ax + (bx - ax) * t, -(az + (bz - az) * t)]);
       }
-      head.level('brim', lobes, brimY, c, (p) => {
-        p.paper();
-        p.line(polygonPath(lobes), '#c9973f', 0.008);
-      });
-      crown(0.062, 0.05 * s, 0.11, c, '#c9973f');
+      head.level('hat brim', tri, brim, 0.012, { front: c, back: shade, edge: GOLD }, tilt);
+      tier('hat crown', 0.072, 0.07, 10, brim + 0.006, 0.03 * s, c, shade);
+      tier('hat top', 0.056, 0.054, 10, brim + 0.006 + 0.028 * s, 0.02 * s, tone(c, 0.1), shade);
+      // the flaps turned up along the brim's sides, leaning out
+      for (let i = 0; i < 3; i++) {
+        const a = new THREE.Vector3(corners[i][0], 0, corners[i][1]);
+        const b = new THREE.Vector3(corners[(i + 1) % 3][0], 0, corners[(i + 1) % 3][1]);
+        const ex = b.clone().sub(a).normalize();
+        const out = new THREE.Vector3(0, 1, 0).cross(ex).negate();
+        const ey = new THREE.Vector3(0, Math.cos(0.35), 0).addScaledVector(out, Math.sin(0.35));
+        const ez = ex.clone().cross(ey);
+        const len = a.distanceTo(b);
+        const h = 0.045 * s;
+        const flap: Pt[] = [[len * 0.12, 0], [len * 0.88, 0], [len * 0.84, h * 0.6], [len * 0.65, h], [len * 0.35, h], [len * 0.16, h * 0.6]];
+        const at = new THREE.Matrix4().makeBasis(ex, ey, ez).setPosition(a.x + out.x * 0.008, brim + 0.006, a.z + out.z * 0.008);
+        head.piece(`hat flap ${i}`, flap, CARD, { front: c, back: shade, edge: GOLD }, tilt.clone().multiply(at));
+      }
+      // (a plume rises inside the flaps, beside the crown)
+      if (o.feather) plume(head, o.feather, -0.086, brim + 0.016, cz - 0.01, s, 0.75, tilt);
       break;
     }
-    case 'round':
-      disc('brim', 0.09, c);
-      crown(0.066, 0.035 * s, 0.11, c);
-      break;
-    case 'chef':
-      disc('band', 0.07, c);
-      crown(0.08, 0.1 * s, 0.11, c, tone(c, -0.06));
-      break;
     case 'bicorne': {
-      disc('band', 0.072, c);
-      const y = on;
-      const pts: Pt[] = [[-0.15, y], [-0.1, y + 0.045], [-0.04, y + 0.075], [0.04, y + 0.075], [0.1, y + 0.045], [0.15, y], [0.08, y + 0.012], [-0.08, y + 0.012]];
-      head.front('hat', pts, cz + 0.01, c, (p) => {
-        p.paper();
-        p.line(polygonPath(pts), '#c9973f', 0.006);
-        p.layer(ellipse(0.06, y + 0.035, 0.01, 0.012), '#c9973f');
-      });
-      head.profile('hat side', [[cz + 0.01 - BEHIND, y], [cz - 0.05, y], [cz - 0.03, y + 0.05], [cz + 0.01 - BEHIND, y + 0.06]], 0, tone(c, PROFILE_TONE), (p) => p.paper());
+      tier('hat band', 0.074, 0.076, 12, brim - 0.006, 0.014, tone(c, -0.1));
+      // a half moon from the front, slotted through a profile card of its own
+      const moon: Pt[] = [];
+      for (let i = 0; i <= 10; i++) {
+        const a = Math.PI * (i / 10);
+        moon.push([Math.cos(a) * 0.15, brim + 0.008 + Math.sin(a) * 0.075 * s]);
+      }
+      head.piece('hat', moon, 0.016, { front: c, back: shade, edge: GOLD }, tilt.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0, cz)));
+      head.piece('hat side', [[cz - 0.05, brim + 0.008], [cz + 0.05, brim + 0.008], [cz + 0.02, brim + 0.07 * s], [cz - 0.02, brim + 0.07 * s]], 0.014, { front: tone(c, -0.08), edge: GOLD }, tilt.clone().multiply(new THREE.Matrix4().makeRotationY(-Math.PI / 2)));
+      head.piece('cockade', disc(0.014, 0.014, 8).map(([x, y]) => [x - 0.07, -y + brim + 0.045 * s] as Pt), LAYER, { front: GOLD }, tilt.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0, cz + 0.008 + LAYER / 2 + 0.0005)));
       break;
     }
-    case 'bandana':
-    case 'scarf':
-      disc('bandana', 0.075, c, (p) => {
-        p.paper();
-        p.ink(dots(-0.04, 0.04, -cz, 0.004, 4), tone(c, 0.4));
-      });
-      head.front('knot', [[0.01, brimY - 0.03 * s], [0.03, brimY - 0.02 * s], [0.07, brimY - 0.09 * s], [0.055, brimY - 0.1 * s]], backZ - BEHIND, tone(c, -0.05), (p) => p.paper());
+    case 'bandana': {
+      // a cloth cap over the head and its band round the brow, slotted in a cross; the knot and its tails behind
+      tier('bandana', 0.074, 0.084, 12, brim - 0.016, 0.022, c);
+      const y0 = brim - 0.04 * s;
+      const y1 = brim - 0.008;
+      const bandZ = head.pivot.z + 0.011;
+      head.front('bandana band', box(-0.072, y0, 0.072, y1), bandZ, BAND, { front: c, back: tone(c, -0.08) });
+      head.side('bandana band side', box(cz - 0.112, y0, cz + 0.082, y1), 0, BAND + 0.012, { front: c });
+      if (o.dots) {
+        for (const [dx, dy] of [[-0.05, 0.012], [-0.024, 0.022], [0, 0.01], [0.024, 0.022], [0.05, 0.012]]) {
+          head.front(`dot ${dx}`, disc(0.0045, 0.0045, 6).map(([x, y]) => [x + dx, -y + y0 + dy * s] as Pt), bandZ + BAND / 2 + INK, INK, { front: o.dots, edge: o.dots });
+        }
+        for (const [dx, dz] of [[-0.04, 0.02], [0.02, 0.04], [0.03, -0.03], [-0.02, -0.04]]) head.level(`dot top ${dx}`, disc(0.006, 0.006, 6, dx, cz + dz), brim + 0.006 + INK, INK, { front: o.dots, edge: o.dots }, tilt);
+      }
+      head.front('knot', disc(0.016, 0.014, 6).map(([x, y]) => [x - 0.03, -y + y0 + 0.012] as Pt), cz - 0.122, BAND, { front: tone(c, -0.08) });
+      head.front('knot tail', [[-0.04, y0 + 0.006], [-0.026, y0 + 0.004], [-0.06, y0 - 0.07 * s], [-0.074, y0 - 0.064 * s]], cz - 0.122 - BAND / 2 - CARD / 2 - 0.002, CARD, { front: c });
+      break;
+    }
+    case 'cap':
+      // a cook's low cap: a band in his shirt's colour, a puffed crown
+      tier('cap band', 0.076, 0.08, 12, brim - 0.014, 0.018 * s, o.coat);
+      tier('cap', 0.084, 0.088, 12, brim + 0.004, 0.022 * s, c, tone(c, -0.1));
+      tier('cap top', 0.07, 0.072, 12, brim + 0.026 * s, 0.012 * s, tone(c, 0.04), tone(c, -0.1));
       break;
   }
+}
+
+/** A plume rising from a hat's side and sweeping back: a profile card cut with barbs, its quill on it. */
+function plume(head: Node, colour: string, x: number, y0: number, cz: number, s: number, size: number, tilt: THREE.Matrix4): void {
+  const spine = (t: number): Pt => [cz + 0.01 - 0.1 * size * t * t, y0 + 0.13 * size * s * Math.sin((t * Math.PI) / 2)];
+  const up: Pt[] = [];
+  const down: Pt[] = [];
+  for (let i = 0; i <= 8; i++) {
+    const t = i / 8;
+    const [z, y] = spine(t);
+    const w = 0.018 * size * Math.sin(Math.PI * Math.min(1, t * 1.15)) + 0.002;
+    up.push([z + w * 0.6, y + w * (i % 2 ? 1.25 : 1)]);
+    down.push([z - w * 0.6, y - w * (i % 2 ? 1.25 : 1)]);
+  }
+  // (a profile card turned a little out from the side, so it never stands edge-on to the front)
+  const at = tilt.clone().multiply(new THREE.Matrix4().makeTranslation(x, 0, cz)).multiply(new THREE.Matrix4().makeRotationY(-Math.PI / 2 - Math.sign(x) * 0.6)).multiply(new THREE.Matrix4().makeTranslation(-cz, 0, 0));
+  head.piece('plume', [...up, ...down.reverse()], CARD, { front: colour, back: tone(colour, -0.08) }, at);
+  const quill = Array.from({ length: 7 }, (_, i) => spine(i / 6));
+  head.piece('plume quill', [...quill.map(([z, y]) => [z + 0.0015, y] as Pt), ...quill.reverse().map(([z, y]) => [z - 0.0015, y] as Pt)], CARD + 2 * INK + 0.001, { front: tone(colour, -0.3) }, at);
+}
+
+// ---- what is carried and worn on the shoulders ----------------------------------------------------------------
+
+/** papertrails' lantern: two window frames slotted in a cross round a glowing cross, a cap, a hook and a base. */
+function buildLantern(right: Node, armX: number, shoulder: number, s: number, pieces: THREE.Mesh[]): Node {
+  // (hung on the hand's outer side, so it swings clear of the legs)
+  const x = -(armX + 0.012);
+  // (its joint just below the hand: the hook hangs from it, clear of the hand as it swings)
+  const lan = new Node('lantern', new THREE.Vector3(x, shoulder - 0.117 * s, 0.11), pieces, right);
+  const { y: y0, z: z0 } = lan.pivot;
+  const frame = { front: FRAME };
+  const window = (u: number): Pt[] => box(u - 0.024, y0 - 0.095, u + 0.024, y0 - 0.032);
+  const pane = (u: number): Pt[] => box(u - 0.016, y0 - 0.087, u + 0.016, y0 - 0.04);
+  lan.front('lantern frame', window(x), z0, 0.009, frame, [pane(x)]);
+  lan.side('lantern frame side', window(z0), x, 0.009, frame, [pane(z0)]);
+  lan.front('lantern cap', [[x - 0.03, y0 - 0.032], [x + 0.03, y0 - 0.032], [x, y0 - 0.014]], z0, 0.013, frame);
+  lan.side('lantern cap side', [[z0 - 0.03, y0 - 0.032], [z0 + 0.03, y0 - 0.032], [z0, y0 - 0.014]], x, 0.013, frame);
+  lan.side('lantern hook', box(z0 - 0.004, y0 - 0.03, z0 + 0.004, y0 - 0.001), x, 0.005, frame);
+  lan.level('lantern base', box(x - 0.026, -z0 - 0.026, x + 0.026, -z0 + 0.026), y0 - 0.0975, 0.005, frame);
+  const glowA = new THREE.Mesh(new THREE.PlaneGeometry(0.037, 0.048), glowMaterial());
+  glowA.name = 'lantern glow';
+  glowA.position.set(0, -0.063, 0);
+  const glowB = glowA.clone();
+  glowB.rotation.y = Math.PI / 2;
+  lan.group.add(glowA, glowB);
+  return lan;
 }
 
 let glow: THREE.Material | null = null;
 /** The lantern's warm pane. */
 function glowMaterial(): THREE.Material {
   return (glow ??= new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffc35a').multiplyScalar(3), side: THREE.DoubleSide }));
+}
+
+/** Gold epaulettes: a level disc over each shoulder (clear above the arm), its fringe hanging outside the arm. */
+function buildEpaulettes(body: Node, shoulder: number, armX: number, gold: string): void {
+  for (const side of [1, -1]) {
+    const tag = side > 0 ? 'l' : 'r';
+    // (over the arm's outer half, clear of the head as it turns and of the arm's top as it reaches)
+    body.level(`epaulette ${tag}`, disc(0.02, 0.022, 8, side * (armX + 0.01), 0), shoulder + 0.044, 0.008, { front: gold, back: tone(gold, -0.25) });
+    body.side(`epaulette fringe ${tag}`, box(-0.02, shoulder + 0.018, 0.02, shoulder + 0.04), side * (armX + CARD / 2 + 0.012), CARD, { front: tone(gold, -0.1) });
+  }
+}
+
+/** The parrot over the right shoulder: a profile body slotted through a frontal head, a wing, a beak, its tail. */
+function buildParrot(body: Node, shoulder: number, armX: number): void {
+  // (beyond the arm's plane, clear of the head as it turns)
+  const x = -(armX + 0.02);
+  const y = shoulder + 0.034;
+  const green = '#5e9a4a';
+  body.side('parrot', [[-0.016, y], [0.016, y], [0.022, y + 0.04], [0.016, y + 0.072], [-0.004, y + 0.082], [-0.016, y + 0.062], [-0.044, y - 0.03], [-0.034, y - 0.036]], x, CARD, { front: green });
+  body.side('parrot wing', [[-0.012, y + 0.012], [0.008, y + 0.046], [-0.006, y + 0.05], [-0.036, y - 0.02]], x, BAND, { front: tone(green, -0.18) });
+  body.side('parrot tail', [[-0.03, y - 0.018], [-0.022, y - 0.024], [-0.05, y - 0.05], [-0.058, y - 0.044]], x, BAND, { front: '#b4442e' });
+  body.side('parrot beak', [[0.012, y + 0.07], [0.03, y + 0.062], [0.014, y + 0.052]], x, 0.014, { front: '#d9a441' });
+  body.front('parrot face', box(x - 0.01, y + 0.054, x + 0.01, y + 0.078), 0.008, CARD, { front: tone(green, 0.12) });
+  for (const side of [1, -1]) body.side(`parrot eye ${side > 0 ? 'l' : 'r'}`, box(0.002, y + 0.064, 0.01, y + 0.072), x + side * (CARD / 2 + INK), INK, { front: EYE, edge: EYE });
 }

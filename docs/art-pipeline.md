@@ -80,15 +80,18 @@ for the openings of a balustrade (rows of like openings, so a painted eye or str
 
 ## The captains
 
-The captains are small paper models built in the game from their outfits (`src/player/crew-model.ts`), the papercraft
-skill's characters from cards (`references/mechanisms.md` section 12): every card a slab printed as a layered paper
-collage (`src/art/painters/paper-print.ts`: a lit top and darker foot, layers with a pale lip and a short shadow, the
-dark cut line with a pale highlight on its lit side), its back printed plain and its side the print's tone darkened.
-Every part is a T: a frontal card with a profile card wholly behind it, a step darker (the coat, the face with the hair
-on its back, the arms, the legs, the hat's crown on a level disc). Overlapping cards sit in their own layers, the arms
-hang beside the body, and what hangs below the waist (a long coat's tails, a robe, an apron) is cut in two and hung on
-the legs, so no card cuts into another: `node tools/qa/crew-clips.mjs` poses every captain standing, walking, turning
-and at the helm and lists any pair that does. `src/player/puppet.ts` walks with papertrails' gait (legs and arms on the
+The captains are small paper models built in the game from their outfits (`src/player/crew-model.ts`, each after its
+picture in the shipyard), the way papertrails builds its traveller (`public/models/traveller.glb` there, read piece by
+piece): every piece a die-cut slab in one flat colour with a pale cream cut edge, layered and slotted through each
+other. The face is a frontal card with the head's profile card slotted through its middle (the profile's front edge is
+the nose and the chin), a thicker hair card round the profile and a hair card behind the face, small eye cards on the
+face and on both sides of the profile; the body is a frontal and a profile card in a cross with what is worn layered on
+it (a waistcoat, braid, buttons, a belt in a cross of its own, a jabot, a scarf); the arms and the legs are profile cards
+only (a sleeve bent forward, a thicker cuff, a hand; trousers, a thicker cuff, a boot with its toe); a hat is level discs
+stacked from the brim up, tilted a little back. Pieces on one joint are slotted together on purpose; pieces on joints
+that move against each other never cut into each other: the arms hang beside the body, what hangs below the waist (a
+coat's tails, an apron) is cut in two and hung on the legs, and `node tools/qa/crew-clips.mjs` poses every captain
+standing, walking, turning and at the helm and lists any pair that does. `src/player/puppet.ts` walks with papertrails' gait (legs and arms on the
 step's phase, the torso and the head lagging it, the lean and roll springs, the lantern a lagging pendulum) and steers.
 
 ## Mountains
