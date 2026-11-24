@@ -24,6 +24,8 @@ import { Critters, type Habitat } from './critters';
 import { tintMaterial } from '../render/biome-tint';
 import { BIOMES, type Biome } from './land';
 import { clamp } from '../core/math';
+import { cellKey } from '../core/grid';
+import { overlaps, type Box } from './polyline';
 
 /** papertrails' in-tile stagger span: the cards of a cell start one after another over this many seconds. */
 const STAGGER = 0.34;
@@ -78,6 +80,8 @@ export interface Card extends CardSpec {
   wind: Sway;
   sway: number;
   swayLevel: number;
+  /** The page it covers lying folded flat (see flatBounds). */
+  flatBox: Box;
 }
 
 interface Batch {
@@ -85,6 +89,31 @@ interface Batch {
   cards: Card[];
   dirty: boolean;
 }
+
+/**
+ * The bounds of the page a card covers lying folded flat: it folds back (away from the camera) about its hinge, so it
+ * lies from its foot back by its height, as wide as it is drawn (a crossed card lies as its first plane).
+ */
+function flatBounds(s: CardSpec): Box {
+  const info = spriteInfo(s.sprite);
+  const half = (s.height * info.w) / info.h / 2;
+  const yaw = s.cross ? s.yaw + CROSS_PLANES[0] : s.yaw;
+  const ax = Math.cos(yaw) * half;
+  const az = -Math.sin(yaw) * half;
+  const bx = -Math.sin(yaw) * s.height;
+  const bz = -Math.cos(yaw) * s.height;
+  const xs = [s.x - ax, s.x + ax, s.x - ax + bx, s.x + ax + bx];
+  const zs = [s.z - az, s.z + az, s.z - az + bz, s.z + az + bz];
+  return [Math.min(...xs), Math.min(...zs), Math.max(...xs), Math.max(...zs)];
+}
+
+/** Side of the squares the folded cards are filed under (world units), to find the ones a card lies over. */
+const FLAT_CELL = 1;
+/**
+ * The height step between overlapping folded cards: the 24-bit depth buffer tells apart planes this far apart up to ~90
+ * units from the camera (its step there is about z^2 / (near * 2^24)).
+ */
+const FLAT_STEP = 0.001;
 
 const _m = new THREE.Matrix4();
 const _q = new THREE.Quaternion();
@@ -100,6 +129,8 @@ export class CardField {
   private readonly stepper = new FixedStepper();
   private nextId = 1;
   private time = 0;
+  /** Every card filed under each FLAT_CELL square its folded bounds reach. */
+  private readonly flats = new Map<number, Card[]>();
   private readonly critters: Critters;
   /** This frame's step and focus, for the animals. */
   private dt = 0;
@@ -134,6 +165,7 @@ export class CardField {
         wind: swayOf(s.sprite, s.height, (s.height * spriteInfo(s.sprite).w) / spriteInfo(s.sprite).h, s.x, s.z),
         sway: 0,
         swayLevel: 0,
+        flatBox: flatBounds(s),
       };
       const key = `${i},${j}`;
       let cell = cells.get(key);
@@ -150,11 +182,38 @@ export class CardField {
       cell.sort((a, b) => b.z - a.z || a.phase - b.phase);
       cell.forEach((c, k) => (c.order = cell.length > 1 ? k / (cell.length - 1) : 0));
     }
+    for (const c of out) this.layFlat(c);
     return out;
+  }
+
+  /**
+   * Keeps a new card off the plane of every card it overlaps lying folded flat: two faces in one plane flicker, the
+   * depth test picking either one frame by frame. It goes up from its own height in FLAT_STEP layers until it is at
+   * least that far from each of them (the lowest such height, so the flat stacks stay a few hundredths thin).
+   */
+  private layFlat(c: Card): void {
+    const [x0, z0, x1, z1] = c.flatBox;
+    const over = new Set<Card>();
+    for (let j = Math.floor(z0 / FLAT_CELL); j <= Math.floor(z1 / FLAT_CELL); j++) {
+      for (let i = Math.floor(x0 / FLAT_CELL); i <= Math.floor(x1 / FLAT_CELL); i++) {
+        const key = cellKey(i, j);
+        const list = this.flats.get(key);
+        for (const o of list ?? []) if (overlaps(o.flatBox, c.flatBox)) over.add(o);
+        if (list) list.push(c);
+        else this.flats.set(key, [c]);
+      }
+    }
+    const heights = [...over].map((o) => o.y);
+    while (heights.some((y) => Math.abs(y - c.y) < FLAT_STEP * 0.9)) c.y += FLAT_STEP;
   }
 
   remove(cards: Card[]): void {
     const dead = new Set(cards);
+    for (const [key, list] of this.flats) {
+      const kept = list.filter((c) => !dead.has(c));
+      if (kept.length) this.flats.set(key, kept);
+      else this.flats.delete(key);
+    }
     for (const b of this.batches.values()) {
       const before = b.cards.length;
       b.cards = b.cards.filter((c) => !dead.has(c));
