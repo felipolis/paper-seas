@@ -29,7 +29,9 @@ HullSpec), so the game's decks, masts and rigging stand exactly on this hull. Th
 
 Materials are named for the game (src/ship/ship-mesh.ts): tiling printed wood (lower, wale, upper, inner, deck) has
 its UVs in world units; printed details (gallery, windows, cabin-door, gunport, scroll, crest, grating, her figurehead,
-eye) span 0..1, cut to their texture's aspect; the rest is plain coloured paper (rail, dark, wood, gold, iron, rope, weed).
+eye) span 0..1, cut to their texture's aspect and to its drawing (assets-src/models/ship-details.json, traced by
+tools/ship/trace-details.mjs), a glued-on layer thick; the rest is plain coloured paper (rail, dark, wood, gold, iron,
+rope, weed).
 Game frame: y up, forward -z, starboard +x (converted to Blender's z-up on creation).
 """
 import json
@@ -39,10 +41,12 @@ import random
 
 import bpy
 from mathutils import Matrix, Vector
+from mathutils.geometry import tessellate_polygon
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 SHIP_ID = os.environ.get("SHIP_ID", "galleon")
 S = json.load(open(os.path.join(ROOT, "assets-src", "models", f"ship-shape-{SHIP_ID}.json")))
+OUTLINES = json.load(open(os.path.join(ROOT, "assets-src", "models", "ship-details.json")))
 OUT = os.path.join(ROOT, "public", "models", f"ship-{SHIP_ID}.glb")
 SPEC = S["spec"]
 L = S["length"]
@@ -50,6 +54,8 @@ ST = S["stations"]
 NT = len(ST) - 1
 THICK = 0.035  # bulwark thickness
 DECK_THICK = 0.025
+LAYER = 0.004  # a printed detail glued on: papertrails' glued-on layers (0.002 - 0.006)
+PORT_OPENING = (0.344, 0.418)  # the middle of the gun port print's opening (a across, b up), where its barrel runs out
 WOOD_UV = 3.2  # texture repeats per world unit on the planking
 DECK_UV = 3.0
 BROKEN = bool(SPEC.get("broken"))
@@ -177,15 +183,40 @@ def aspect(name):
     return ASPECTS[name]
 
 
-def detail(mat, centre, right, up, w, h, flip=False):
-    """A printed detail card (UV 0..1) centred at `centre`, spanning w along `right` and h along `up`."""
+def detail(mat, centre, right, up, w, h, out, depth=LAYER):
+    """
+    A printed detail (UV 0..1) centred at `centre`, spanning w along `right` and h along `up`, seen from `out` and depth
+    thick behind it, glued on what lies there: cut to its drawing's traced outline, with its cut edge round it.
+    """
     r = right.normalized() * (w / 2)
     u = up.normalized() * (h / 2)
-    pts = [centre - r - u, centre + r - u, centre + r + u, centre - r + u]
-    uvs = [(0, 0), (1, 0), (1, 1), (0, 1)]
-    if flip:
-        pts = [pts[1], pts[0], pts[3], pts[2]]
-    part(mat).poly(pts, uvs)
+
+    def P(a, b):
+        return centre + r * (2 * a - 1) + u * (2 * b - 1)
+
+    loops = [loop for o in OUTLINES[mat] for loop in (o["outer"], *o["holes"])]
+    # (outer loops run counter-clockwise in the print, holes clockwise: reversed where the print faces away from out)
+    if (P(1, 0) - P(0, 0)).cross(P(0, 1) - P(0, 0)).dot(out) < 0:
+        loops = [loop[::-1] for loop in loops]
+    ab = [tuple(p) for loop in loops for p in loop]
+    front = [P(a, b) for a, b in ab]
+    back = [p - out.normalized() * depth for p in front]
+    m = part(mat)
+    for t in tessellate_polygon([[Vector((a, b, 0)) for a, b in loop] for loop in loops]):
+        tri = list(t)
+        n = (front[tri[1]] - front[tri[0]]).cross(front[tri[2]] - front[tri[0]])
+        if n.dot(out) < 0:
+            tri.reverse()
+        m.poly([front[i] for i in tri], [ab[i] for i in tri])
+        m.poly([back[i] for i in reversed(tri)], [ab[i] for i in reversed(tri)])
+    # the cut edge, coloured through (the outline runs just inside the print)
+    start = 0
+    for loop in loops:
+        k = len(loop)
+        for i in range(k):
+            p, q = start + i, start + (i + 1) % k
+            m.poly([front[q], front[p], back[p], back[q]], [ab[q], ab[p], ab[p], ab[q]])
+        start += k
 
 
 def box(mat, c, size, rot=None):
@@ -486,7 +517,7 @@ def break_wall(t, y_low, y_high, facing, kind):
         aspect = {"cabin-door": 1.32, "windows": 1.9}[kind]
         w = min(hb * 1.7, h * 0.92 * aspect)
         hh = w / aspect
-        detail(kind, V(0, y_low + h * 0.47, z + facing * 0.003), V(-facing, 0, 0), V(0, 1, 0), w, hh)
+        detail(kind, V(0, y_low + h * 0.47, z + facing * 0.003), V(-facing, 0, 0), V(0, 1, 0), w, hh, V(0, 0, facing))
     # a moulding along the top edge and a balustrade standing on it
     ribbon("rail", [V(-hb, y_high - 0.004, z + facing * 0.008), V(hb, y_high - 0.004, z + facing * 0.008)], 0.02, 0.012)
     x = -hb + 0.04
@@ -525,18 +556,18 @@ def stern():
     if y_p is not None:
         # the captain's gallery across the poop, the great cabin's windows below it
         h = (y_p - y_q) * 0.9
-        detail("gallery", on_transom(y_q + (y_p - y_q) * 0.5), V(1, 0, 0), V(0, 1, 0.0), min(hb * 1.7, h * 1.3), h)
+        detail("gallery", on_transom(y_q + (y_p - y_q) * 0.5), V(1, 0, 0), V(0, 1, 0.0), min(hb * 1.7, h * 1.3), h, nrm)
         h2 = (y_q - y_main) * 0.8
-        detail("windows", on_transom(y_main + (y_q - y_main) * 0.5), V(1, 0, 0), V(0, 1, 0), min(hb * 1.5, h2 * 1.9), h2)
+        detail("windows", on_transom(y_main + (y_q - y_main) * 0.5), V(1, 0, 0), V(0, 1, 0), min(hb * 1.5, h2 * 1.9), h2, nrm)
         crest_y = y_p + (top - y_p) * 0.45
     else:
         h = (y_q - y_main) * 0.9
-        detail("gallery", on_transom(y_main + (y_q - y_main) * 0.5), V(1, 0, 0), V(0, 1, 0), min(hb * 1.7, h * 1.3), h)
+        detail("gallery", on_transom(y_main + (y_q - y_main) * 0.5), V(1, 0, 0), V(0, 1, 0), min(hb * 1.7, h * 1.3), h, nrm)
         crest_y = y_q + (top - y_q) * 0.45
     ch = max(0.06, (top - crest_y) * 1.4)
-    detail("crest", on_transom(crest_y + ch * 0.15), V(1, 0, 0), V(0, 1, 0), ch * 1.55, ch)
+    detail("crest", on_transom(crest_y + ch * 0.15), V(1, 0, 0), V(0, 1, 0), ch * 1.55, ch, nrm)
     # a carved band across the transom under the windows
-    detail("scroll", on_transom(y_main - 0.035), V(1, 0, 0), V(0, 1, 0), hb * 1.6, 0.05)
+    detail("scroll", on_transom(y_main - 0.035), V(1, 0, 0), V(0, 1, 0), hb * 1.6, 0.05, nrm)
     # stern lantern posts (the lanterns themselves are cards in the game, hung beside the post heads)
     zl = z_of(0) + rake(0, top) + 0.04
     for spot in S["lanterns"]:
@@ -595,12 +626,15 @@ def bow():
             ribbon("gold", pts, 0.014, 0.014)
             pts2 = [p + V(0, -0.07, 0.01) for p in pts[:6]]
             ribbon("gold", pts2, 0.012, 0.012)
-        # her figurehead under the tip, leaning forward, printed on both faces
+        # her figurehead under the tip, leaning forward, printed on both faces: two prints back to back, each as
+        # thick as it stands off the stem's middle
         fh = 0.26
+        off = 0.003
         c = tip + V(0, -fh * 0.42, 0.03)
         up = V(0, 1, -0.35)
         for flip in (False, True):
-            detail(SPEC["figurehead"], c + V(0.003 * (1 if flip else -1), 0, 0), V(0, 0, -1) if not flip else V(0, 0, 1), up, fh * aspect(SPEC["figurehead"]), fh)
+            side = V(1 if flip else -1, 0, 0)
+            detail(SPEC["figurehead"], c + side * off, V(0, 0, -1) if not flip else V(0, 0, 1), up, fh * aspect(SPEC["figurehead"]), fh, side, depth=off)
     # catheads with their anchors
     t = 0.88
     yc = sheer(t) - 0.03
@@ -640,7 +674,7 @@ def eyes():
     size = min(0.22, (sheer(t) - SPEC["wale"][1]) * 0.85)
     for side in (1, -1):
         on, right, up, normal = on_side(side, t, y)
-        detail("eye", on + normal * 0.004, right, up, size * aspect("eye"), size)
+        detail("eye", on + normal * 0.004, right, up, size * aspect("eye"), size, normal)
 
 
 def guns():
@@ -659,10 +693,12 @@ def guns():
                 if normal.x * side < 0:
                     normal = -normal
                 size = 0.125
-                detail("gunport", p + normal * 0.004, along * (-side), up, size, size)
-                # the barrel run out through it
-                prof = [(0.017, 0), (0.017, 0.012), (0.013, 0.02), (0.011, 0.08), (0.0135, 0.086), (0.0135, 0.1), (0.008, 0.102)]
-                lathe("iron", p - normal * 0.03 - up * 0.008, normal, prof, 10)
+                right = along * (-side)
+                detail("gunport", p + normal * 0.004, right, up, size, size, normal)
+                # the barrel run out through the middle of its opening, its muzzle a ring round a bore
+                prof = [(0.017, 0), (0.017, 0.012), (0.013, 0.02), (0.011, 0.08), (0.0135, 0.086), (0.0135, 0.1), (0.008, 0.102), (0.007, 0.07)]
+                mouth = p + right * ((PORT_OPENING[0] - 0.5) * size) + up * ((PORT_OPENING[1] - 0.5) * size)
+                lathe("iron", mouth - normal * 0.03, normal, prof, 10)
 
 
 def chainwales():
@@ -731,7 +767,7 @@ def fittings():
     hz = z_of(tm)
     for (sx, sz, ox, oz) in ((0.32, 0.025, 0, 0.15), (0.32, 0.025, 0, -0.15), (0.025, 0.32, 0.16, 0), (0.025, 0.32, -0.16, 0)):
         box("dark", V(ox, main + 0.016, hz + oz), (sx, 0.032, sz))
-    detail("grating", V(0, main + 0.03, hz), V(1, 0, 0), V(0, 0, -1), 0.29, 0.28)
+    detail("grating", V(0, main + 0.03, hz), V(1, 0, 0), V(0, 0, -1), 0.29, 0.28, V(0, 1, 0))
     cx, cz = 0.0, z_of(tc)
     lathe("dark", V(cx, main, cz), V(0, 1, 0), [(0.06, 0), (0.06, 0.012), (0.042, 0.02), (0.036, 0.07), (0.042, 0.09), (0.05, 0.1), (0.05, 0.125), (0.0, 0.13)], 14)
     for k in range(4):

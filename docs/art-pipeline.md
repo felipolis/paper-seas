@@ -39,22 +39,24 @@ Villages, lighthouses and forts are real paper constructions built by a Blender 
 ```bash
 node tools/art/cut-sprites.mjs tools/art/model-sheets.json   # cut the printed faces (assets-src/flow/19-21)
 node tools/art/paint-domes.mjs                               # paint the mountains' dome and stone faces (+ domes.json)
-node tools/art/pack-atlas.mjs                                # pack them into public/models/atlas.png, measure gables
+node tools/art/pack-atlas.mjs                                # pack them into public/models/atlas.png, measure, trace
 "C:/Program Files/Blender Foundation/Blender 5.3/blender.exe" -b --factory-startup -P tools/blender/build_models.py
 ```
 
 The script (`tools/blender/build_models.py`) assembles each model from hinged card pieces (front wall, side walls
 swinging out of it, roof planes folding over from the walls, chimney, sign, belfry and spire, battlements, lantern
-room...) and writes `public/models/models.glb`: every piece is a node on its fold line with glTF extras
-`{ hinge, foldAngle, delay }`. In the game (`src/world/models.ts`) each building becomes one skinned mesh (one draw
-call) whose bones unfold through the same paper springs as every card; the atlas is drawn with the paper material, and
-its printed windows light up at night.
+room...) and writes `public/models/models.glb`: every piece is a node on its fold line with glTF extras `{ hinge,
+foldAngle, delay }`. Every piece is card 0.016 thick, as papertrails' (its `cardThickness`), the half cards of a slotted
+cross 40 % of that; a piece printed with a cut-out shape (the chimney, the tavern sign) is cut to its print's outline,
+traced from its alpha by `pack-atlas.mjs` (`tools/art/outline.mjs`), so its cut edge follows the drawing. In the game
+(`src/world/models.ts`) each building becomes one skinned mesh (one draw call) whose bones unfold through the same paper
+springs as every card; the atlas is drawn with the paper material, and its printed windows light up at night.
 
 ## The ship's hull (Blender)
 
 ```bash
 node tools/art/cut-sprites.mjs tools/art/ship-sheets.json   # printed wood, ship details, terrain swatches
-bash tools/ship/build-ships.sh                              # export each ship's shape, build it in Blender
+bash tools/ship/build-ships.sh                              # export shapes, trace the details, build in Blender
 ```
 
 Every ship has her own structure (`HullSpec` in `src/config/ships.ts`): which decks and castles she has (poop,
@@ -62,11 +64,14 @@ quarterdeck, forecastle) and how high, her plan, sweep and tumblehome, her gun d
 functions (`src/ship/hull-shape.ts`) are shared by the game and, through `tools/ship/export-shape.mjs`, by Blender,
 which builds her from printed planking (`tools/blender/build_ship.py`): banded hull with mouldings, bulwarks and rail,
 decks, cabin fronts with doors and windows at every break, balustrades along the castles, a lit stern gallery, quarter
-galleries, crest, beakhead and figurehead, guns run out of every port, chainwales, anchors, rudder, fittings, wheel.
-The ghost ship (`broken` in her spec) is a whole wreck, not a broken model: her rails run smooth but for three
-breaches torn through with splintered ends, weed hangs over the rails in clumps and loops along her side, holes are torn
-in her upper works; her fittings are drowned grey and her windows light green (`fittings`, `windowLight`,
-`detailTint`).
+galleries, crest, beakhead and figurehead, guns run out of every port, chainwales, anchors, rudder, fittings, wheel. Her
+printed details (gun ports, galleries, windows, doors, crest, scroll, grating, eyes, figurehead) are glued-on layers
+0.004 thick (papertrails' layers run 0.002 - 0.006), cut to their prints' outlines (`tools/ship/trace-details.mjs`). The
+gun port's print had a cannon painted in it, over the 3D barrel run out of the port: it was painted out by hand once
+(its slot in the sheet is `null` in `ship-sheets.json`, so cutting the sheets again keeps the empty port). The ghost
+ship (`broken` in her spec) is a whole wreck, not a broken model: her rails run smooth but for three breaches torn
+through with splintered ends, weed hangs over the rails in clumps and loops along her side, holes are torn in her upper
+works; her fittings are drowned grey and her windows light green (`fittings`, `windowLight`, `detailTint`).
 
 No two ships share a silhouette. Each mast says how it is rigged (`rig`): `square` (sails across the ship on their
 yards), `lateen` (one triangular sail laced to a long slanted yard) or `battened` (a junk's fore-and-aft sail stiffened

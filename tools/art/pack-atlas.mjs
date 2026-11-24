@@ -10,12 +10,14 @@
 //   faces[name]         rect [x, y, w, h] in atlas pixels (top-left origin) and, for gable fronts (*-front),
 //                       gable { wallL, wallR, eave, apex } in 0..1 of the face (x from the left, y from the bottom):
 //                       the wall's vertical edges, the height where the gable starts and the apex height; every
-//                       face also has spans { top, bottom }: [left, right] of its print near the top and bottom
+//                       face also has spans { top, bottom }: [left, right] of its print near the top and bottom;
+//                       a cut-out face (CUT_OUT) has outline: its print's traced outline (tools/art/outline.mjs)
 //   patches[name]       rect of a plain swatch (kraft back, card core, wood) for unprinted surfaces
 import { readFileSync, writeFileSync, readdirSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { launch } from '../browser.mjs';
+import { OUTLINE_GRID, alphaGrid, traceOutline } from './outline.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const facesDir = join(root, 'assets-src/models/faces');
@@ -29,6 +31,8 @@ const PATCHES = {
 const EXTRA = { 'pier-plank': 'public/models/tex/plank-oak.png' };
 // faces printed as a darker copy of another (name: [face, brightness]): the bridge's outer side card
 const DERIVED = { 'pier-plank-dark': ['pier-plank', 0.8] };
+// faces whose card is cut to the print's own outline (tools/art/outline.mjs), not to a rectangle or measured spans
+const CUT_OUT = ['cottage-chimney', 'tavern-sign'];
 const sources = [
   ...readdirSync(facesDir).filter((f) => f.endsWith('.png')).map((f) => ({ name: f.replace(/\.png$/, ''), file: join(facesDir, f) })),
   ...Object.entries(EXTRA).map(([name, file]) => ({ name, file: join(root, file) })),
@@ -38,7 +42,8 @@ const faces = [...sources, ...Object.entries(DERIVED).map(([name, [from, shade]]
 const browser = await launch();
 const page = await browser.newPage();
 await page.setContent('<html><body></body></html>');
-const result = await page.evaluate(async ({ faces, SIZE, PAD, PATCHES }) => {
+await page.addScriptTag({ content: alphaGrid.toString() });
+const result = await page.evaluate(async ({ faces, SIZE, PAD, PATCHES, CUT_OUT, OUTLINE_GRID }) => {
   const imgs = await Promise.all(faces.map(async (f) => {
     const i = new Image();
     i.src = f.url;
@@ -123,6 +128,7 @@ const result = await page.evaluate(async ({ faces, SIZE, PAD, PATCHES }) => {
     const face = { rect: [it.x, it.y, it.w, it.h] };
     face.spans = measureSpans(alpha, t.width, it.w, it.h, PAD);
     if (it.name.endsWith('-front')) face.gable = measureGable(alpha, t.width, it.w, it.h, PAD);
+    if (CUT_OUT.includes(it.name)) face.alphaGrid = alphaGrid(it.img, it.w, it.h, OUTLINE_GRID);
     out.faces[it.name] = face;
   }
   out.png = c.toDataURL('image/png');
@@ -219,7 +225,7 @@ const result = await page.evaluate(async ({ faces, SIZE, PAD, PATCHES }) => {
     }
     return { wallL: wl / w, wallR: wr / w, eave: 1 - eave / h, apex: 1 - apex / h };
   }
-}, { faces, SIZE, PAD, PATCHES });
+}, { faces, SIZE, PAD, PATCHES, CUT_OUT, OUTLINE_GRID });
 await browser.close();
 
 mkdirSync(join(root, 'public/models'), { recursive: true });
@@ -227,5 +233,11 @@ writeFileSync(join(root, 'public/models/atlas.png'), Buffer.from(result.png.spli
 writeFileSync(join(root, 'public/models/atlas-glow.png'), Buffer.from(result.glow.split(',')[1], 'base64'));
 delete result.glow;
 delete result.png;
+for (const f of Object.values(result.faces)) {
+  if (!f.alphaGrid) continue;
+  f.outline = traceOutline(f.alphaGrid);
+  delete f.alphaGrid;
+}
 writeFileSync(join(root, 'assets-src/models/atlas.json'), JSON.stringify(result, null, 1));
 for (const [n, f] of Object.entries(result.faces)) console.log(n.padEnd(18), f.rect.join(','), f.gable ? JSON.stringify(f.gable, (k, v) => (typeof v === 'number' ? +v.toFixed(3) : v)) : '');
+

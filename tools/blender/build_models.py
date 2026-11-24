@@ -15,8 +15,10 @@ delay (0..1 start order), and where set layer (flat stacking) and liftSign. The 
 
 The printed faces come from the atlas (tools/art/pack-atlas.mjs -> assets-src/models/atlas.json +
 public/models/atlas.png); their gable measurements size the walls and roofs, so a roof sits exactly on its gable.
-Solid pieces are real card: printed face, kraft back and a cut edge coloured like the print around them; cut-out pieces (the
-sign, crenellated walls, the belfry) are a single printed sheet whose alpha cuts the outline in the game.
+Every piece is real card, as papertrails' (its cardThickness): printed face, back and a cut edge coloured like the print
+around it. A piece printed with a cut-out shape (the chimney, the sign) is cut to the print's own outline, traced from
+its alpha (atlas.json outline), so its edge follows the drawing; the rest are cut to rectangles or to the print's
+measured spans.
 
 Geometry is written in the game's frame (Y up, the model's front facing +Z) and converted to Blender's Z-up on
 creation; the glTF exporter converts it back.
@@ -28,6 +30,7 @@ import sys
 
 import bpy
 from mathutils import Matrix, Vector
+from mathutils.geometry import tessellate_polygon
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 ATLAS = json.load(open(os.path.join(ROOT, "assets-src", "models", "atlas.json")))
@@ -35,6 +38,7 @@ DOMES = json.load(open(os.path.join(ROOT, "assets-src", "models", "domes.json"))
 OUT = os.path.join(ROOT, "public", "models", "models.glb")
 SIZE = ATLAS["size"][0]
 THICK = 0.016  # card thickness (world units): papertrails' cardThickness
+HALF = 0.4 * THICK  # a slotted cross's half cards: papertrails' tree_xf / tree_xb (0.006 to its cards' 0.016)
 
 # game frame (x, y up, z front) -> Blender (x, -z, y)
 C = Matrix(((1, 0, 0, 0), (0, 0, -1, 0), (0, 1, 0, 0), (0, 0, 0, 1)))
@@ -69,7 +73,7 @@ def patch_uv(name):
 # pieces
 
 class Piece:
-    def __init__(self, model, name, parent, frame, fold, delay, verts, uvs, faces, thin):
+    def __init__(self, model, name, parent, frame, fold, delay, verts, uvs, faces, depth):
         self.model = model
         self.name = name
         self.parent = parent
@@ -79,7 +83,7 @@ class Piece:
         self.verts = verts  # world positions
         self.uvs = uvs  # per face-corner lists, parallel to faces
         self.faces = faces
-        self.thin = thin
+        self.depth = depth  # its thickness
         self.layer = 0  # stacking order when folded flat (higher lies on top)
         self.lift_sign = 1  # folded flat, the game lifts it off its parent along its face's normal (-1: against it)
 
@@ -89,24 +93,29 @@ class Model:
         self.name = name
         self.pieces = []
 
-    def card(self, name, parent, art, corners, poly, hinge, flat, delay, thin=False, open_edges=(), back="print"):
+    def card(self, name, parent, art, corners, poly, hinge, flat, delay, depth=THICK, open_edges=(), back="print"):
         """
-        A planar card.
+        A planar card, depth thick behind its printed face.
           art       atlas face printed on it
           corners   world positions of the face's corners (a, b) = (0,0), (1,0), (1,1), (0,1) (bilinear)
-          poly      the card's outline in face coordinates (a across, b up), counter-clockwise seen from the front
+          poly      the card's outline in face coordinates (a across, b up), counter-clockwise seen from the front: a
+                    convex loop, or a traced outline (atlas.json: [{outer, holes}], outer loops counter-clockwise,
+                    holes clockwise)
           hinge     (point, axis): its fold line, in world space
           flat      world direction the card lies along when folded flat (perpendicular to the hinge)
-        Solid cards get a back and a cut edge (except along open_edges, given as outline indices: edge i runs from
-        poly[i] to poly[i + 1]). The back carries the same print (as papertrails' cards: whichever way a piece folds
-        flat, no blank kraft ever lies face up); back="kraft" gives a plain back instead.
+        The card gets a back and a cut edge (a convex loop's except along open_edges, given as outline indices: edge i
+        runs from poly[i] to poly[i + 1]). The back carries the same print (as papertrails' cards: whichever way a
+        piece folds flat, no blank kraft ever lies face up); back="kraft" gives a plain back instead.
         """
         c00, c10, c11, c01 = corners
 
         def P(a, b):
             return c00 * ((1 - a) * (1 - b)) + c10 * (a * (1 - b)) + c11 * (a * b) + c01 * ((1 - a) * b)
 
-        pts = [P(a, b) for a, b in poly]
+        traced = isinstance(poly[0], dict)
+        loops = [loop for o in poly for loop in (o["outer"], *o["holes"])] if traced else [poly]
+        flat_pts = [(a, b) for loop in loops for a, b in loop]
+        pts = [P(a, b) for a, b in flat_pts]
         normal = (c10 - c00).cross(c01 - c00).normalized()
         centroid = sum(pts, Vector()) / len(pts)
         h0, axis = hinge
@@ -125,32 +134,37 @@ class Model:
 
         verts, faces, uvs = [], [], []
         n = len(pts)
-        # printed face (a fan: every outline here is convex)
+        # the printed face: a convex loop as one polygon, a traced outline in triangles (counter-clockwise)
+        if traced:
+            tris = [list(t) for t in tessellate_polygon([[Vector((a, b, 0)) for a, b in loop] for loop in loops])]
+            fronts = [t if ccw(*(flat_pts[i] for i in t)) else t[::-1] for t in tris]
+        else:
+            fronts = [list(range(n))]
         verts += pts
-        faces.append(list(range(n)))
-        uvs.append([uv_of(art, a, b) for a, b in poly])
-        if not thin:
-            back_pts = [p - normal * THICK for p in pts]
-            base = len(verts)
-            verts += back_pts
-            faces.append([base + i for i in reversed(range(n))])
-            if back == "print":
-                uvs.append([uv_of(art, a, b) for a, b in reversed(poly)])
-            else:
-                k = patch_uv(back)
-                uvs.append([k] * n)
-            # the cut edge is the card itself, coloured through: it takes the print's colour just inside the edge
-            # (never a pale rim around a dark roof)
-            ca = sum(a for a, _ in poly) / n
-            cb = sum(b for _, b in poly) / n
-            inner = [uv_of(art, a + (ca - a) * 0.04, b + (cb - b) * 0.04) for a, b in poly]
-            for i in range(n):
-                if i in open_edges:
+        for f in fronts:
+            faces.append(f)
+            uvs.append([uv_of(art, *flat_pts[i]) for i in f])
+        base = len(verts)
+        verts += [p - normal * depth for p in pts]
+        for f in fronts:
+            faces.append([base + i for i in reversed(f)])
+            uvs.append([uv_of(art, *flat_pts[i]) for i in reversed(f)] if back == "print" else [patch_uv(back)] * len(f))
+        # the cut edge is the card itself, coloured through: it takes the print's colour just inside the edge (never a
+        # pale rim around a dark roof); a traced outline already runs just inside the print
+        ca = sum(a for a, _ in flat_pts) / n
+        cb = sum(b for _, b in flat_pts) / n
+        inner = [uv_of(art, a, b) if traced else uv_of(art, a + (ca - a) * 0.04, b + (cb - b) * 0.04) for a, b in flat_pts]
+        start = 0
+        for loop in loops:
+            m = len(loop)
+            for i in range(m):
+                if i in open_edges and not traced:
                     continue
-                j = (i + 1) % n
-                faces.append([j, i, base + i, base + j])
-                uvs.append([inner[j], inner[i], inner[i], inner[j]])
-        piece = Piece(self, name, parent, frame, fold, delay, verts, uvs, faces, thin)
+                p, q = start + i, start + (i + 1) % m
+                faces.append([q, p, base + p, base + q])
+                uvs.append([inner[q], inner[p], inner[p], inner[q]])
+            start += m
+        piece = Piece(self, name, parent, frame, fold, delay, verts, uvs, faces, depth)
         self.pieces.append(piece)
         return piece
 
@@ -255,6 +269,40 @@ class Model:
         return piece
 
 
+def ccw(p, q, r):
+    """Whether the triangle p, q, r (2D points) runs counter-clockwise."""
+    return (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]) > 0
+
+
+def half_of(poly, k, at):
+    """
+    The part of a card's outline (card poly) on one side of the line a = at (k = 1: a <= at, a cross's front half
+    card; -1: a >= at). A loop crossing the line more than twice comes back joined along it, gaps and all: that edge is
+    the half card's hinge edge, against the card it rides on.
+    """
+    def cut(loop):
+        inside = [(at - a) * k >= 0 for a, _ in loop]
+        out = []
+        for i, p in enumerate(loop):
+            j = (i + 1) % len(loop)
+            q = loop[j]
+            if inside[i]:
+                out.append(p)
+            if inside[i] != inside[j]:
+                t = (at - p[0]) / (q[0] - p[0])
+                out.append((at, p[1] + (q[1] - p[1]) * t))
+        return out
+
+    if not isinstance(poly[0], dict):
+        return cut(poly)
+    halves = []
+    for o in poly:
+        outer = cut(o["outer"])
+        if len(outer) >= 3:
+            halves.append({"outer": outer, "holes": [h for h in map(cut, o["holes"]) if len(h) >= 3]})
+    return halves
+
+
 def rect_corners(o, across, up):
     """Corners of a rectangular face: origin o (bottom-left seen from the front), across and up vectors."""
     return (o, o + across, o + across + up, o + up)
@@ -323,9 +371,10 @@ def gable_house(name, W, front, side, roof, depth_scale=1.0, chimney=None, sign=
         base_y = top_y - 0.18
         cz = -D * 0.18
         # a slotted cross: a card across the roof (hinged on the slope), the two halves of one along it on its faces
-        ca = m.card("chimney", rr, chimney, rect_corners(V(cx - width / 2, base_y, cz), V(width, 0, 0), V(0, height, 0)), FULL,
-                    (V(cx, top_y, cz), V(1, 0, 0)), V(0, 0, -1), 0.85, thin=True)
-        cross_halves(m, "chimney", ca, chimney, V(cx, base_y, cz), V(0, 1, 0), V(1, 0, 0), V(0, 0, 1), width, height, 0.9)
+        outline = face(chimney)["outline"]
+        ca = m.card("chimney", rr, chimney, rect_corners(V(cx - width / 2, base_y, cz), V(width, 0, 0), V(0, height, 0)), outline,
+                    (V(cx, top_y, cz), V(1, 0, 0)), V(0, 0, -1), 0.85)
+        cross_halves(m, "chimney", ca, chimney, outline, V(cx, base_y, cz), V(0, 1, 0), V(1, 0, 0), V(0, 0, 1), width, height, 0.9)
     if sign:
         sw2, sh2 = face(sign)["rect"][2:]
         width = 0.36
@@ -333,34 +382,38 @@ def gable_house(name, W, front, side, roof, depth_scale=1.0, chimney=None, sign=
         y0 = H * 0.42
         # the bracket juts out from the left wall near the front corner, the board faces the street
         zc = D / 2 - 0.12
-        m.card("sign", wl, sign, rect_corners(V(-W / 2 - width, y0, zc), V(width, 0, 0), V(0, height, 0)), FULL,
-               (V(-W / 2, y0, zc), V(0, 1, 0)), V(0, 0, -1), 0.8, thin=True)
+        m.card("sign", wl, sign, rect_corners(V(-W / 2 - width, y0, zc), V(width, 0, 0), V(0, height, 0)), face(sign)["outline"],
+               (V(-W / 2, y0, zc), V(0, 1, 0)), V(0, 0, -1), 0.8)
     return m, {"W": W, "D": D, "H": A}
 
 
-def cross_halves(m, name, card, art, foot, up, along, normal, width, height, delay):
+def cross_halves(m, name, card, art, poly, foot, up, along, normal, width, height, delay):
     """
-    papertrails' slotted cross (its tiles.glb: tree + tree_xf + tree_xb): the second plane of a crossed card as two
-    half cards, one on each of the card's faces, hinged on the vertical line down its middle (foot: the line's bottom,
-    up: its direction). Each lies folded flat against its face while the card lies (the front one along the card, the
-    back one the other way) and is pulled open square to it as the card rises (nested on it). along: the card's own
-    direction across; normal: its front's (the way the second plane runs); width, height: the second plane's. The
-    halves are thin, and so is the card they ride on (off: the air between them and its plane). Folded, the front
-    half's face points into the card, so the game lifts it the other way (liftSign), off the card's front.
+    papertrails' slotted cross (its tiles.glb: tree + tree_xf + tree_xb): the second plane of a crossed card (printed
+    art, cut to poly) as two half cards, HALF thick, one on each of the card's faces, hinged on the vertical line down
+    its middle (foot: the line's bottom on the card's face, up: its direction). Each lies folded flat against its face
+    while the card lies (the front one along the card, the back one the other way) and is pulled open square to it as
+    the card rises (nested on it). along: the card's own direction across; normal: its front's (the way the second
+    plane runs); width, height: the second plane's, centred on the card's middle. Each half is hinged 2 mm of air
+    (off) clear of the card's face it lies on (the back one past the card's thickness, behind its face) and cut there:
+    the slot, as wide as the card, takes the print's middle. Folded, the front half's face points into the card, so
+    the game lifts it the other way (liftSign), off the card's front.
     """
     off = 0.002
-    for tag, k, poly in (("xf", 1, ((0, 0), (0.5, 0), (0.5, 1), (0, 1))), ("xb", -1, ((0.5, 0), (1, 0), (1, 1), (0.5, 1)))):
-        o = foot + normal * (k * off)
-        # the whole second plane's face (a from its front end to its back end), cut to this half's side of the slot
-        corners = rect_corners(o + normal * (width / 2), normal * -width, up * height)
-        half = m.card(f"{name}_{tag}", card, art, corners, poly, (o, up), along * k, delay, thin=True)
+    slot = (card.depth / 2 + off) / width
+    # the whole second plane's face, a from its front end to its back end
+    mid = foot - normal * (card.depth / 2)
+    corners = rect_corners(mid + normal * (width / 2), normal * -width, up * height)
+    for tag, k in (("xf", 1), ("xb", -1)):
+        o = mid + normal * (k * (card.depth / 2 + off))
+        half = m.card(f"{name}_{tag}", card, art, corners, half_of(poly, k, 0.5 - k * slot), (o, up), along * k, delay, depth=HALF)
         half.lift_sign = -k
 
 
 # ------------------------------------------------------------------------------------------------------------------
 # a square tower: four walls (front, then sides hinged on it, then the back on the left side) and a top
 
-def box_walls(m, prefix, cx, cz, base_y, w_bot, w_top, height, arts, delay0, parent=None, thin=False, back="print", open_top=False):
+def box_walls(m, prefix, cx, cz, base_y, w_bot, w_top, height, arts, delay0, parent=None, back="print", open_top=False):
     """Four (optionally tapered) walls around (cx, cz). arts = (front, side, back). Returns (front, left, right, back)."""
     hb, ht = w_bot / 2, w_top / 2
     y0, y1 = base_y, base_y + height
@@ -391,7 +444,7 @@ def box_walls(m, prefix, cx, cz, base_y, w_bot, w_top, height, arts, delay0, par
         # the card follows the print's outline (a tapered print leaves no kraft beside it)
         sp = face(art)["spans"]
         poly = [(sp["bottom"][0], 0), (sp["bottom"][1], 0), (sp["top"][1], 1), (sp["top"][0], 1)]
-        return m.card(name, par, art, cs, poly, hinge, flat, delay, thin=thin, back=back, open_edges=(2,) if open_top else ())
+        return m.card(name, par, art, cs, poly, hinge, flat, delay, back=back, open_edges=(2,) if open_top else ())
 
     def pt(x, y, z):
         return V(cx + x, y, cz + z)
@@ -457,7 +510,7 @@ def lighthouse(name):
     gw, gh = face("lighthouse-glass")["rect"][2:]
     gsp = face("lighthouse-glass")["spans"]["bottom"]
     lh = lw / (gsp[1] - gsp[0]) * gh / gw
-    lfr, llf, lrt, lbk, ltop = box_walls(m, "lantern_", 0, 0, height, lw, lw, lh, ("lighthouse-glass",) * 3, 0.55, parent=fr, thin=True)
+    lfr, llf, lrt, lbk, ltop = box_walls(m, "lantern_", 0, 0, height, lw, lw, lh, ("lighthouse-glass",) * 3, 0.55, parent=fr)
     cw, ch = face("lighthouse-cap")["rect"][2:]
     csp = face("lighthouse-cap")["spans"]["bottom"]
     cap_w = lw * 1.25
@@ -483,7 +536,7 @@ def chapel(name):
     zc = dims["D"] / 2 - tw / 2 - 0.06
     base_y = A - 0.22
     roof_l = next(p for p in m.pieces if p.name == "roof_l")
-    fr, lf, rt, bk, top = box_walls(m, "belfry_", 0, zc, base_y, tw, tw, th, ("chapel-tower",) * 3, 0.7, parent=roof_l, thin=True)
+    fr, lf, rt, bk, top = box_walls(m, "belfry_", 0, zc, base_y, tw, tw, th, ("chapel-tower",) * 3, 0.7, parent=roof_l)
     sw, sh = face("chapel-spire")["rect"][2:]
     ssp = face("chapel-spire")["spans"]["bottom"]
     spire_h = tw / (ssp[1] - ssp[0]) * sh / sw * 0.85
@@ -611,8 +664,8 @@ def pier(name, L=3.0, W=0.62, H=0.16):
             u = along * (pw / 2)
             c = V(x, foot, z)
             post = m.card(f"post{k}{side}", None, art, (c - u, c + u, c + u + V(0, top - foot, 0), c - u + V(0, top - foot, 0)), FULL,
-                          (c, u), normal, 0.6 + 0.1 * k, thin=True)
-            cross_halves(m, f"post{k}{side}", post, art, c, V(0, 1, 0), along, normal, pw, top - foot, 0.65 + 0.1 * k)
+                          (c, u), normal, 0.6 + 0.1 * k)
+            cross_halves(m, f"post{k}{side}", post, art, FULL, c, V(0, 1, 0), along, normal, pw, top - foot, 0.65 + 0.1 * k)
     return m, {"W": W, "D": L, "H": H, "deck": H + THICK}
 
 
