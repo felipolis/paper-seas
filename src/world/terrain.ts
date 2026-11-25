@@ -18,7 +18,7 @@ import { mirrorSkip } from '../render/reflection';
 import { toTexture } from '../art/card-painter';
 import { cardWidth, spriteSpan, spriteTop } from '../art/sprites';
 import { BAND_HI, BAND_LO, HULL_MAX, hullSegments, placeSegments, type Segment } from './blockers';
-import { cellGesture, cellJitter, type Reveal } from './reveal';
+import { cellCentre, cellGesture, cellJitter, type Reveal } from './reveal';
 import { contoursFromGrid, outlinesWithHoles, type Grid } from './contours';
 import { LAND_TOP, type LandField } from './land';
 import { valueNoise } from './noise';
@@ -459,6 +459,8 @@ export class Terrain {
 
   private clock = 0;
   private readonly flips = new WeakMap<Building, number>();
+  /** How long each still-flat building has waited for the traveller to cross its cell. */
+  private readonly held = new WeakMap<Building, number>();
 
   /** A Blender-built model standing in this chunk (raised and folded by updateHouses). */
   private addBuilding(chunk: Chunk, name: string, x: number, y: number, z: number, yaw: number): Building {
@@ -596,23 +598,37 @@ export class Terrain {
     this.clock += dt;
     for (const c of this.chunks.values()) {
       for (const h of c.houses) {
-        // the same rules as the cards (papertrails' tiles): the building is one cell
-        const jitter = cellJitter(h.x, h.z);
-        if (reveal.mayFlip(h.x, h.z, this.flips.get(h) ?? -99, this.clock)) {
-          const up = h.fold.target !== 1 && reveal.wantsUp(h.x, h.z);
-          if (up || (h.fold.target !== 0 && reveal.wantsDown(h.x, h.z))) {
-            const delay = up ? reveal.riseDelay(h.x, h.z, jitter) : reveal.foldDelay(h.x, h.z, jitter);
-            h.fold.setTarget(up ? 1 : 0, delay);
-            this.flips.set(h, this.clock);
-            // (one gesture with the cards of its cell: the largest piece speaks)
-            bus.emit('paper', { x: h.x, z: h.z, height: modelInfo(h.name)!.height, up, delay, key: cellGesture(h.x, h.z) });
+        // the same rules as the cards of the cell it stands in (papertrails' tiles, a house and all): it waits while the
+        // traveller crosses the cell, takes one of the frame's rise slots, and a rise still waiting is called off once
+        // the cell is no longer wanted
+        const cx = cellCentre(h.x);
+        const cz = cellCentre(h.z);
+        const fold = h.fold;
+        if (fold.risePending && !reveal.wanted(cx, cz)) fold.cancelRise();
+        else if (fold.target !== 1 && reveal.mayFlip(cx, cz, this.flips.get(h) ?? -99, this.clock) && reveal.wantsUp(cx, cz)) {
+          const held = this.held.get(h) ?? 0;
+          if (reveal.holds(cx, cz, held)) this.held.set(h, held + dt);
+          else if (reveal.claimRise(cx, cz)) this.flip(h, 1, reveal.riseDelay(cx, cz, cellJitter(h.x, h.z)));
+        } else {
+          this.held.delete(h);
+          if (fold.target !== 0 && reveal.mayFlip(cx, cz, this.flips.get(h) ?? -99, this.clock) && reveal.wantsDown(cx, cz)) {
+            this.flip(h, 0, reveal.foldDelay(cx, cz, cellJitter(h.x, h.z)));
           }
         }
-        h.fold.update(dt);
+        fold.update(dt);
         // folded, a building lies flat on the page (its walls and roof stacked flat): drawn within sight
         h.root.visible = reveal.distance(h.x, h.z) < reveal.radius + 30;
       }
     }
+  }
+
+  /** Sets a building rising (1) or folding (0) after `delay` s, and voices it in its cell's gesture. */
+  private flip(h: Building, target: 0 | 1, delay: number): void {
+    h.fold.setTarget(target, delay);
+    this.flips.set(h, this.clock);
+    this.held.delete(h);
+    // (one gesture with the cards of its cell: the largest piece speaks)
+    bus.emit('paper', { x: h.x, z: h.z, height: modelInfo(h.name)!.height, up: target === 1, delay, key: cellGesture(h.x, h.z) });
   }
 
   update(shipX: number, shipZ: number): void {

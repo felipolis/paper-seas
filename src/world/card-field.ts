@@ -103,6 +103,11 @@ export interface Card extends CardSpec {
   swayLevel: number;
   /** The page it covers lying folded flat (see flatBounds). */
   flatBox: Box;
+  /**
+   * The height it lies at folded flat, on its cell's stack (layFlat); standing it stands at y, its foot on the page, and
+   * rising it comes down that far as it goes up (the skill: no stand-up floats by its stack layer).
+   */
+  flatY: number;
 }
 
 interface Batch {
@@ -168,7 +173,7 @@ export class CardField {
     for (const s of specs) {
       const i = Math.floor(s.x / CELL);
       const j = Math.floor(s.z / CELL);
-      const constants = flapConstants({ size: s.height, seed: (s.x * 0.137 + s.z * 0.291) % 1, wobble: 1 });
+      const constants = flapConstants({ size: s.height, seed: s.x * 0.137 + s.z * 0.291, wobble: 1 });
       const flap = new Flap(constants);
       const card: Card = {
         ...s,
@@ -188,6 +193,7 @@ export class CardField {
         sway: 0,
         swayLevel: 0,
         flatBox: flatBounds(s),
+        flatY: s.y,
       };
       if (card.halves) card.halves.parent = flap;
       const key = `${i},${j}`;
@@ -206,14 +212,17 @@ export class CardField {
       cell.sort((a, b) => b.z - a.z || a.phase - b.phase);
       cell.forEach((c, k) => (c.order = cell.length > 1 ? k / (cell.length - 1) : 0));
     }
-    for (const c of out) this.layFlat(c);
+    // (laid bottom of the stack first: the cards that rise last)
+    for (const c of [...out].sort((a, b) => b.order - a.order)) this.layFlat(c);
     return out;
   }
 
   /**
-   * Keeps a new card off the plane of every card it overlaps lying folded flat: two faces in one plane flicker, the
-   * depth test picking either one frame by frame. It goes up from its own height in POPUP.flatStep layers until it is at
-   * least that far from each of them (the lowest such height, so the flat stacks stay a few hundredths thin).
+   * Lays a new card in the flat stack. It lies above every card of its cell it overlaps that rises after it (the skill's
+   * flat stack: the top of the stack rises first, so no card swings up through one lying over it, and folding down is
+   * the same film run backward). And it keeps off the plane of every card it overlaps: two faces in one plane flicker,
+   * the depth test picking either one frame by frame; it goes up in POPUP.flatStep layers until it is at least that far
+   * from each of them (the lowest such height, so the flat stacks stay a few hundredths thin).
    */
   private layFlat(c: Card): void {
     // (a lying cross shows two faces: its card's and, above it, its front half card's)
@@ -229,9 +238,12 @@ export class CardField {
         else this.flats.set(key, [c]);
       }
     }
-    const heights = [...over].flatMap((o) => faces(o).map((f) => o.y + f));
-    const fights = () => faces(c).some((f) => heights.some((y) => Math.abs(y - c.y - f) < POPUP.flatNear));
-    while (fights()) c.y += POPUP.flatStep;
+    for (const o of over) {
+      if (o.cx === c.cx && o.cz === c.cz && o.order > c.order) c.flatY = Math.max(c.flatY, o.flatY + Math.max(...faces(o)) + POPUP.flatStep);
+    }
+    const heights = [...over].flatMap((o) => faces(o).map((f) => o.flatY + f));
+    const fights = () => faces(c).some((f) => heights.some((y) => Math.abs(y - c.flatY - f) < POPUP.flatNear));
+    while (fights()) c.flatY += POPUP.flatStep;
   }
 
   remove(cards: Card[]): void {
@@ -291,6 +303,11 @@ export class CardField {
         let stirred = false;
         const d = Math.hypot(c.x - focusX, c.z - focusZ);
         const f = c.flap;
+        // (a rise still waiting for its ripple is called off once the cell is no longer wanted: papertrails' pending tile)
+        if (f.target === 0 && f.pendingTarget === 1 && !reveal.wanted(c.cx, c.cz)) {
+          f.setTarget(0);
+          c.halves?.setTarget(0);
+        }
         const up = f.target === 1 || f.pendingTarget === 1;
         const may = reveal.mayFlip(c.cx, c.cz, c.flipAt, this.time);
         if (!up) {
@@ -361,7 +378,7 @@ export class CardField {
       // from afar, and seen to fold down and to stand up again)
       if (c.hidden) continue;
       const sw = c.sway;
-      _p.set(c.x, c.y, c.z);
+      _p.set(c.x, c.y + (c.flatY - c.y) * clamp(1 - p, 0, 1), c.z);
       let lean = 0;
       let turn = 0;
       if (Critters.is(c.sprite)) {

@@ -110,6 +110,17 @@ export class FoldGroup {
     return true;
   }
 
+  /** Set to rise, with no piece moving yet (its delay still running). */
+  get risePending(): boolean {
+    return this.target_ === 1 && this.hinges.length > 0 && this.hinges.every((h) => h.flap.target === 0 && h.flap.pendingTarget === 1);
+  }
+
+  /** Calls off a rise that has not started (see risePending): the group stays flat. */
+  cancelRise(): void {
+    this.target_ = 0;
+    for (const h of this.hinges) h.flap.setTarget(0);
+  }
+
   /** Instantly places every hinge at p (0 or 1). */
   snap(p: 0 | 1): void {
     this.target_ = p;

@@ -16,11 +16,12 @@
  */
 import { POPUP } from '../config/popup';
 import { clamp } from '../core/math';
+import { hash01 } from '../core/rng';
 
 export interface FlapTuning {
   /** Upright height of the card (world units): large cards are slower and whip further. */
   size: number;
-  /** Per-flap random in [0, 1) used for the deterministic jitter and twist sign. */
+  /** Any number of the flap's own, hashed into its spring jitter, flutter jitter and twist (papertrails' hash01). */
   seed: number;
   /** Multiplier on the flutter (0.2 .. 2.5). */
   wobble?: number;
@@ -43,15 +44,20 @@ export interface FlapConstants {
   twist: number;
 }
 
+/** Salt of the flaps' draws. */
+const SEED_SALT = 0x5f0d;
+
 export function flapConstants(t: FlapTuning): FlapConstants {
   const S = POPUP;
   const sizeT = clamp((t.size - S.sizeSmall) / (S.sizeLarge - S.sizeSmall), 0, 1);
   const stiff = Math.max(0.25, t.stiffness ?? 1);
-  const jitter = (t.seed * 2 - 1) * S.jitter;
+  // (three independent draws per flap, as papertrails' fold.js: the spring's pace, the flutter's and the twist)
+  const id = Math.round(t.seed * 1e6) | 0;
+  const jitter = (hash01(SEED_SALT, id, 0) * 2 - 1) * S.jitter;
   const fs = (S.freqSmall + (S.freqLarge - S.freqSmall) * sizeT) * Math.sqrt(stiff) * (1 + jitter);
   const wob = clamp((t.wobble ?? 1) * S.wobble * (1 + (S.wobbleLarge - 1) * sizeT), 0.2, 2.5);
-  const wL = 2 * Math.PI * S.flutterHz * (1 + jitter * 0.7);
-  const twSeed = (t.seed * 7.31) % 1;
+  const wL = 2 * Math.PI * S.flutterHz * (1 + (hash01(SEED_SALT, id, 7) * 2 - 1) * S.jitter);
+  const twSeed = hash01(SEED_SALT, id, 13);
   return {
     kUp: S.stiffness * fs * fs,
     cUp: S.damping * fs * (1 + (S.dampingLarge - 1) * sizeT),

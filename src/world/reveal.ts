@@ -4,8 +4,8 @@
  * our captain); the one thing that varies is papertrails' view reach: a camera further out sees past the ring, so the
  * ring and the near circle (and the fold-back radius) grow by `reach`, eased, never more than REACH_MAX.
  *
- *   rope      the anchor trails the traveller on a rope GRACE long: small moves change nothing
- *   heading   the direction of travel, low-passed (DIR_SMOOTH s)
+ *   rope      the anchor trails the traveller on a rope GRACE long: small moves and turns on the spot change nothing
+ *   heading   the direction the rope is dragged in, low-passed (DIR_SMOOTH s); after a jump, the way it is moving
  *   rise      a cell rises within RADIUS + reach of a point FORWARD ahead along the heading, or within NEAR + reach
  *             of the traveller, unless it lies more than BEHIND_RISE behind; after a ripple delay of RIPPLE s per
  *             cell of distance from the traveller (plus a little jitter)
@@ -61,7 +61,9 @@ export class Reveal {
   /** Where the rope holds the anchor (the traveller, give or take GRACE). */
   private tx = 0;
   private tz = 0;
-  /** Low-passed heading (unit). */
+  /** The low-passed direction of the rope's pull, and the heading: that direction, unit. */
+  private sx = 0;
+  private sz = -1;
   private dx = 0;
   private dz = -1;
   /** The view reach now (world units added to the ring). */
@@ -80,29 +82,36 @@ export class Reveal {
     this.px = px;
     this.pz = pz;
     this.risen.length = 0;
-    if (!this.placed || Math.hypot(px - this.tx, pz - this.tz) > GRACE * 6) {
+    if (this.fresh) {
+      // (a jump: the anchor comes along, heading the way the traveller is going, if it is going anywhere)
       this.tx = px;
       this.tz = pz;
       this.reach = want;
       this.placed = true;
+      const sp = Math.hypot(vx, vz);
+      if (sp > 0.05) this.setHeading(vx / sp, vz / sp, 1);
     }
     const step = dt * REACH_RATE;
     this.reach += Math.max(-step, Math.min(step, want - this.reach));
     const ox = px - this.tx;
     const oz = pz - this.tz;
     const off = Math.hypot(ox, oz);
+    // (only real travel drags the rope: the heading follows the drag, never a step back or a turn on the spot)
     if (off > GRACE) {
+      this.setHeading(ox / off, oz / off, 1 - Math.exp(-dt / DIR_SMOOTH));
       this.tx = px - (ox / off) * GRACE;
       this.tz = pz - (oz / off) * GRACE;
     }
-    const sp = Math.hypot(vx, vz);
-    if (sp > 0.05) {
-      const k = 1 - Math.exp(-dt / DIR_SMOOTH);
-      this.dx += (vx / sp - this.dx) * k;
-      this.dz += (vz / sp - this.dz) * k;
-      const l = Math.hypot(this.dx, this.dz) || 1;
-      this.dx /= l;
-      this.dz /= l;
+  }
+
+  /** Moves the low-passed pull k of the way toward (ux, uz) and takes its direction as the heading. */
+  private setHeading(ux: number, uz: number, k: number): void {
+    this.sx += (ux - this.sx) * k;
+    this.sz += (uz - this.sz) * k;
+    const l = Math.hypot(this.sx, this.sz);
+    if (l > 1e-4) {
+      this.dx = this.sx / l;
+      this.dz = this.sz / l;
     }
   }
 
@@ -126,13 +135,18 @@ export class Reveal {
     return inRing && this.behind(x, z) < BEHIND_RISE;
   }
 
+  /**
+   * Is the cell centred at (x, z) still wanted standing (in the ring, not far behind)? A rise still waiting out its
+   * ripple delay is called off once it is not (papertrails' pending tile).
+   */
+  wanted(x: number, z: number): boolean {
+    return (this.forwardDistance(x, z) < RADIUS + this.reach || this.distance(x, z) < NEAR + this.reach) && this.behind(x, z) < BEHIND_FOLD;
+  }
+
   /** Should a standing cell centred at (x, z) fold? */
   wantsDown(x: number, z: number): boolean {
-    const dF = this.forwardDistance(x, z);
-    const dT = this.distance(x, z);
-    const want = (dF < RADIUS + this.reach || dT < NEAR + this.reach) && this.behind(x, z) < BEHIND_FOLD;
-    if (want) return false;
-    return this.behind(x, z) >= BEHIND_FOLD || (dT > FOLD_BACK + this.reach && dF >= RADIUS + this.reach + HYSTERESIS);
+    if (this.wanted(x, z)) return false;
+    return this.behind(x, z) >= BEHIND_FOLD || (this.distance(x, z) > FOLD_BACK + this.reach && this.forwardDistance(x, z) >= RADIUS + this.reach + HYSTERESIS);
   }
 
   /** Must a flat cell centred at (x, z) that has waited `held` s wait on, the traveller crossing it? */
@@ -171,6 +185,11 @@ export class Reveal {
     const side = Math.abs((x - this.tx) * this.dz - (z - this.tz) * this.dx);
     return (side / CELL) * FOLD_STAGGER + Math.max(0, jitter + JITTER);
   }
+}
+
+/** The centre of the cell holding the coordinate v (x or z). */
+export function cellCentre(v: number): number {
+  return (Math.floor(v / CELL) + 0.5) * CELL;
 }
 
 /**

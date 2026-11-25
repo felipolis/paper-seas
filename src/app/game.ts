@@ -294,13 +294,14 @@ export class Game {
     // (everything in view exists: what the ring has not raised lies folded flat, face up, as papertrails shows it)
     const viewReach = this.view.groundRadius(fx, fz);
     this.waves.update(dt, this.focus.x, this.focus.z, ship.wakeSource, this.reveal, viewReach);
-    this.clearLine.update(this.view.camera, this.view.focus.x, this.view.focus.z);
+    // (the living pieces keep clear of the one we follow, and their weather and biomes are his, as papertrails' life.js)
+    this.clearLine.update(this.view.camera, fx, fz);
     this.life.update(dt, { x: p.x, z: p.z, vx: p.vx, vz: p.vz, fx: p.forwardX, fz: p.forwardZ });
     this.flotsam.update(dt, p.x, p.z, this.reveal, viewReach);
     this.marvels.update(dt, p.x, p.z, this.dayNight.hour, this.dayNight.lanterns > 0.5);
     this.walker.updateLantern(this.dayNight.lanterns);
     this.smoke.update(dt, this.world.terrain.chimneysNear(fx, fz, 14), fx, fz, ship.wind.x, ship.wind.z, this.dayNight.lanterns, this.view.camera);
-    this.ambience.update(dt, this.view.focus.x, this.view.focus.z, ship.wind.x, ship.wind.z, this.dayNight.lanterns, this.view.camera);
+    this.ambience.update(dt, fx, fz, ship.wind.x, ship.wind.z, this.dayNight.lanterns, this.view.camera);
     this.progress.update(dt, this.world, p.x, p.z);
     this.exploration.update(dt, fx, fz, this.chart.isOpen ? 0 : 0.6);
     this.chart.update(dt);

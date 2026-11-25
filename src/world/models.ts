@@ -309,7 +309,7 @@ function rig(proto: Prototype, paper: THREE.Material, x: number, z: number): { m
     const f = proto.folds[i];
     // (a piece rides on the piece it is hinged to: it follows it as it opens, papertrails' and the skill's NESTED flaps)
     const parent = b.parent !== rootBone ? (b.parent ?? undefined) : undefined;
-    fold.add(b, { foldAngle: f.foldAngle, delay: f.delay, size: f.size, seed: (i * 0.618034 + x * 0.37 + z * 0.73) % 1, lift: proto.lifts[i], stack: proto.stacks[i] ?? undefined, parent });
+    fold.add(b, { foldAngle: f.foldAngle, delay: f.delay, size: f.size, seed: i * 0.618034 + x * 0.37 + z * 0.73, lift: proto.lifts[i], stack: proto.stacks[i] ?? undefined, parent });
   });
   return { mesh, fold };
 }
