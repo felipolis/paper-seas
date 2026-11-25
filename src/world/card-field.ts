@@ -32,8 +32,11 @@ import { cellKey } from '../core/grid';
 import { overlaps, type Box } from './polyline';
 import type { Lamp } from '../render/lamp-pools';
 
-/** papertrails' in-tile stagger span: the cards of a cell start one after another over this many seconds. */
-const STAGGER = 0.34;
+/**
+ * papertrails' in-tile stagger span: the cards of a cell start one after another over this many seconds (and its
+ * buildings take their place among them: world/terrain.ts).
+ */
+export const STAGGER = 0.34;
 /** Each card leans up to this far (rad) toward or away from the camera once upright (the skill: +-2.5 degrees). */
 const LEAN = 2.5 * (Math.PI / 180);
 /** Crossed cards (papertrails' crossDeg): the nearer plane stands this far off the view axis, the other square to it. */

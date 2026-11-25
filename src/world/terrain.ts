@@ -34,7 +34,7 @@ import type { Places } from './places';
 import { SQUARE_RADIUS, STREET_WIDTH } from './sites';
 import { polylineDistance, type Box, type Pt } from './polyline';
 import { CROSSED, heightOf } from '../config/flora';
-import { CROSS_PLANES, type Card, type CardField, type CardSpec } from './card-field';
+import { CROSS_PLANES, STAGGER, type Card, type CardField, type CardSpec } from './card-field';
 import { islandName } from './island-names';
 import { buildModel, modelFoot, modelInfo, type Building, type ModelInfo } from './models';
 import type { IslandSpec } from './island-layout';
@@ -496,6 +496,8 @@ export class Terrain {
   private readonly flips = new WeakMap<Building, number>();
   /** How long each still-flat building has waited for the traveller to cross its cell. */
   private readonly held = new WeakMap<Building, number>();
+  /** Each building's place (0..1) in its cell's rise order, among its cards. */
+  private readonly ranks = new WeakMap<Building, number>();
 
   /** A Blender-built model standing in this chunk (raised and folded by updateHouses). */
   private addBuilding(chunk: Chunk, name: string, x: number, y: number, z: number, yaw: number): Building {
@@ -635,10 +637,12 @@ export class Terrain {
       for (const h of c.houses) {
         // the same rules as the cards of the cell it stands in (papertrails' tiles, a house and all): it waits while
         // the traveller crosses the cell, takes one of the frame's rise slots, and a rise still waiting is called off
-        // once the cell is no longer wanted
+        // once the cell is no longer wanted; it starts at its place in the cell's order, after what stands in front of
+        // it and before what stands behind (and folds in the reverse order)
         const cx = cellCentre(h.x);
         const cz = cellCentre(h.z);
         const fold = h.fold;
+        const rank = this.ranks.get(h) ?? 0;
         if (fold.risePending && !reveal.wanted(cx, cz)) {
           fold.cancelRise();
           bus.emit('paperCancel', { key: cellGesture(h.x, h.z) });
@@ -646,11 +650,11 @@ export class Terrain {
         else if (fold.target !== 1 && reveal.mayFlip(cx, cz, this.flips.get(h) ?? -99, this.clock) && reveal.wantsUp(cx, cz)) {
           const held = this.held.get(h) ?? 0;
           if (reveal.holds(cx, cz, held)) this.held.set(h, held + dt);
-          else if (reveal.claimRise(cx, cz)) this.flip(h, 1, reveal.riseDelay(cx, cz, cellJitter(h.x, h.z)));
+          else if (reveal.claimRise(cx, cz)) this.flip(h, 1, reveal.riseDelay(cx, cz, cellJitter(h.x, h.z)) + rank * STAGGER);
         } else {
           this.held.delete(h);
           if (fold.target !== 0 && reveal.mayFlip(cx, cz, this.flips.get(h) ?? -99, this.clock) && reveal.wantsDown(cx, cz)) {
-            this.flip(h, 0, reveal.foldDelay(cx, cz, cellJitter(h.x, h.z)));
+            this.flip(h, 0, reveal.foldDelay(cx, cz, cellJitter(h.x, h.z)) + (1 - rank) * STAGGER);
           }
         }
         fold.update(dt);
@@ -1216,6 +1220,14 @@ export class Terrain {
       // (the chest with the rest: it takes its place in its cell's rise order)
       const cards = this.cards.add(specs);
       chunk.cards.push(...cards);
+      // papertrails' tile order: a building rises in its cell's order with the cards (the nearest first: card-field.ts),
+      // so after what stands in front of it and before what stands behind it
+      for (const h of chunk.houses) {
+        const cx = cellCentre(h.x);
+        const cz = cellCentre(h.z);
+        const cell = cards.filter((c) => c.cx === cx && c.cz === cz);
+        this.ranks.set(h, cell.length ? cell.filter((c) => c.z > h.z).length / cell.length : 0);
+      }
       if (chestAt >= 0) {
         const card = cards[chestAt];
         const chest: Chest = { id: hash2((53) ^ SEED, i, j), card, name: this.coastName(card.x, card.z) };
