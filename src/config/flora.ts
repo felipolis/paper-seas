@@ -113,6 +113,7 @@ export const HEIGHT: Record<string, [number, number]> = {
   windmill: [1.6, 1.66],
   'flag-pole': [1.0, 1.1],
   chest: [0.34, 0.38],
+  rowboat: [0.36, 0.42],
   'hut-stilts': [0.95, 1.05],
   'hut-round': [0.75, 0.85],
   'pier-post': [0.3, 0.36],
@@ -201,6 +202,8 @@ export interface TileKind {
   props?: { species: string[]; count: [number, number] };
   /** Animals from the biome's list: how many on the tile on average. */
   animals?: number;
+  /** papertrails' meadow pen (its fence_pad with sheep): this share of the tiles keep goats between two fences. */
+  pen?: number;
 }
 
 /**
@@ -223,7 +226,7 @@ export const TILES: Record<Biome, TileKind[]> = {
   ],
   meadow: [
     { weight: 1.2, forest: true, tall: { species: ['acacia', 'tree-blossom', 'tree-blossom-1', 'tree-broad', 'tree-broad-2'], count: [2, 4] }, clumps: { species: ['grass-0', 'bush-yellow', 'flowers-yellow', 'hibiscus'], count: [2, 3] }, props: { species: ['stump', 'log', 'rock-boulder'], count: [1, 3] }, animals: 1.0 },
-    { weight: 1.0, tall: { species: ['tree-blossom', 'tree-blossom-1', 'acacia'], count: [0, 1] }, clumps: { species: ['grass-0', 'grass-2', 'bush-yellow', 'bush-pink', 'flowers-yellow', 'flowers-white', 'tuft-flowers'], count: [3, 4] }, props: { species: ['hay', 'woodpile', 'rock-cairn', 'beehive'], count: [1, 3] }, animals: 1.2 },
+    { weight: 1.0, tall: { species: ['tree-blossom', 'tree-blossom-1', 'acacia'], count: [0, 1] }, clumps: { species: ['grass-0', 'grass-2', 'bush-yellow', 'bush-pink', 'flowers-yellow', 'flowers-white', 'tuft-flowers'], count: [3, 4] }, props: { species: ['hay', 'woodpile', 'rock-cairn', 'beehive'], count: [1, 3] }, animals: 1.2, pen: 0.3 },
     { weight: 0.25, props: { species: ['rock-cairn', 'rock-boulder', 'hay'], count: [1, 3] }, clumps: { species: ['grass-0', 'bush-yellow', 'flowers-white'], count: [3, 4] }, animals: 0.9 },
   ],
   rocky: [
@@ -240,11 +243,60 @@ export const TILES: Record<Biome, TileKind[]> = {
   ],
 };
 
-/** The animals of each biome (weights): papertrails' rows per tile, with their tropical equivalents. */
-export const ANIMALS: Partial<Record<Biome, Array<[string, number]>>> = {
-  beach: [['crab', 1], ['pelican', 0.4], ['tortoise', 0.4], ['heron', 0.3]],
-  jungle: [['monkey', 1], ['parrot', 0.6], ['toucan', 0.5], ['frog', 0.4], ['gecko', 0.5], ['hummingbird', 0.5], ['boar', 0.3]],
-  pine: [['rabbit', 1], ['boar', 0.5], ['owl', 0.4], ['hummingbird', 0.3], ['frog', 0.3]],
-  meadow: [['goat', 0.8], ['rabbit', 0.8], ['hen', 0.5], ['pig', 0.4], ['monkey', 0.3], ['tortoise', 0.3]],
-  rocky: [['iguana', 1], ['gecko', 0.7], ['goat', 0.6], ['tortoise', 0.3]],
+/** When an animal is about (papertrails' spawn flags d and n): by day only, or by night only; always if not given. */
+export type Awake = 'day' | 'night';
+
+/**
+ * One row of a biome's animals, papertrails' spawn entry (config/animals.js there: species, chance, min, max, flags):
+ * its weight among the biome's rows, how many come, whether they keep together (its h: one tight group), when they are
+ * about, and where they are: at a tree of the tile (its at:tree and behind:tree vignettes) or perched on a stump, a log
+ * or a stone of it (its p: no perch, no animal).
+ */
+export interface AnimalRow {
+  species: string;
+  weight: number;
+  count: [number, number];
+  herd?: boolean;
+  awake?: Awake;
+  at?: 'tree' | 'perch';
+}
+
+const row = (species: string, weight: number, count: [number, number], more: Omit<AnimalRow, 'species' | 'weight' | 'count'> = {}): AnimalRow => ({ species, weight, count, ...more });
+
+/**
+ * The animals of each biome: papertrails' rows (config/animals.js spawns there), each as its nearest kind of ours plays
+ * it (world/critters.ts): sheep and cows come in herds (our goats and pigs), hens, chicks and songbirds in flocks by day
+ * (our hens, parrots, toucans, hummingbirds), squirrels and lizards by day (our monkeys, geckos and iguanas); a fox
+ * half hidden behind a tree by day and out in the open at night (our boar), the hedgehog by night (our tortoise), the
+ * owl by night up on a stump or a log.
+ */
+export const ANIMALS: Partial<Record<Biome, AnimalRow[]>> = {
+  beach: [row('crab', 1, [1, 2]), row('pelican', 0.4, [1, 1], { awake: 'day' }), row('tortoise', 0.4, [1, 1]), row('heron', 0.3, [1, 1], { awake: 'day' })],
+  jungle: [
+    row('monkey', 1, [1, 1], { awake: 'day' }),
+    row('parrot', 0.6, [2, 3], { herd: true, awake: 'day' }),
+    row('toucan', 0.5, [1, 2], { herd: true, awake: 'day' }),
+    row('frog', 0.4, [1, 1]),
+    row('gecko', 0.5, [1, 1], { awake: 'day', at: 'tree' }),
+    row('hummingbird', 0.5, [2, 3], { herd: true, awake: 'day' }),
+    row('boar', 0.3, [1, 1], { awake: 'day', at: 'tree' }),
+    row('boar', 0.4, [1, 1], { awake: 'night' }),
+  ],
+  pine: [
+    row('rabbit', 1, [1, 2]),
+    row('boar', 0.3, [1, 1], { awake: 'day', at: 'tree' }),
+    row('boar', 0.4, [1, 1], { awake: 'night' }),
+    row('owl', 0.45, [1, 1], { awake: 'night', at: 'perch' }),
+    row('hummingbird', 0.3, [2, 3], { herd: true, awake: 'day' }),
+    row('frog', 0.3, [1, 1]),
+  ],
+  meadow: [
+    row('goat', 0.8, [2, 4], { herd: true }),
+    row('rabbit', 0.8, [1, 2]),
+    row('hen', 0.5, [2, 3], { herd: true, awake: 'day' }),
+    row('pig', 0.4, [1, 2], { herd: true }),
+    row('monkey', 0.3, [1, 1], { awake: 'day' }),
+    row('tortoise', 0.3, [1, 1], { awake: 'night' }),
+  ],
+  rocky: [row('iguana', 1, [1, 2], { awake: 'day' }), row('gecko', 0.7, [1, 2], { awake: 'day' }), row('goat', 0.6, [2, 3], { herd: true }), row('tortoise', 0.3, [1, 1], { awake: 'night' })],
 };

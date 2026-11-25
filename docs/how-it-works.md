@@ -84,15 +84,25 @@ What papertrails does, Paper Seas does the same way (its traveller is as tall as
   (unchanged); the streams take papertrails' water of the biome (shallow, deep, rim, floater), petals in the blossom.
 - **Sizes and density** (`config/flora.ts`, `world/cover.ts`): trees about 1.1, pines 1.3, bushes 0.4, flowers and
   grass 0.3, houses 1.1, animals at most half the captain (the skill's creatures), every kind varied +-15 % (and under everything that stands, papertrails' soft darker contact
-  patch on the ground); the ground is planted by 2 x 2 tiles, each one composition
+  patch on the ground: a disc under a card, the footprint under a building); the ground is planted by 2 x 2 tiles, each one composition
   mixing a few tall species near its corners with clumps of ground cover and flowers, a small prop or two (a stump, a
-  log, mushrooms, coconuts, shells, a woodpile) and about one animal, the woods massing where a low-frequency field is
+  log, mushrooms, coconuts, shells, a woodpile) and about one row of animals (papertrails' spawn rows: goats and pigs
+  in herds, hens and songbirds in flocks by day, monkeys and lizards by day, a boar behind a tree by day and in the
+  open at night, the tortoise by night, the owl by night up on a stump or a log; out of its hours an animal pops away
+  and comes back when they return), now and then a pen of goats in the meadow, the woods massing where a low-frequency field is
   high and clearings left where another is low (open ground between the groups, a low clump or two on it); no more than
   three of one prop or animal stand in any 9 x 9 square, about one on-foot view. Like papertrails' tiles (measured on its tiles.glb: 9 or 10 cards, 7 to 10 drawings) a tile hands out its
   species before repeating one (four pines, three broadleaf trees, two blossoms to draw from), and a clump is one to
   four cards of different species, the tallest at the back; the low cover is drawn as wide low drifts (about 2.4 x as
-  wide as tall), the ferns as compact clumps. Villages have a well, stalls, laundry, bunting, carts, benches, lamps, hives and fences and their hens, chicks,
-  cats, dogs, pigs and goats; every few units of road a signpost, guidepost, bench, cart, lamp or barrel stands by it;
+  wide as tall), the ferns as compact clumps; a lone tuft of grass or a reed bed stands with papertrails' rear copy
+  behind it (0.75 of its tone, 1.08 its size, about 0.13 further back), so it reads as a thick clump. Villages ring
+  their square or, half of them, line a street through it (papertrails' village rows: the far side's houses face the
+  camera and the street, the rest face it from the near side, the low props mostly on the near side so the street
+  stays in sight); they have a well, stalls, laundry, bunting, carts, benches, lamps, hives and fences, flocks of hens
+  and chicks by day, a few goats and a pig or two, and little scenes: a bed of flowers by a door, a pen of goats between
+  two rows of fence, a handcart with its hay, a rowboat drawn up on the sand by the pier. Every few units of road a
+  guidepost, bench, cart (with its hay, often), lamp or barrel stands by it, and a signpost where roads meet (a fork
+  past a village's square, a crossing);
   now and then a lookout tower or a camp of tents round a fire stands in the wild.
 - **Roads and streams** (`world/places.ts`): rivers wind a long way across the land and never reach the sea, each in its own stretch of country so no two meet; villages, ports, inland hamlets and ruins are joined by roads routed over the land (noise, turn cost, hills
   dear), crossing the rivers on bridges, and every river has footbridges of its own along it; lanes lead to every door and pier.

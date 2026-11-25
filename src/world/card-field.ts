@@ -19,7 +19,7 @@ import { bus } from '../core/events';
 import { POPUP } from '../config/popup';
 import { Flap, FixedStepper, flapConstants } from '../popup/spring';
 import { CARD_THICKNESS, cardGeometry, materialFor, thickCardGeometry, thickMaterial } from '../popup/card';
-import { CROSSED, heightOf } from '../config/flora';
+import { CROSSED, heightOf, type Awake } from '../config/flora';
 import { cardWidth, spriteArt } from '../art/sprites';
 import { PAPER_FLAT_ATTRIBUTE, pencilPlan } from '../render/paper-material';
 import { CELL, cellGesture, cellJitter, type Reveal } from './reveal';
@@ -79,6 +79,8 @@ export interface CardSpec {
   biome?: Biome;
   /** papertrails' clump shading: the whole card printed this much darker (1, as drawn, if not given). */
   tone?: number;
+  /** An animal about by day or by night only (papertrails' d and n): out of its hours it is not there. */
+  awake?: Awake;
 }
 
 export interface Card extends CardSpec {
@@ -102,6 +104,8 @@ export interface Card extends CardSpec {
   wind: Sway;
   sway: number;
   swayLevel: number;
+  /** How far it is there (0..1): an animal of the day or the night pops up in its hours and away out of them. */
+  shown: number;
   /** The page it covers lying folded flat (see flatBounds). */
   flatBox: Box;
   /**
@@ -139,6 +143,10 @@ function flatBounds(s: CardSpec): Box {
 /** The cards that are lamps (papertrails' lamp nodes: they pool light on the page at night, render/lamp-pools.ts). */
 const LAMPS = new Set(['lantern-post', 'campfire']);
 
+/** papertrails' animal cards pop up at this rate and away at this one (1/s) as the day or the night comes. */
+const POP_RATE = 4.5;
+const HIDE_RATE = 10;
+
 /** Side of the squares the folded cards are filed under (world units), to find the ones a card lies over. */
 const FLAT_CELL = 1;
 
@@ -168,8 +176,13 @@ export class CardField {
   private focusZ = 0;
 
   /** habitat: where the animals may walk and swim, and whether it is night. */
-  constructor(habitat: Habitat) {
+  constructor(private readonly habitat: Habitat) {
     this.critters = new Critters(habitat);
+  }
+
+  /** Whether a card of these hours is about now (1) or not (0). */
+  private awakeNow(awake: Awake | undefined): number {
+    return !awake || (awake === 'night') === this.habitat.night() ? 1 : 0;
   }
 
   /** Adds cards (returns them, so their owner can remove them later). */
@@ -198,6 +211,7 @@ export class CardField {
         wind: swayOf(s.sprite, s.height, cardWidth(s.sprite, s.height), s.x, s.z),
         sway: 0,
         swayLevel: 0,
+        shown: this.awakeNow(s.awake),
         flatBox: flatBounds(s),
         flatY: s.y,
       };
@@ -374,6 +388,13 @@ export class CardField {
           stirred = true;
         }
         if (Critters.is(c.sprite) && f.p > 0.5 && d < SWAY_RADIUS) stirred = true;
+        if (c.awake) {
+          const want = this.awakeNow(c.awake);
+          if (c.shown !== want) {
+            c.shown = want > c.shown ? Math.min(1, c.shown + dt * POP_RATE) : Math.max(0, c.shown - dt * HIDE_RATE);
+            stirred = true;
+          }
+        }
         if (stirred) animate = true;
       }
       if (animate) {
@@ -393,7 +414,7 @@ export class CardField {
       const p = c.flap.p;
       // a folded card is not gone: it lies flat on the page, face up, like papertrails' folded flaps (it is seen
       // from afar, and seen to fold down and to stand up again)
-      if (c.hidden) continue;
+      if (c.hidden || c.shown <= 0) continue;
       const sw = c.sway;
       _p.set(c.x, c.y + (c.flatY - c.y) * clamp(1 - p, 0, 1), c.z);
       let lean = 0;
@@ -419,8 +440,10 @@ export class CardField {
       _q.multiply(_qa.setFromAxisAngle(X_AXIS, (-Math.PI / 2) * (1 - p)));
       if (lean !== 0) _q.multiply(_qa.setFromAxisAngle(Z_AXIS, lean));
       if (c.flap.twist !== 0) _q.multiply(_qa.setFromAxisAngle(Y_AXIS, c.flap.twist));
+      // (an animal popping up or away: papertrails' pop, a smoothstep of its scale)
+      const pop = c.shown < 1 ? c.shown * c.shown * (3 - 2 * c.shown) : 1;
       if (b.part === 'card') {
-        _m.compose(_p, _q, _s.set(c.height, c.height, CARD_THICKNESS));
+        _m.compose(_p, _q, _s.set(c.height * pop, c.height * pop, CARD_THICKNESS));
       } else {
         // a half card on the card's front or back face, hinged down its middle: folded flat against the face while the
         // card lies (0), square to it standing (1); both turn the same way round, so together they make the cross's

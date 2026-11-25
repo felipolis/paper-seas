@@ -23,12 +23,13 @@ import { contoursFromGrid, outlinesWithHoles, type Grid } from './contours';
 import { LAND_TOP, type LandField } from './land';
 import { valueNoise } from './noise';
 import { plantCover, plantShallows, type CoverEnv } from './cover';
-import { addContact, edgeWallUV, groundData, groundMaterial, landEdgeMaterial, pathTones } from './ground-shader';
+import { addContact, edgeWallUV, groundData, groundMaterial, landEdgeMaterial, pathTones, type Footprint } from './ground-shader';
 import { streamRibbons } from './stream-mesh';
 import type { Chimney } from '../life/smoke';
-import { ROAD_WIDTH } from './roads';
+import { ROAD_WIDTH, junctionsOf, onRoad } from './roads';
 import { Streams } from './streams';
 import type { Places } from './places';
+import { STREET_WIDTH } from './sites';
 import { polylineDistance, type Box, type Pt } from './polyline';
 import { CROSSED, heightOf } from '../config/flora';
 import { CROSS_PLANES, type Card, type CardField, type CardSpec } from './card-field';
@@ -264,16 +265,26 @@ function piecesBox(pieces: Segment[][], pad: number): Box | null {
 const LANE_WIDTH = 0.36;
 const SQUARE_RADIUS = 0.95;
 
+/** What is built without a contact patch: a mountain is ground itself, a pier or a bridge stands over the water. */
+const BARE = /^(ridge-|outcrop-|pier$|bridge$)/;
+
 /** Clear ground kept round a building (beyond its own footprint): the ground cover grows close to the walls. */
 const YARD = 0.35;
 
 /** Cards that stand in the shallows on purpose. */
 const SEA_CARDS = new Set(['flamingo', 'sea-arch', 'rock-spire', 'duck-float']);
-/** papertrails' watchtower vignette: an owl at this share of the top of the tower, on this share of the towers. */
+/** papertrails' watchtower vignette: an owl at this share of the top of the tower, on this share of the towers, by night. */
 const TOP_K = 0.95;
 const OWL_CHANCE = 0.85;
-/** papertrails' roadside props: every path tile carries one (a guidepost, a bench, a cart, barrels or signposts). */
-const ROADSIDE = ['signpost', 'guidepost', 'bench', 'handcart', 'lantern-post', 'barrel'];
+/**
+ * papertrails' roadside props: every path tile carries one (a guidepost, a bench, a cart, barrels; its signposts stand
+ * where the roads meet: SIGN_OUT).
+ */
+const ROADSIDE = ['guidepost', 'bench', 'handcart', 'lantern-post', 'barrel'];
+/** A junction's signpost stands in the wedge between two of its roads, this far out from where they meet. */
+const SIGN_OUT = [0.75, 0.95, 1.2];
+/** A handcart by the road keeps a bale of hay beside it this often. */
+const CART_HAY = 0.5;
 /** One roadside prop every this many units of road, standing this far out from its edge. */
 const ROADSIDE_STEP = 3.2;
 const ROADSIDE_OUT = 0.32;
@@ -282,6 +293,14 @@ const REED_EVERY = 4;
 /** papertrails' ducks: on a river tile 0.4 chance of one or two floating; a frog on the bank 0.45 at a spring. */
 const DUCK_CHANCE = 0.12;
 const BANK_ANIMAL_CHANCE = 0.08;
+
+/**
+ * papertrails' rear copies (tiles.glb: tuft_a_rear, reeds_a_rear and the like, measured): behind a lone tuft of grass or
+ * a reed bed stands a copy of it, 0.75 of its tone and 1.08 of its size, 0.1-0.16 further from the camera and a little
+ * to one side, so a tuft reads as a thick clump rather than one card.
+ */
+const DOUBLED = /^(grass-|tuft-flowers$|cattails$|papyrus$)/;
+const REAR = { tone: 0.75, scale: 1.08, back: [0.1, 0.16], side: [0.05, 0.18] } as const;
 
 /** Ground cover and animals: the feet go through (or past) them. */
 const SOFT = /^(grass|fern|bush|flower|tuft|hibiscus|orchids|bird-of-paradise|cattails|papyrus|mushrooms|shells|pebbles|monkey|parrot|toucan|crab|iguana|pelican|flamingo|duck|hen|chick|goat|pig|cat|dog|frog|rabbit|owl|hummingbird|tortoise|boar|gecko|heron)/;
@@ -812,7 +831,7 @@ export class Terrain {
       const texture = toTexture(canvas);
       // the roads, lanes and squares and where the grass grows, for the ground's shader (world/ground-shader.ts)
       chunk.paths = {
-        strips: [...roads.map((r) => ({ pts: r.pts, width: ROAD_WIDTH })), ...layouts.flatMap((l) => l.lanes.map((pts) => ({ pts, width: LANE_WIDTH })))],
+        strips: [...roads.map((r) => ({ pts: r.pts, width: ROAD_WIDTH })), ...layouts.flatMap((l) => [...l.lanes.map((pts) => ({ pts, width: LANE_WIDTH })), ...(l.street ? [{ pts: l.street, width: STREET_WIDTH }] : [])])],
         squares: layouts.filter((l) => l.site.kind !== 'ruins').map((l): [number, number, number] => [l.site.x, l.site.z, SQUARE_RADIUS]),
       };
       const shaderData = groundData(x0, z0, CHUNK, chunk.paths, (x, z) => smoothstep(0.15, -0.15, sampleAt(terr[0], x, z)));
@@ -872,16 +891,26 @@ export class Terrain {
         return reach > 0 && !!chunk.paths?.strips.some((st) => polylineDistance(st.pts, x, z)[0] < st.width / 2 + reach + PATH_ROOM);
       };
       // (a vignette, papertrails' animal tied to a piece: up on its seat, and it does not keep off the paths; tone:
-      // papertrails' clump shading)
-      const add = (sprite: string, x: number, z: number, height = heightOf(sprite, rng()), flip = rng() < 0.5, yawJitter = 14, card: Pick<CardSpec, 'vignette' | 'tone'> = {}) => {
-        const { vignette, tone } = card;
+      // papertrails' clump shading; awake: an animal about by day or by night only)
+      const stand = (sprite: string, x: number, z: number, height: number, flip: boolean, yawJitter: number, card: Pick<CardSpec, 'vignette' | 'tone' | 'awake'>): boolean => {
+        const { vignette, tone, awake } = card;
         const cross = CROSSED.has(sprite);
         const yaw = (rng() - 0.5) * 2 * yawJitter * (cross ? CROSS_JITTER : 1) * DEG;
-        if (!SEA_CARDS.has(sprite) && !onLand(sprite, x, z, height, yaw, cross)) return;
-        if (!vignette && onPath(sprite, x, z, height)) return;
+        if (!SEA_CARDS.has(sprite) && !onLand(sprite, x, z, height, yaw, cross)) return false;
+        if (!vignette && onPath(sprite, x, z, height)) return false;
         // (papertrails' animals are not tinted with the tile)
         const biome = Critters.is(sprite) ? undefined : land.biomeInland(x, z);
-        specs.push({ sprite, x, y: heightAt(x, z) + (vignette?.seat ?? 0), z, height, yaw, flip, delay: 0, cross, vignette, biome, tone });
+        specs.push({ sprite, x, y: heightAt(x, z) + (vignette?.seat ?? 0), z, height, yaw, flip, delay: 0, cross, vignette, biome, tone, awake });
+        return true;
+      };
+      // (a tuft of grass or a reed bed stands with its darker rear copy behind it: papertrails' *_rear cards)
+      const add = (sprite: string, x: number, z: number, height = heightOf(sprite, rng()), flip = rng() < 0.5, yawJitter = 14, card: Pick<CardSpec, 'vignette' | 'tone' | 'awake'> = {}) => {
+        // (only a lone one: a card of a clump has the clump's own cards behind it)
+        if (!stand(sprite, x, z, height, flip, yawJitter, card) || !DOUBLED.test(sprite) || card.tone !== undefined) return;
+        const side = rng() < 0.5 ? -1 : 1;
+        const rx = x + side * (REAR.side[0] + rng() * (REAR.side[1] - REAR.side[0]));
+        const rz = z - (REAR.back[0] + rng() * (REAR.back[1] - REAR.back[0]));
+        stand(sprite, rx, rz, height * REAR.scale, flip, yawJitter, { tone: REAR.tone });
       };
       const taken: Array<[number, number, number]> = [];
       const free = (x: number, z: number, r: number) => taken.every(([tx, tz, tr]) => (tx - x) ** 2 + (tz - z) ** 2 > (tr + r) ** 2);
@@ -914,7 +943,10 @@ export class Terrain {
           yards.push([b.x, b.z, foot + YARD]);
         }
         for (const p of [...l.props, ...l.piers]) taken.push([p.x, p.z, 0.4]);
+        // (and whatever ground the layout holds besides: a scene's, a pen's)
+        taken.push(...l.claims);
         for (const lane of l.lanes) claimLine(lane, () => LANE_WIDTH / 2 + 0.06);
+        if (l.street) claimLine(l.street, () => STREET_WIDTH / 2 + 0.06);
       }
 
       // A model stands only where every wall of its base is on the ground as drawn (the layouts chose their spots by the
@@ -976,7 +1008,7 @@ export class Terrain {
       // on this square's own ground)
       for (const l of layouts) {
         for (const b of l.buildings) if (own(b.x, b.z) && footOnLand(b.name, b.x, b.z, b.yaw)) this.addBuilding(chunk, b.name, b.x, heightAt(b.x, b.z), b.z, b.yaw);
-        for (const p of l.props) if (own(p.x, p.z)) add(p.name, p.x, p.z, p.height, p.flip, p.vignette ? 0 : 10, { vignette: p.vignette });
+        for (const p of l.props) if (own(p.x, p.z)) add(p.name, p.x, p.z, p.height, p.flip, p.vignette || p.square ? 0 : 10, { vignette: p.vignette, awake: p.awake });
         for (const p of l.piers) {
           if (!own(p.x, p.z)) continue;
           // standing on the beach at its shore end
@@ -1039,9 +1071,31 @@ export class Terrain {
           const sprite = ROADSIDE[Math.floor(rng() * ROADSIDE.length)];
           // (well up the beach, as the villages keep their props)
           if (free(x, z, 0.2) && sampleAt(dist, x, z) < -0.4) {
-            add(sprite, x, z, heightOf(sprite, rng()), rng() < 0.5, 10);
+            const h = heightOf(sprite, rng());
+            add(sprite, x, z, h, rng() < 0.5, 10);
             taken.push([x, z, 0.2]);
+            // (a cart with its hay, beside it as the card is seen)
+            const hx = x + side * (cardWidth(sprite, h) / 2 + 0.14);
+            const hz = z - 0.06;
+            if (sprite === 'handcart' && rng() < CART_HAY && free(hx, hz, 0.15) && !roads.some((r) => onRoad(r, hx, hz, 0.15))) {
+              add('hay', hx, hz);
+              taken.push([hx, hz, 0.15]);
+            }
           }
+        }
+      }
+      // papertrails' signposts where the roads meet: in the wedge between two of them, off every road
+      for (const j of junctionsOf(roads)) {
+        const [[ax, az], [bx, bz]] = j.dirs;
+        const wl = Math.hypot(ax + bx, az + bz);
+        const [wx, wz] = wl > 0.2 ? [(ax + bx) / wl, (az + bz) / wl] : [-az, ax];
+        for (const out of SIGN_OUT) {
+          const x = j.x + wx * out;
+          const z = j.z + wz * out;
+          if (!own(x, z) || !free(x, z, 0.2) || sampleAt(dist, x, z) > -0.4 || roads.some((r) => onRoad(r, x, z, 0.18))) continue;
+          add('signpost', x, z, heightOf('signpost', rng()), rng() < 0.5, 10);
+          taken.push([x, z, 0.2]);
+          break;
         }
       }
 
@@ -1079,7 +1133,7 @@ export class Terrain {
             const tower = heightOf('watchtower', rng());
             add('watchtower', x, z, tower, rng() < 0.5, 0);
             // papertrails' watchtower tile: an owl perched at the top of the tower (0.85 of them)
-            if (rng() < OWL_CHANCE) add('owl', x, z + 0.02, undefined, rng() < 0.5, 0, { vignette: { seat: tower * spriteTop('watchtower', 0.5) * TOP_K } });
+            if (rng() < OWL_CHANCE) add('owl', x, z + 0.02, undefined, rng() < 0.5, 0, { vignette: { seat: tower * spriteTop('watchtower', 0.5) * TOP_K }, awake: 'night' });
             add('woodpile', x + 0.55, z + 0.35);
           } else {
             add(rng() < 0.5 ? 'tent' : 'tent-striped', x - 0.45, z - 0.25);
@@ -1110,7 +1164,7 @@ export class Terrain {
         biome: (x, z, d) => land.biome(x, z, d),
         blocked: (x, z, r) => !free(x, z, r) || inYard(x, z),
         claim: (x, z, r) => taken.push([x, z, r]),
-        place: (sprite, x, z, height, card) => add(sprite, x, z, height, undefined, undefined, card),
+        place: (sprite, x, z, height, card = {}) => add(sprite, x, z, height, undefined, card.square ? 0 : undefined, card),
         rng,
       };
       plantShallows(env, x0, z0, CHUNK);
@@ -1140,8 +1194,16 @@ export class Terrain {
         chunk.chests.push(chest);
         this.chests.set(chest.id, chest);
       }
-      // papertrails' contact patch under every standing piece of the chunk (the ground cover and the animals as well)
-      if (chunk.data) addContact(chunk.data, x0, z0, chunk.cards.map((c) => [c.x, c.z, cardWidth(c.sprite, c.height)]));
+      // papertrails' contact patch under every standing piece of the chunk (the ground cover and the animals as well),
+      // and under its buildings (a village's that stand in the next square too: their patch reaches over)
+      if (chunk.data) {
+        const foot = (b: { name: string; x: number; z: number; yaw: number }): Footprint => {
+          const info = modelInfo(b.name)!;
+          return [b.x, b.z, info.width, info.depth, b.yaw];
+        };
+        const feet = [...chunk.houses.filter((h) => !BARE.test(h.name)), ...layouts.flatMap((l) => l.buildings.filter((b) => !own(b.x, b.z)))].map(foot);
+        addContact(chunk.data, x0, z0, chunk.cards.map((c) => [c.x, c.z, cardWidth(c.sprite, c.height)]), feet);
+      }
     }
     // papertrails' walk field, made with the chunk (not when the feet first ask, in the middle of a walk)
     yield* this.makeField(chunk);

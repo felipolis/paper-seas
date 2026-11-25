@@ -215,3 +215,87 @@ export function onRoad(road: Road, x: number, z: number, r: number): boolean {
   if (x < road.box[0] - r || x > road.box[2] + r || z < road.box[1] - r || z > road.box[3] + r) return false;
   return polylineDistance(road.pts, x, z)[0] < ROAD_WIDTH / 2 + r;
 }
+
+/** A fork nearer a road's end than this is the village square the roads leave from (its props stand there). */
+const FORK_FROM = 2.4;
+/** Two roads from one place that still run together this far along have no fork worth a sign. */
+const FORK_TO = 12;
+/** Two roads count as parted once their middle lines are this far apart. */
+const APART = ROAD_WIDTH * 1.3;
+/** Junctions closer than this are one. */
+const JUNCTION_MERGE = 2;
+
+/** Where roads meet: the point, and the unit directions of the roads leaving it. */
+export interface Junction {
+  x: number;
+  z: number;
+  dirs: Pt[];
+}
+
+/**
+ * papertrails' signposts stand where roads meet (its crossroads and forks, the path ends of world/wfc.js there): every
+ * fork of two roads leaving one place (where they part, out past its square) and every crossing of two roads.
+ */
+export function junctionsOf(roads: readonly Road[]): Junction[] {
+  const out: Junction[] = [];
+  const add = (j: Junction) => {
+    if (!out.some((o) => Math.hypot(o.x - j.x, o.z - j.z) < JUNCTION_MERGE)) out.push(j);
+  };
+  for (let i = 0; i < roads.length; i++) {
+    for (let k = i + 1; k < roads.length; k++) {
+      const fork = forkOf(roads[i], roads[k]);
+      if (fork) add(fork);
+      for (const c of crossingsOf(roads[i], roads[k])) add(c);
+    }
+  }
+  return out;
+}
+
+/** The unit direction of a polyline from its point i on (a few points ahead, so a bend does not throw it). */
+function heading(pts: readonly Pt[], i: number): Pt {
+  const j = Math.min(pts.length - 1, i + 4);
+  const a = pts[Math.min(i, j - 1)];
+  const l = Math.hypot(pts[j][0] - a[0], pts[j][1] - a[1]) || 1;
+  return [(pts[j][0] - a[0]) / l, (pts[j][1] - a[1]) / l];
+}
+
+/** Where two roads leaving one place part (out past its square), or null. */
+function forkOf(a: Road, b: Road): Junction | null {
+  for (const ea of [a.pts, [...a.pts].reverse()]) {
+    for (const eb of [b.pts, [...b.pts].reverse()]) {
+      if (Math.hypot(ea[0][0] - eb[0][0], ea[0][1] - eb[0][1]) > 0.5) continue;
+      let along = 0;
+      for (let i = 1; i < ea.length && along < FORK_TO; i++) {
+        along += Math.hypot(ea[i][0] - ea[i - 1][0], ea[i][1] - ea[i - 1][1]);
+        if (polylineDistance(eb, ea[i][0], ea[i][1])[0] <= APART) continue;
+        if (along < FORK_FROM) return null;
+        const [x, z] = ea[i - 1];
+        let m = 0;
+        for (let q = 1; q < eb.length; q++) if (Math.hypot(eb[q][0] - x, eb[q][1] - z) < Math.hypot(eb[m][0] - x, eb[m][1] - z)) m = q;
+        return { x, z, dirs: [heading(ea, i - 1), heading(eb, m)] };
+      }
+      return null;
+    }
+  }
+  return null;
+}
+
+/** Where two roads cross, away from their ends (a crossing at a village is its square). */
+function crossingsOf(a: Road, b: Road): Junction[] {
+  const out: Junction[] = [];
+  if (a.box[0] > b.box[2] || b.box[0] > a.box[2] || a.box[1] > b.box[3] || b.box[1] > a.box[3]) return out;
+  const ends = [a.pts[0], a.pts[a.pts.length - 1], b.pts[0], b.pts[b.pts.length - 1]];
+  for (let i = 0; i + 1 < a.pts.length; i++) {
+    for (let k = 0; k + 1 < b.pts.length; k++) {
+      const hit = segmentCross(a.pts[i], a.pts[i + 1], b.pts[k], b.pts[k + 1]);
+      if (!hit) continue;
+      const x = a.pts[i][0] + (a.pts[i + 1][0] - a.pts[i][0]) * hit[0];
+      const z = a.pts[i][1] + (a.pts[i + 1][1] - a.pts[i][1]) * hit[0];
+      if (ends.some(([ex, ez]) => Math.hypot(ex - x, ez - z) < FORK_FROM)) continue;
+      const da = heading(a.pts, i);
+      const db = heading(b.pts, k);
+      out.push({ x, z, dirs: [da, db, [-da[0], -da[1]], [-db[0], -db[1]]] });
+    }
+  }
+  return out;
+}

@@ -32,9 +32,10 @@ const BLUR_SOFT = 0.125;
 /**
  * papertrails' contact patch (render/water.js groundBodyGLSL, groundPrint.contact there): its baked print is darkest
  * under the props of a tile, and a little of that stays as a soft darker patch on open ground; ours is drawn from the
- * props themselves (addContact), a disc under each standing piece, this much of its width, blurred this far.
+ * props themselves (addContact), a disc under each standing piece, this much of its width, blurred this far; under a
+ * building its footprint, grown by margin all round, its corners rounded by corner.
  */
-const CONTACT = { strength: 0.13, reach: 0.42, blur: 0.09 };
+const CONTACT = { strength: 0.13, reach: 0.42, blur: 0.09, margin: 0.1, corner: 0.15 };
 
 /** papertrails' page (config/world.js `book` and the texture manifest there). */
 const PAGE = {
@@ -118,12 +119,16 @@ export function groundData(x0: number, z0: number, size: number, shapes: GroundS
   return tex;
 }
 
+/** A building's footprint for the contact patch: centre, width (along its front), depth, yaw. */
+export type Footprint = [number, number, number, number, number];
+
 /**
- * Draws the contact patch of the chunk's standing pieces into its data texture (A): a soft disc under each, its radius
- * a share of the piece's width. props: [x, z, width] in world units. The discs are drawn crisp as one shape and blurred
- * once (a canvas filter blurs every fill on its own: one per piece cost a chunk ~70 ms).
+ * Draws the contact patch of the chunk's standing pieces into its data texture (A): a soft disc under each card, its
+ * radius a share of the card's width, and under each building its footprint. props: [x, z, width] in world units. The
+ * shapes are drawn crisp as one and blurred once (a canvas filter blurs every fill on its own: one per piece cost a
+ * chunk ~70 ms).
  */
-export function addContact(tex: THREE.DataTexture, x0: number, z0: number, props: ReadonlyArray<[number, number, number]>): void {
+export function addContact(tex: THREE.DataTexture, x0: number, z0: number, props: ReadonlyArray<[number, number, number]>, feet: readonly Footprint[]): void {
   const px = tex.image.width;
   const discs = document.createElement('canvas');
   discs.width = discs.height = px;
@@ -137,6 +142,14 @@ export function addContact(tex: THREE.DataTexture, x0: number, z0: number, props
     dc.moveTo(cx + r, cz);
     dc.ellipse(cx, cz, r, r * 0.7, 0, 0, Math.PI * 2);
   }
+  // (a building turned by yaw: its own axes on the canvas, whose rows run down z, are the world's turned by -yaw)
+  const m = CONTACT.margin;
+  for (const [x, z, w, d, yaw] of feet) {
+    dc.setTransform(1, 0, 0, 1, (x - x0) * DATA_PPU, (z - z0) * DATA_PPU);
+    dc.rotate(-yaw);
+    dc.roundRect(-(w / 2 + m) * DATA_PPU, -(d / 2 + m) * DATA_PPU, (w + 2 * m) * DATA_PPU, (d + 2 * m) * DATA_PPU, CONTACT.corner * DATA_PPU);
+  }
+  dc.resetTransform();
   dc.fill();
   const c = document.createElement('canvas');
   c.width = c.height = px;

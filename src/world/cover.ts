@@ -2,7 +2,8 @@
  * Ground cover, planted by 2 x 2 tiles like papertrails' page (see config/flora.ts): every tile on land is one
  * composition picked for its biome: a few tall pieces near its corners (a leading species that drifts slowly from
  * tile to tile, the others of its list mixed in, as papertrails' forest tile mixes four), clumps of ground cover and
- * flowers, small props, and its animals. Like papertrails' tiles, a tile hardly ever shows the same drawing twice: each
+ * flowers, small props, and its animals (papertrails' spawn rows: herds and flocks, some about by day or by night
+ * only, config/flora.ts ANIMALS). Like papertrails' tiles, a tile hardly ever shows the same drawing twice: each
  * list hands out all its species before any comes again. Forest tiles gather where a low-frequency field is high, so
  * the woods mass together; where another slow field is low the tile is a clearing (the skill's designed negative
  * space: open ground between the groups, clumped, never even), only a low clump or two on it. In any view-sized region
@@ -13,7 +14,9 @@
  */
 import { WORLD } from '../config/world';
 import { pickWeighted } from '../core/rng';
-import { ANIMALS, TILES, heightOf, variantOf, type TileKind } from '../config/flora';
+import { ANIMALS, TILES, heightOf, variantOf, type AnimalRow, type TileKind } from '../config/flora';
+import { spriteTop } from '../art/sprites';
+import { penAt } from './pen';
 import { fbm, valueNoise } from './noise';
 import { CELL } from './reveal';
 import type { Biome } from './land';
@@ -48,6 +51,19 @@ const TALL_ROOM = 0.3;
 const PROP_ROOM = 0.25;
 const COVER_ROOM = 0.06;
 const ANIMAL_ROOM = 0.15;
+/**
+ * papertrails' herd (life/animals.js there): the first of a group finds its spot, the others stand within this of it
+ * (0.2 + 0.09 a head), no nearer than HERD_GAP to one another.
+ */
+const HERD_SPREAD = [0.2, 0.09] as const;
+const HERD_GAP = 0.16;
+/**
+ * papertrails' perches (config/animals.js perch there): the props an owl may sit on, and the window of their tops it
+ * takes (world units); a sitter sinks this far below the top.
+ */
+const PERCH = /^(stump|log|rock-|woodpile)/;
+const PERCH_TOP: [number, number] = [0.06, 0.62];
+const PERCH_SINK = 0.03;
 /** How many spots a small piece tries on its tile before it gives up (the tall pieces have their corners). */
 const TRIES = 6;
 /** Forest field: period (world units) and the weight it gives forest tiles (papertrails: 0.06 + 5.2 F^2). */
@@ -70,9 +86,10 @@ export interface CoverEnv {
   claim(x: number, z: number, r: number): void;
   /**
    * Stands a card; card.vignette: papertrails' animal tied to a piece (it keeps its place); card.tone: its clump
-   * shading.
+   * shading; card.awake: an animal about by day or by night only; card.square: set square to the camera with the rest
+   * of its scene (a pen's fences), not turned a little as a lone card is.
    */
-  place(sprite: string, x: number, z: number, height: number, card?: Pick<CardSpec, 'vignette' | 'tone'>): void;
+  place(sprite: string, x: number, z: number, height: number, card?: Pick<CardSpec, 'vignette' | 'tone' | 'awake'> & { square?: boolean }): void;
   rng(): number;
 }
 
@@ -142,6 +159,7 @@ function clearingOf(kind: TileKind): TileKind {
 
 /** room(sprite, x, z): whether one more of this prop or animal may stand there (and counts it if so). */
 function plantTile(env: CoverEnv, kind: TileKind, kindIndex: number, biome: Biome, cx: number, cz: number, room: (sprite: string, x: number, z: number) => boolean): void {
+  if (kind.pen && env.rng() < kind.pen) plantPen(env, cx, cz);
   const talls: Array<[number, number]> = [];
   if (kind.tall) {
     const list = kind.tall.species;
@@ -161,6 +179,8 @@ function plantTile(env: CoverEnv, kind: TileKind, kindIndex: number, biome: Biom
       talls.push([x, z]);
     }
   }
+  // (the props an owl may perch on: where, and their top there)
+  const perches: Array<[number, number, number]> = [];
   if (kind.props) {
     const next = deck(env, kind.props.species);
     for (let n = between(env, kind.props.count); n > 0; n--) {
@@ -168,8 +188,11 @@ function plantTile(env: CoverEnv, kind: TileKind, kindIndex: number, biome: Biom
       const at = spot(env, cx, cz, 0.8, PROP_ROOM, (d) => d < -0.2);
       if (!at || !room(sprite, at[0], at[1])) continue;
       const [x, z] = at;
-      env.place(sprite, x, z, heightOf(sprite, env.rng()));
+      const h = heightOf(sprite, env.rng());
+      env.place(sprite, x, z, h);
       env.claim(x, z, PROP_ROOM);
+      const top = h * spriteTop(sprite, 0.5);
+      if (PERCH.test(sprite) && top >= PERCH_TOP[0] && top <= PERCH_TOP[1]) perches.push([x, z, top]);
     }
   }
   if (kind.clumps) {
@@ -186,7 +209,8 @@ function plantTile(env: CoverEnv, kind: TileKind, kindIndex: number, biome: Biom
       const side = env.rng() < 0.5 ? -1 : 1;
       for (const [m, { sprite, height }] of cards.entries()) {
         if (env.distance(x, z) < -0.12 && !env.blocked(x, z, COVER_ROOM)) {
-          env.place(sprite, x, z, height, { tone: CLUMP_TONES[size][m] });
+          // (a lone card is not a clump: it takes papertrails' rear copy instead, world/terrain.ts)
+          env.place(sprite, x, z, height, size > 1 ? { tone: CLUMP_TONES[size][m] } : {});
           env.claim(x, z, COVER_ROOM);
         }
         // the next card stands out to one side of this one and a little in front of it
@@ -195,27 +219,71 @@ function plantTile(env: CoverEnv, kind: TileKind, kindIndex: number, biome: Biom
       }
     }
   }
-  // the tile's animals: as many as its average says (its whole part, and one more by chance of the rest)
-  const animals = ANIMALS[biome];
-  if (kind.animals && animals) {
+  // the tile's animals: as many of its rows as its average says (its whole part, and one more by chance of the rest)
+  const rows = ANIMALS[biome];
+  if (kind.animals && rows) {
     const n = Math.floor(kind.animals) + (env.rng() < kind.animals % 1 ? 1 : 0);
-    for (let k = 0; k < n; k++) {
-      const [sprite] = pickWeighted(animals, (e) => e[1], env.rng());
-      // papertrails' grove vignettes: a squirrel at a tree's trunk (our gecko), a fox half hidden behind one (our boar)
-      const tree = VIGNETTES[sprite] && talls.length ? talls[Math.floor(env.rng() * talls.length)] : null;
-      if (tree) {
-        const side = env.rng() < 0.5 ? -1 : 1;
-        const [ox, oz] = VIGNETTES[sprite];
-        const x = tree[0] + side * ox;
-        const z = tree[1] + oz;
-        if (env.distance(x, z) < -0.2 && room(sprite, x, z)) env.place(sprite, x, z, heightOf(sprite, env.rng()), { vignette: { seat: 0 } });
-        continue;
-      }
-      // (crabs keep to the beach)
-      const at = spot(env, cx, cz, 0.7, ANIMAL_ROOM, (d) => d < -0.2 && !(sprite === 'crab' && d < -0.7));
-      if (at && room(sprite, at[0], at[1])) env.place(sprite, at[0], at[1], heightOf(sprite, env.rng()));
-    }
+    for (let k = 0; k < n; k++) plantAnimals(env, pickWeighted(rows, (r) => r.weight, env.rng()), cx, cz, talls, perches, room);
   }
+}
+
+/**
+ * One of a tile's animal rows (papertrails' spawn entry): at a tree, up on a perch, or on the ground, a herd about the
+ * first of it. A herd counts once against the same-kind cap (room).
+ */
+function plantAnimals(env: CoverEnv, row: AnimalRow, cx: number, cz: number, talls: ReadonlyArray<[number, number]>, perches: ReadonlyArray<[number, number, number]>, room: (sprite: string, x: number, z: number) => boolean): void {
+  const sprite = row.species;
+  const awake = row.awake;
+  // papertrails' grove vignettes: a squirrel at a tree's trunk (our gecko), a fox half hidden behind one (our boar)
+  if (row.at === 'tree' && talls.length && VIGNETTES[sprite]) {
+    const tree = talls[Math.floor(env.rng() * talls.length)];
+    const side = env.rng() < 0.5 ? -1 : 1;
+    const [ox, oz] = VIGNETTES[sprite];
+    const x = tree[0] + side * ox;
+    const z = tree[1] + oz;
+    if (env.distance(x, z) < -0.2 && room(sprite, x, z)) env.place(sprite, x, z, heightOf(sprite, env.rng()), { vignette: { seat: 0 }, awake });
+    return;
+  }
+  if (row.at === 'perch') {
+    if (!perches.length) return;
+    const [x, z, top] = perches[Math.floor(env.rng() * perches.length)];
+    if (room(sprite, x, z)) env.place(sprite, x, z + 0.02, heightOf(sprite, env.rng()), { vignette: { seat: top - PERCH_SINK }, awake });
+    return;
+  }
+  // (crabs keep to the beach)
+  const ok = (d: number) => d < -0.2 && !(sprite === 'crab' && d < -0.7);
+  const count = between(env, row.count);
+  const spread = HERD_SPREAD[0] + HERD_SPREAD[1] * count;
+  const herd: Array<[number, number]> = [];
+  for (let m = 0; m < count; m++) {
+    const at = row.herd && herd.length ? near(env, herd, spread, ok) : spot(env, cx, cz, 0.7, ANIMAL_ROOM, ok);
+    if (!at || (!(row.herd && herd.length) && !room(sprite, at[0], at[1]))) continue;
+    env.place(sprite, at[0], at[1], heightOf(sprite, env.rng()), { awake });
+    herd.push(at);
+  }
+}
+
+/** papertrails' meadow pen (world/pen.ts) about the tile's middle, its herd keeping its place; or nothing. */
+function plantPen(env: CoverEnv, cx: number, cz: number): void {
+  const pen = penAt(cx + (env.rng() - 0.5) * 0.4, cz + (env.rng() - 0.5) * 0.4, env.rng);
+  const clear = (px: number, pz: number, r: number) => env.distance(px, pz) < -0.3 && !env.blocked(px, pz, r);
+  if (!pen.fences.every(([px, pz]) => clear(px, pz, pen.half))) return;
+  for (const [px, pz] of pen.fences) env.place(pen.fence, px, pz, pen.height, { square: true });
+  for (const [who, x, z] of pen.herd) env.place(who, x, z, heightOf(who, env.rng()), { vignette: { seat: 0 } });
+  const [mx, mz] = [(pen.fences[0][0] + pen.fences[pen.fences.length - 1][0]) / 2, (pen.fences[0][1] + pen.fences[pen.fences.length - 1][1]) / 2];
+  env.claim(mx, mz, pen.room);
+}
+
+/** A spot for the next of a herd: within spread of its first, clear of the others of it by HERD_GAP; or null. */
+function near(env: CoverEnv, herd: ReadonlyArray<[number, number]>, spread: number, ok: (d: number) => boolean): [number, number] | null {
+  const [hx, hz] = herd[0];
+  for (let t = 0; t < TRIES * 2; t++) {
+    const x = hx + (env.rng() - 0.5) * 2 * spread;
+    const z = hz + (env.rng() - 0.5) * 2 * spread;
+    if (!ok(env.distance(x, z)) || env.blocked(x, z, ANIMAL_ROOM) || herd.some(([ax, az]) => Math.hypot(ax - x, az - z) < HERD_GAP)) continue;
+    return [x, z];
+  }
+  return null;
 }
 
 /** The shallows round a coast: flamingos wading, now and then a sea arch or a stack off the shore. */
