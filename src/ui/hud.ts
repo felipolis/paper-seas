@@ -47,7 +47,7 @@ export class Hud {
       <div class="hud-prompt paper-card"></div>
       <div class="hud-view paper-card"></div>
       <div class="hud-hint"><div>W / S sails &nbsp;·&nbsp; A / D helm &nbsp;·&nbsp; E chart &nbsp;·&nbsp; F go ashore</div><div>V view &nbsp;·&nbsp; T day / night &nbsp;·&nbsp; M music &nbsp;·&nbsp; Esc pause</div></div>
-      <div class="hud-hint faded">WASD walk &nbsp;·&nbsp; Shift run &nbsp;·&nbsp; Ctrl stroll &nbsp;·&nbsp; F back aboard</div>
+      <div class="hud-hint faded">WASD or click to walk &nbsp;·&nbsp; Shift run &nbsp;·&nbsp; Ctrl stroll &nbsp;·&nbsp; F back aboard</div>
     `;
     parent.appendChild(this.root);
     [this.hint, this.footHint] = [...this.root.querySelectorAll<HTMLElement>('.hud-hint')];

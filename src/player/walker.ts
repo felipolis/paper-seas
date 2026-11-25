@@ -1,7 +1,8 @@
 /**
  * Going ashore: the captain steps off the ship and walks the island as a layered paper puppet, moved the way
  * papertrails moves its traveller (player/traveller.js there). F near a shore goes ashore, F by the ship goes back
- * aboard; WASD walks (screen directions), Shift runs, a lone tap of Ctrl toggles a slow stroll (papertrails').
+ * aboard; WASD walks (screen directions), Shift runs, a lone tap of Ctrl toggles a slow stroll (papertrails'), and a
+ * click, a tap or a drag walks him there (player/click-walk.ts).
  *
  * Movement against what stands in the way works on a clearance field: c(x, z) is how much room there is round the
  * feet (the distance to the nearest blocker, the shore or a stream's bank; decks are free). A step is taken if it
@@ -65,6 +66,8 @@ export class Walker {
    */
   readonly lantern = new THREE.PointLight(LANTERN.colour, 0, LANTERN.distance, LANTERN.decay);
   active = false;
+  /** Keys walked him this frame (they win over a click's walk). */
+  keyed = false;
   x = 0;
   z = 0;
   vx = 0;
@@ -127,11 +130,12 @@ export class Walker {
   }
 
   /**
-   * input: the keys walking him (null: none, the chart is open); yaw: the camera's turn round the vertical (radians).
-   * The keys are the screen's (papertrails' controls.js): W walks up the screen, north only while the camera looks
-   * north, and turns with it in the turned views and under the sight assist.
+   * input: the keys walking him (null: none, the chart is open); yaw: the camera's turn round the vertical (radians);
+   * steer: where a click walks him when no key does (player/click-walk.ts: a direction on the page, its length the
+   * share of his speed). The keys are the screen's (papertrails' controls.js): W walks up the screen, north only while
+   * the camera looks north, and turns with it in the turned views and under the sight assist.
    */
-  update(dt: number, input: Input | null, world: WalkWorld, yaw: number): void {
+  update(dt: number, input: Input | null, world: WalkWorld, yaw: number, steer: { x: number; z: number } | null): void {
     if (!this.active) return;
     this.world = world;
     let ix = 0;
@@ -142,9 +146,17 @@ export class Walker {
     if (input?.isDown('KeyD', 'ArrowRight')) ix += 1;
     // (the screen's right on the page is (cos yaw, -sin yaw), its up (-sin yaw, -cos yaw))
     [ix, iz] = [ix * Math.cos(yaw) + iz * Math.sin(yaw), -ix * Math.sin(yaw) + iz * Math.cos(yaw)];
+    this.keyed = ix !== 0 || iz !== 0;
+    // (no key: the click's way, eased in toward its mark)
+    let ease = 1;
+    if (!this.keyed && steer) {
+      ix = steer.x;
+      iz = steer.z;
+      ease = Math.hypot(ix, iz);
+    }
     const il = Math.hypot(ix, iz);
     if (input?.wasTapped('ControlLeft', 'ControlRight')) this.strolling = !this.strolling;
-    const speed = input?.isDown('ShiftLeft', 'ShiftRight') ? RUN : this.strolling ? STROLL : SPEED;
+    const speed = (input?.isDown('ShiftLeft', 'ShiftRight') ? RUN : this.strolling ? STROLL : SPEED) * ease;
     // constant acceleration toward the wanted velocity
     const v0x = this.vx;
     const v0z = this.vz;

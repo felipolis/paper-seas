@@ -25,6 +25,7 @@ import { Flotsam } from '../life/flotsam';
 import { Ambience } from '../life/ambience';
 import { Marvels } from '../life/marvels';
 import { Walker, type WalkWorld } from '../player/walker';
+import { ClickWalk } from '../player/click-walk';
 import { Reveal } from '../world/reveal';
 import { Smoke } from '../life/smoke';
 import { ClearLine } from '../life/clear-line';
@@ -77,6 +78,8 @@ export class Game {
   private readonly clearLine = new ClearLine();
   private readonly smoke = new Smoke(this.clearLine);
   private readonly walkWorld: WalkWorld;
+  /** Click / tap / drag to walk ashore (papertrails' controls.js). */
+  private readonly clickWalk: ClickWalk;
   readonly ship = new Ship();
   readonly progress = new Progress();
   readonly sound = new Sound();
@@ -122,6 +125,7 @@ export class Game {
       deck: (x, z) => this.world.terrain.deckAt(x, z),
       onPath: (x, z) => this.world.terrain.onPath(x, z),
     };
+    this.clickWalk = new ClickWalk(canvas, this.view.camera, (x, z) => this.walker.canStand(x, z, this.walkWorld), (x, z) => this.walkWorld.deck(x, z) ?? this.walkWorld.ground(x, z), () => this.walker);
     this.ambience = new Ambience({
       distance: (x, z) => this.world.terrain.distanceAt(x, z),
       bank: (x, z) => this.world.places.waterDistance(x, z),
@@ -131,7 +135,7 @@ export class Game {
       },
       biome: (x, z) => this.world.land.biome(x, z, this.world.terrain.distanceAt(x, z)),
     }, this.clearLine, this.lights.key);
-    this.scene.add(this.lights.group, this.sea.mesh, this.world.group, this.waves.group, this.life.group, this.flotsam.group, this.ambience.group, this.marvels.group, this.walker.group, this.walker.lantern, this.smoke.group, this.ship.model.root);
+    this.scene.add(this.lights.group, this.sea.mesh, this.world.group, this.waves.group, this.life.group, this.flotsam.group, this.ambience.group, this.marvels.group, this.walker.group, this.walker.lantern, this.clickWalk.mark.mesh, this.smoke.group, this.ship.model.root);
     this.post = new PostChain(this.renderer, this.scene, this.view.camera, this.biomeLook);
     this.dayNight = new DayNight(this.lights, this.post, this.ship.model.light, this.biomeLook);
     this.hud = new Hud(hudParent);
@@ -241,6 +245,7 @@ export class Game {
   /** The captain steps ashore at (x, z): he leaves the wheel, and the camera comes down to papertrails' distance. */
   private goAshore(x: number, z: number): void {
     this.walker.land(x, z, this.walkWorld);
+    this.clickWalk.cancel();
     this.view.targetDistance = ON_FOOT.distance;
     this.ship.model.showCaptain(false);
   }
@@ -283,7 +288,10 @@ export class Game {
       p.vx *= Math.max(0, 1 - dt * 3);
       p.vz *= Math.max(0, 1 - dt * 3);
     }
-    this.walker.update(dt, keys, this.walkWorld, this.view.yaw);
+    // (a click walks him while no key does; a key lets the click's walk go)
+    this.clickWalk.enabled = walking && !this.chart.isOpen;
+    this.walker.update(dt, keys, this.walkWorld, this.view.yaw, this.clickWalk.steer(dt));
+    if (this.walker.keyed) this.clickWalk.drop();
     this.shoreLeave(keys);
     const fx = walking ? this.walker.x : p.x;
     const fz = walking ? this.walker.z : p.z;
@@ -405,6 +413,7 @@ export class Game {
       this.hud.setPrompt(near ? '<b>F</b> back aboard' : null);
       if (press && near) {
         w.leave();
+        this.clickWalk.cancel();
         this.ship.model.showCaptain(true);
         this.view.targetDistance = CAMERA.distance;
       }

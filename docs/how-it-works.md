@@ -21,6 +21,8 @@ src/
                      feet (blockers.ts)
   ship/              hull shape, model, cloth (sails, flag), physics with inertia, controller
   camera/            diorama follow camera
+  player/            the captain ashore: the paper puppet, its walk (walker.ts), click / tap to walk with its route
+                     finder and inked mark (click-walk.ts, route.ts, target-mark.ts)
   render/            renderer, lights, paper material, soft paper shadows (shadows.ts), post (tilt-shift, night grade)
   ui/                the interface as paper: hint, prompt and discovery cards, pause menu, shipyard, chart
   life/              sea creatures and gulls, ambient bits (leaves, butterflies, motes, fireflies), chimney smoke,
@@ -140,6 +142,13 @@ What papertrails does, Paper Seas does the same way (its traveller is as tall as
   nook is left to wedge in), so asking how much room there is costs one read whatever stands round it. The captain
   moves on it: a step is taken if it leaves room or is no tighter than where he stands, a blocked step slides along
   the obstacle or goes round it, so he is never pinned.
+- **Click to walk** (`player/click-walk.ts`, `player/route.ts`, `player/target-mark.ts`): papertrails' controls.js. A
+  click, a tap or a drag ashore is cast onto the ground and the captain walks there: straight while the way is clear,
+  else along a route papertrails' grid A* plans round what stands in the way (cells of 0.15 in a 12-unit square
+  between him and the target, no corner cut, string-pulled into a few straight legs), else feeling his way round. He
+  eases in and stops on a small inked ring printed where he is going, which fades once he gets there; a click on the
+  water or inside a blocker takes him to the nearest spot he can stand on the way, and the walk is let go after 1.2 s
+  held still or 1 s without getting nearer, or as soon as a key walks him.
 - **Light** (`render/shadows.ts`, `config/time.ts`, `config/view.ts`, `render/biome-look.ts`, `render/lamp-pools.ts`):
   the papercraft skill's light. By day a warm key from screen-left 45 degrees up, a warm frontal fill at ~0.27 of it,
   soft paper shadows (PCSS) with a warm amber leak; by night an even pale-blue moon that keeps every card coloured and

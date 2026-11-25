@@ -46,7 +46,7 @@ export class Menu {
         </div>
         <div class="menu-keys">
           <span><b>W</b>/<b>S</b> sails</span><span><b>A</b>/<b>D</b> helm</span><span><b>Wheel</b> zoom</span>
-          <span><b>E</b> chart</span><span><b>F</b> go ashore / aboard</span><span><b>Shift</b> run</span><span><b>Ctrl</b> stroll</span>
+          <span><b>E</b> chart</span><span><b>F</b> go ashore / aboard</span><span><b>Click</b> walk</span><span><b>Shift</b> run</span><span><b>Ctrl</b> stroll</span>
           <span><b>V</b> view</span><span><b>T</b> day / night</span><span><b>M</b> music</span><span><b>Esc</b> pause</span>
         </div>
       </div>`;

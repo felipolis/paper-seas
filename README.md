@@ -86,7 +86,7 @@ lanterns come on in the windows when night falls.
 | W / S | Raise / lower sails (furled → courses → all sails) |
 | A / D | Helm (port / starboard) |
 | S with sails furled | Back-paddle |
-| F | Go ashore by a coast or onto a pier (walk with WASD, Shift to run, a tap of Ctrl to stroll slowly); F again by the ship to go back aboard |
+| F | Go ashore by a coast or onto a pier (walk with WASD or click / tap where to go, Shift to run, a tap of Ctrl to stroll slowly); F again by the ship to go back aboard |
 | E / Tab | Voyage chart (drag to pan, wheel to zoom) |
 | Mouse wheel | Zoom |
 | T | Day ↔ night (the clock runs through the evening or the morning) |
