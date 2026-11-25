@@ -645,10 +645,13 @@ def outcrop(name, stone, seed, scale=1.0):
 def pier(name, L=3.0, W=0.62, H=0.16):
     m = Model(name)
     art = "pier-plank"
+    # each side's start, its posts' too (they stand on the page beside it and come up with it, as papertrails' jetty
+    # posts ride on the jetty)
+    start = {"l": 0.0, "r": 0.05}
     left = m.card("side_l", None, art, (V(-W / 2, 0, -L / 2), V(-W / 2, 0, L / 2), V(-W / 2, H, L / 2), V(-W / 2, H, -L / 2)), FULL,
-                  (V(-W / 2, 0, -L / 2), V(0, 0, 1)), V(-1, 0, 0), 0.0)
+                  (V(-W / 2, 0, -L / 2), V(0, 0, 1)), V(-1, 0, 0), start["l"])
     m.card("side_r", None, art, (V(W / 2, 0, L / 2), V(W / 2, 0, -L / 2), V(W / 2, H, -L / 2), V(W / 2, H, L / 2)), FULL,
-           (V(W / 2, 0, -L / 2), V(0, 0, 1)), V(1, 0, 0), 0.05)
+           (V(W / 2, 0, -L / 2), V(0, 0, 1)), V(1, 0, 0), start["r"])
     n = max(1, round(L / (W + 0.06)))
     ov = 0.03
     for k in range(n):
@@ -668,7 +671,7 @@ def pier(name, L=3.0, W=0.62, H=0.16):
             u = along * (pw / 2)
             c = V(x, foot, z)
             post = m.card(f"post{k}{side}", None, art, (c - u, c + u, c + u + V(0, top - foot, 0), c - u + V(0, top - foot, 0)), FULL,
-                          (c, u), normal, 0.6 + 0.1 * k)
+                          (c, u), normal, start[side])
             cross_halves(m, f"post{k}{side}", post, art, FULL, c, V(0, 1, 0), along, normal, pw, top - foot)
     return m, {"W": W, "D": L, "H": H, "deck": H + THICK}
 

@@ -34,7 +34,7 @@ import type { Places } from './places';
 import { SQUARE_RADIUS, STREET_WIDTH } from './sites';
 import { polylineDistance, type Box, type Pt } from './polyline';
 import { CROSSED, heightOf } from '../config/flora';
-import { CROSS_PLANES, STAGGER, type Card, type CardField, type CardSpec } from './card-field';
+import { CROSS_PLANES, STAGGER, riseOrder, type Card, type CardField, type CardSpec } from './card-field';
 import { islandName } from './island-names';
 import { buildModel, modelFoot, modelInfo, type Building, type ModelInfo } from './models';
 import type { IslandSpec } from './island-layout';
@@ -1220,13 +1220,14 @@ export class Terrain {
       // (the chest with the rest: it takes its place in its cell's rise order)
       const cards = this.cards.add(specs);
       chunk.cards.push(...cards);
-      // papertrails' tile order: a building rises in its cell's order with the cards (the nearest first: card-field.ts),
-      // so after what stands in front of it and before what stands behind it
+      // papertrails' tile order: a building rises in its cell's order with the cards (card-field.ts' riseOrder), so
+      // after the ground cover and before the trees
       for (const h of chunk.houses) {
         const cx = cellCentre(h.x);
         const cz = cellCentre(h.z);
+        const house = { height: modelInfo(h.name)!.height, z: h.z };
         const cell = cards.filter((c) => c.cx === cx && c.cz === cz);
-        this.ranks.set(h, cell.length ? cell.filter((c) => c.z > h.z).length / cell.length : 0);
+        this.ranks.set(h, cell.length ? cell.filter((c) => riseOrder(c, house) < 0).length / cell.length : 0);
       }
       if (chestAt >= 0) {
         const card = cards[chestAt];

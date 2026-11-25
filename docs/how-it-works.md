@@ -55,14 +55,14 @@ What papertrails does, Paper Seas does the same way (its traveller is as tall as
   reach (0 at its 10.8 framing, 0.9 tiles at its 14.5 wide view, at most 1.5 tiles), the rest unchanged; the land, the
   waves and what is adrift all keep to it, and whatever it has not raised lies folded flat, face up, in view;
   the rows behind fold from the track outward; a cell flips at most once per 2 s; the anchor trails on a 1-unit rope.
-  A cell's cards start over 0.34 s in flat-stack order (they fold back, so the nearest lies on top and rises first)
-  and fold in the reverse order; each leans up to 2.5 degrees once it stands, and lies exactly flat when folded.
+  A cell's cards start over 0.34 s from the low to the tall, as most of papertrails' tiles of plants have it (the
+  grass, flowers and stones, then the bushes, the trees last; within a 0.2 size step the nearest first), and fold in
+  the reverse order, the first to rise lying on top of the flat stack; each leans up to 2.5 degrees once it stands, and lies exactly flat when folded.
   A building opens as one, as papertrails' do (every piece of one construction shares its start): only a piece
   standing on the page starts on its own, and a piece that rides on another (a wall on the front, a roof on its wall)
   is pulled up by it as it opens, 0.02 s behind it (popup/spring.ts NESTED), so the planes of one construction never
-  scissor. It takes its place in its cell's order, as papertrails' tiles have it (the small pieces in front, then the
-  house, then the well and the tree behind): it starts after the cards nearer the camera than it and before those
-  farther away, and folds in the reverse order (world/terrain.ts). Folded flat, no two pieces lie over each
+  scissor. It takes its place in its cell's order by its height (world/terrain.ts): after the ground cover and before the
+  trees, and folds in the reverse order. Folded flat, no two pieces lie over each
   other closer than 0.001 (config/popup.ts flatStep), so no face flickers between two: the cards step up from those
   they cover (world/card-field.ts), and the pieces of a building that would meet (its two walls, its two roof slopes)
   are moved apart once per model, measured on its faces folded flat (world/models.ts separateFlat).

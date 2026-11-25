@@ -5,8 +5,8 @@
  *
  * Each card has its own paper spring, but the land rises and folds by cells, like papertrails' tiles (which cells,
  * when, and how the rise ripples outward: world/reveal.ts): the cards of one cell start one after another over STAGGER
- * seconds in flat-stack order (they fold back, so the nearest lies on top and rises first) and fold down in the reverse
- * order, lying flat on the page, face up, until they rise again. A crossed card is papertrails' slotted cross (its
+ * seconds in its rise order (riseOrder: the low first, the tall last) and fold down in the reverse order, lying flat on
+ * the page, face up, stacked so the first to rise lies on top, until they rise again. A crossed card is papertrails' slotted cross (its
  * tiles.glb: tree + tree_xf + tree_xb): the card, and two half cards hinged on its two faces down its middle, folded
  * flat against it while it lies and pulled open by it as it rises (the spring's NESTED linkage), so a lying cross is
  * one card and a standing one two planes square to each other. Nothing stands plumb: each card leans a little (LEAN),
@@ -37,6 +37,17 @@ import type { Lamp } from '../render/lamp-pools';
  * buildings take their place among them: world/terrain.ts).
  */
 export const STAGGER = 0.34;
+/** The size steps of a cell's rise order (world units): a card rises after every card of a lower step. */
+const RISE_STEP = 0.2;
+
+/**
+ * A cell's rise order (a sort comparator: below 0 when a rises first): papertrails' usual tile order, the low first and
+ * the tall last (the ground cover, then the buildings, then the trees), and between two of a size step the nearer first
+ * (the camera looks north, so the larger z).
+ */
+export function riseOrder(a: { height: number; z: number }, b: { height: number; z: number }): number {
+  return Math.floor(a.height / RISE_STEP) - Math.floor(b.height / RISE_STEP) || b.z - a.z;
+}
 /** Each card leans up to this far (rad) toward or away from the camera once upright (the skill: +-2.5 degrees). */
 const LEAN = 2.5 * (Math.PI / 180);
 /** Crossed cards (papertrails' crossDeg): the nearer plane stands this far off the view axis, the other square to it. */
@@ -232,10 +243,9 @@ export class CardField {
       out.push(card);
       if (LAMPS.has(s.sprite)) this.lampCards.push(card);
     }
-    // the rise order inside each cell, the flat stack's: the nearest first (the camera looks north, so the largest z),
-    // the farthest last (a chunk holds whole cells)
+    // the rise order inside each cell (a chunk holds whole cells)
     for (const cell of cells.values()) {
-      cell.sort((a, b) => b.z - a.z || a.phase - b.phase);
+      cell.sort((a, b) => riseOrder(a, b) || a.phase - b.phase);
       cell.forEach((c, k) => (c.order = cell.length > 1 ? k / (cell.length - 1) : 0));
     }
     // (laid bottom of the stack first: the cards that rise last)
