@@ -16,8 +16,8 @@ export interface GameEvents {
   sails: { level: number };
   /** The voyage chart was unfolded or folded away. */
   chart: { open: boolean };
-  /** The sound was muted or unmuted. */
-  sound: { muted: boolean };
+  /** The music was turned off or on (M). */
+  music: { off: boolean };
   /** The hull hit a shore. */
   bump: { strength: number };
   /** A foot of the captain came down ashore (foot 0 / 1), on this ground. */

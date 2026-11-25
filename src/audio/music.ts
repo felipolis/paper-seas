@@ -115,6 +115,9 @@ const CHIMES: Record<ChimeKind, { lo: number; hi: number; vel: number; notes: nu
   bottle: { lo: 74, hi: 86, vel: 0.14, notes: 1, gap: 0 }, // one high soft note
 };
 
+/** The time constant of M's fade (s). */
+const MUTE_FADE = 0.15;
+
 export class Music {
   private readonly out: GainNode;
   private readonly dry: GainNode;
@@ -123,6 +126,8 @@ export class Music {
   private done = 0;
   private chimeAt = -1;
   private chimeTurn = 0;
+  /** Turned off (M): its output faded out, the score running on silently so it comes back in time. */
+  private off = false;
 
   constructor(private readonly ctx: AudioContext, destination: AudioNode) {
     this.out = ctx.createGain();
@@ -147,6 +152,15 @@ export class Music {
     worker.postMessage(ALL_NOTES);
     // (the score is scheduled a little ahead of the audio clock, for the whole session)
     window.setInterval(() => this.tick(), 60);
+  }
+
+  /** M: fades the music out, or back in. */
+  setOff(off: boolean): void {
+    this.off = off;
+    // (before it has started, its first fade-in is its own)
+    if (this.origin < 0) return;
+    this.out.gain.cancelScheduledValues(this.ctx.currentTime);
+    this.out.gain.setTargetAtTime(off ? 0 : AUDIO.music.gain, this.ctx.currentTime, MUTE_FADE);
   }
 
   /** A quiet note (or figure) of the piano, in the chord that is sounding. Rate-limited. */
@@ -176,8 +190,8 @@ export class Music {
       if (this.buffers.size < ALL_NOTES.length) return;
       this.origin = this.ctx.currentTime + 0.3;
       this.done = 0;
-      // (it fades in once, as it starts)
-      this.out.gain.setTargetAtTime(AUDIO.music.gain, this.ctx.currentTime, AUDIO.music.fadeIn / 3);
+      // (it fades in once, as it starts, unless it was turned off before)
+      if (!this.off) this.out.gain.setTargetAtTime(AUDIO.music.gain, this.ctx.currentTime, AUDIO.music.fadeIn / 3);
     }
     const until = this.ctx.currentTime - this.origin + 1.2;
     if (until > this.done) {

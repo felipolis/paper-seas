@@ -202,7 +202,7 @@ export interface TileKind {
   props?: { species: string[]; count: [number, number] };
   /** Animals from the biome's list: how many on the tile on average. */
   animals?: number;
-  /** papertrails' meadow pen (its fence_pad with sheep): this share of the tiles keep goats between two fences. */
+  /** papertrails' meadow pen (its fence_pad with sheep, world/pen.ts): this share of the tiles keep one (one a square at most). */
   pen?: number;
 }
 
@@ -291,7 +291,7 @@ export const ANIMALS: Partial<Record<Biome, AnimalRow[]>> = {
     row('frog', 0.3, [1, 1]),
   ],
   meadow: [
-    row('goat', 0.8, [2, 4], { herd: true }),
+    row('goat', 0.8, [2, 3], { herd: true }),
     row('rabbit', 0.8, [1, 2]),
     row('hen', 0.5, [2, 3], { herd: true, awake: 'day' }),
     row('pig', 0.4, [1, 2], { herd: true }),

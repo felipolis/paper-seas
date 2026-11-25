@@ -63,7 +63,11 @@ export const AMBIENT = {
   dust: { count: 60, size: [0.022, 0.038], speed: [0.12, 0.3], height: [0.15, 1.5], colors: ['#f1dfb6', '#f6e9c9', '#e6cf9f'] },
   /** Soft cards drifting with the wind, in the day / night colour. */
   mist: { count: 9, size: [3.2, 4.6], height: 0.75, y: 0.46, alpha: 0.1, drift: 0.14, day: '#e3e9ea', night: '#2a3350' },
-  butterflies: { count: 18, size: 0.13, roam: 1.1, height: [0.3, 0.75], flap: 11, colors: ['#fff6e0', '#f6c64a', '#ef8a3c', '#9cc3e8', '#f3a6c0'] },
+  /**
+   * flowers: over flowers they come out whatever their rank, up to this share (papertrails'); flowerReach: how far from
+   * its home one looks for a flower; flowerRoam: its loop round one, a share of roam (papertrails' 0.6).
+   */
+  butterflies: { count: 18, size: 0.13, roam: 1.1, height: [0.3, 0.75], flap: 11, flowers: 0.9, flowerReach: 2.4, flowerRoam: 0.6, colors: ['#fff6e0', '#f6c64a', '#ef8a3c', '#9cc3e8', '#f3a6c0'] },
   /** water: over a bank they come out whatever their rank, up to this share; rainCut: the share the rain removes. */
   fireflies: { count: 64, size: 0.12, roam: 0.55, height: [0.22, 1.0], glow: 3.6, color: '#ffd45a', water: 0.9, rainCut: 0.4 },
   /**

@@ -44,7 +44,11 @@ import { createCard, prewarmSilhouettes } from '../popup/card';
 import { buildModel } from '../world/models';
 import { setPageFocus } from '../render/paper-material';
 import { BIOMES } from '../world/land';
+import { pondWater } from '../world/stream-mesh';
+import { lilyPads } from '../world/lily-pads';
 
+/** The cards butterflies seek (papertrails' flower tiles: flowers, flowering bushes and blossom trees, hives). */
+const FLOWERS = /^(flowers-|tuft-flowers|hibiscus|orchids|bird-of-paradise|bush-|tree-blossom|beehive)/;
 /** Knots shown per world unit / s (a playful scale: full sail reads about 12 kn). */
 const KNOTS_PER_UNIT = 3.6;
 /**
@@ -114,13 +118,17 @@ export class Game {
       distance: (x, z) => this.world.terrain.distanceAt(x, z),
       ground: (x, z) => this.world.land.groundHeight(x, z),
       room: (x, z) => this.world.terrain.roomAt(x, z),
-      bank: (x, z) => this.world.places.streams.bankDistance(x, z),
+      bank: (x, z) => this.world.places.waterDistance(x, z),
       deck: (x, z) => this.world.terrain.deckAt(x, z),
       onPath: (x, z) => this.world.terrain.onPath(x, z),
     };
     this.ambience = new Ambience({
       distance: (x, z) => this.world.terrain.distanceAt(x, z),
-      bank: (x, z) => this.world.places.streams.bankDistance(x, z),
+      bank: (x, z) => this.world.places.waterDistance(x, z),
+      flower: (x, z, r) => {
+        const c = this.world.cards.nearest(x, z, r, (s) => FLOWERS.test(s));
+        return c ? [c.x, c.z] : null;
+      },
       biome: (x, z) => this.world.land.biome(x, z, this.world.terrain.distanceAt(x, z)),
     }, this.clearLine, this.lights.key);
     this.scene.add(this.lights.group, this.sea.mesh, this.world.group, this.waves.group, this.life.group, this.flotsam.group, this.ambience.group, this.marvels.group, this.walker.group, this.walker.lantern, this.smoke.group, this.ship.model.root);
@@ -147,7 +155,7 @@ export class Game {
       {
         onResume: () => this.menu.hide(),
         onShipyard: () => this.shipyard.show(),
-        onToggleSound: () => this.sound.toggleMute(),
+        onToggleMusic: () => this.sound.toggleMusic(),
         onToggleQuality: () => this.setQuality(this.quality === 'high' ? 'low' : 'high'),
         onNewVoyage: (seed?: number) => {
           nextVoyageSeed(seed);
@@ -161,7 +169,7 @@ export class Game {
         lands: this.progress.discovered.size,
         treasures: this.progress.treasures.size,
         bottles: this.flotsam.bottlesFound,
-        muted: this.sound.isMuted,
+        musicOff: this.sound.isMusicOff,
         quality: this.quality,
         seed: WORLD.seed,
       }),
@@ -308,7 +316,7 @@ export class Game {
     this.clearLine.update(this.view.camera, fx, fz);
     this.life.update(dt, { x: p.x, z: p.z, vx: p.vx, vz: p.vz, fx: p.forwardX, fz: p.forwardZ });
     this.flotsam.update(dt, p.x, p.z, this.reveal, viewReach);
-    this.marvels.update(dt, p.x, p.z, this.dayNight.hour, this.dayNight.lanterns > 0.5);
+    this.marvels.update(dt, p.x, p.z, this.dayNight.hour, this.dayNight.lanterns > 0.5, !walking);
     this.walker.updateLantern(this.dayNight.lanterns);
     updatePools(this.dayNight.lanterns, fx, fz, this.world.cards.lamps());
     this.smoke.update(dt, this.world.terrain.chimneysNear(fx, fz, 14), fx, fz, ship.wind.x, ship.wind.z, this.dayNight.lanterns, this.view.camera);
@@ -331,7 +339,7 @@ export class Game {
     this.hud.update(dt, {
       sailSetting: ship.sailSetting,
       knots: Math.max(0, p.surge) * KNOTS_PER_UNIT,
-      muted: this.sound.isMuted,
+      musicOff: this.sound.isMusicOff,
       onFoot: walking,
     });
     this.input.endFrame();
@@ -373,12 +381,17 @@ export class Game {
       warm.add(house.root);
       return house;
     });
+    // a pond's still water and its lily pads (their own shaders)
+    const pond = { id: 1, x: 0, z: 0, r: 1, wave: [0, 0, 0, 0] as [number, number, number, number] };
+    const ponds = [pondWater([pond], () => 'meadow'), lilyPads([pond])].filter((m): m is THREE.Mesh => !!m);
+    warm.add(...ponds);
     warm.position.set(this.ship.physics.x, -50, this.ship.physics.z);
     this.scene.add(warm);
     const cam = this.view.camera;
     this.renderer.compile(this.scene, cam);
     this.scene.remove(warm);
     for (const house of houses) house.dispose(true);
+    for (const mesh of ponds) mesh.geometry.dispose();
   }
 
   /** F: go ashore when the ship lies by a coast, back aboard when the captain stands by the ship (keys: as in step). */

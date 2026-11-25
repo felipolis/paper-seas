@@ -24,12 +24,14 @@ import { LAND_TOP, type LandField } from './land';
 import { valueNoise } from './noise';
 import { plantCover, plantShallows, type CoverEnv } from './cover';
 import { addContact, edgeWallUV, groundData, groundMaterial, landEdgeMaterial, pathTones, type Footprint } from './ground-shader';
-import { streamRibbons } from './stream-mesh';
+import { pondWater, streamRibbons } from './stream-mesh';
+import { lilyPads } from './lily-pads';
+import { pondRadius, type Pond } from './ponds';
 import type { Chimney } from '../life/smoke';
 import { ROAD_WIDTH, junctionsOf, onRoad } from './roads';
 import { Streams } from './streams';
 import type { Places } from './places';
-import { STREET_WIDTH } from './sites';
+import { SQUARE_RADIUS, STREET_WIDTH } from './sites';
 import { polylineDistance, type Box, type Pt } from './polyline';
 import { CROSSED, heightOf } from '../config/flora';
 import { CROSS_PLANES, type Card, type CardField, type CardSpec } from './card-field';
@@ -261,9 +263,11 @@ function piecesBox(pieces: Segment[][], pad: number): Box | null {
   return box;
 }
 
-/** Width of the lanes from a village square to its doors, and the square's radius (papertrails' road: 0.5). */
+/** Width of the lanes from a village square to its doors (papertrails' road: 0.5; the square's: world/sites.ts). */
 const LANE_WIDTH = 0.36;
-const SQUARE_RADIUS = 0.95;
+
+/** How a card is set down besides its place: see CardSpec, and its own yaw when its scene sets it (a pen's fences). */
+type SetDown = Pick<CardSpec, 'vignette' | 'tone' | 'awake' | 'passable'> & { yaw?: number };
 
 /** What is built without a contact patch: a mountain is ground itself, a pier or a bridge stands over the water. */
 const BARE = /^(ridge-|outcrop-|pier$|bridge$)/;
@@ -295,15 +299,27 @@ const DUCK_CHANCE = 0.12;
 const BANK_ANIMAL_CHANCE = 0.08;
 
 /**
- * papertrails' rear copies (tiles.glb: tuft_a_rear, reeds_a_rear and the like, measured): behind a lone tuft of grass or
- * a reed bed stands a copy of it, 0.75 of its tone and 1.08 of its size, 0.1-0.16 further from the camera and a little
+ * papertrails' rear copies (tiles.glb: tuft_a_rear, reeds_a_rear, bush_rear, boulder_a_rear, crag_a_rear, measured):
+ * behind a lone tuft of grass, a reed bed, a bush, a boulder or a crag stands a copy of it, 0.75 of its tone and 1.08 of its size, 0.1-0.16 further from the camera and a little
  * to one side, so a tuft reads as a thick clump rather than one card.
  */
-const DOUBLED = /^(grass-|tuft-flowers$|cattails$|papyrus$)/;
+const DOUBLED = /^(grass-|tuft-flowers$|cattails$|papyrus$|bush-|rock-boulder$|rock-big$|rock-slab$|crag-)/;
 const REAR = { tone: 0.75, scale: 1.08, back: [0.1, 0.16], side: [0.05, 0.18] } as const;
+/** ...and stands no nearer a path's or a square's edge than this. */
+const REAR_PATH = 0.12;
 
 /** Ground cover and animals: the feet go through (or past) them. */
 const SOFT = /^(grass|fern|bush|flower|tuft|hibiscus|orchids|bird-of-paradise|cattails|papyrus|mushrooms|shells|pebbles|monkey|parrot|toucan|crab|iguana|pelican|flamingo|duck|hen|chick|goat|pig|cat|dog|frog|rabbit|owl|hummingbird|tortoise|boar|gecko|heron)/;
+/**
+ * A pond's ground kept clear round it (shares of its radius: its wobble and its bank), the reeds on its bank, how often
+ * a duck floats on it and a frog or a heron waits at its edge.
+ */
+const POND_CLAIM = 1.35;
+/** The ground kept clear in front of a pond: how far toward the camera (share of its radius), and how wide. */
+const POND_FRONT = [1.6, 1.1] as const;
+const POND_REEDS: [number, number] = [2, 3];
+const POND_DUCK = 0.6;
+const POND_BANK_ANIMAL = 0.4;
 /** A river's footbridge gives way to a road's bridge this near; the way on and off it is kept clear this far past its ends. */
 const BRIDGE_ROAD = 4;
 const BRIDGE_CLEAR = 1.2;
@@ -451,7 +467,7 @@ export class Terrain {
   private pieces(c: Chunk): Segment[][] {
     const pieces: Segment[][] = [];
     for (const card of c.cards) {
-      if (card.hidden) continue;
+      if (card.hidden || card.passable) continue;
       const span = blockingSpan(card.sprite, card.height);
       if (!span) continue;
       const w = cardWidth(card.sprite, card.height);
@@ -752,6 +768,9 @@ export class Terrain {
     // what spans chunks and reaches this square (world/places.ts): streams, roads with their bridges, villages, ruins
     const box: Box = [x0 - 1, z0 - 1, x1 + 1, z1 + 1];
     const streams = minD < 3 ? this.places.streams.near(box) : [];
+    const ponds = minD < 3 ? this.places.pondsNear(box) : [];
+    // (a pond is drawn and dressed by the chunk its middle lies in)
+    const ownPonds = ponds.filter((p) => p.x >= x0 && p.x < x0 + CHUNK && p.z >= z0 && p.z < z0 + CHUNK);
     const shore = (chunk.dist = trueDistance(dist, GRID_W, CELL));
     const roads = minD < 3 ? this.places.roadsNear(box) : [];
     // the rivers' footbridges (where no road bridges the river close by)
@@ -859,6 +878,8 @@ export class Terrain {
       // the streams' water on it (world/stream-mesh.ts)
       const ribbons = streamRibbons(streams, x0, z0, x1, z1, (x, z) => land.biomeInland(x, z));
       if (ribbons) ground.add(ribbons);
+      // the ponds' water and their lily pads (world/stream-mesh.ts, world/lily-pads.ts)
+      for (const mesh of [pondWater(ownPonds, (x, z) => land.biomeInland(x, z)), lilyPads(ownPonds)]) if (mesh) ground.add(mesh);
       yield;
       this.group.add(ground);
       chunk.ground = ground;
@@ -891,26 +912,30 @@ export class Terrain {
         return reach > 0 && !!chunk.paths?.strips.some((st) => polylineDistance(st.pts, x, z)[0] < st.width / 2 + reach + PATH_ROOM);
       };
       // (a vignette, papertrails' animal tied to a piece: up on its seat, and it does not keep off the paths; tone:
-      // papertrails' clump shading; awake: an animal about by day or by night only)
-      const stand = (sprite: string, x: number, z: number, height: number, flip: boolean, yawJitter: number, card: Pick<CardSpec, 'vignette' | 'tone' | 'awake'>): boolean => {
-        const { vignette, tone, awake } = card;
+      // papertrails' clump shading; awake: an animal about by day or by night only; yaw: its own turn, set with its scene
+      // (a pen's fences), instead of a random one; passable: too low to stop the feet)
+      const stand = (sprite: string, x: number, z: number, height: number, flip: boolean, yawJitter: number, card: SetDown): boolean => {
+        const { vignette, tone, awake, passable } = card;
         const cross = CROSSED.has(sprite);
-        const yaw = (rng() - 0.5) * 2 * yawJitter * (cross ? CROSS_JITTER : 1) * DEG;
+        const yaw = card.yaw ?? (rng() - 0.5) * 2 * yawJitter * (cross ? CROSS_JITTER : 1) * DEG;
         if (!SEA_CARDS.has(sprite) && !onLand(sprite, x, z, height, yaw, cross)) return false;
-        if (!vignette && onPath(sprite, x, z, height)) return false;
+        if (!vignette && !passable && onPath(sprite, x, z, height)) return false;
         // (papertrails' animals are not tinted with the tile)
         const biome = Critters.is(sprite) ? undefined : land.biomeInland(x, z);
-        specs.push({ sprite, x, y: heightAt(x, z) + (vignette?.seat ?? 0), z, height, yaw, flip, delay: 0, cross, vignette, biome, tone, awake });
+        specs.push({ sprite, x, y: heightAt(x, z) + (vignette?.seat ?? 0), z, height, yaw, flip, delay: 0, cross, vignette, biome, tone, awake, passable });
         return true;
       };
       // (a tuft of grass or a reed bed stands with its darker rear copy behind it: papertrails' *_rear cards)
-      const add = (sprite: string, x: number, z: number, height = heightOf(sprite, rng()), flip = rng() < 0.5, yawJitter = 14, card: Pick<CardSpec, 'vignette' | 'tone' | 'awake'> = {}) => {
+      const add = (sprite: string, x: number, z: number, height = heightOf(sprite, rng()), flip = rng() < 0.5, yawJitter = 14, card: SetDown = {}) => {
         // (only a lone one: a card of a clump has the clump's own cards behind it)
         if (!stand(sprite, x, z, height, flip, yawJitter, card) || !DOUBLED.test(sprite) || card.tone !== undefined) return;
         const side = rng() < 0.5 ? -1 : 1;
         const rx = x + side * (REAR.side[0] + rng() * (REAR.side[1] - REAR.side[0]));
         const rz = z - (REAR.back[0] + rng() * (REAR.back[1] - REAR.back[0]));
-        stand(sprite, rx, rz, height * REAR.scale, flip, yawJitter, { tone: REAR.tone });
+        // (it keeps off the trodden ground as its front card does: soft cards are kept off it by their claims, the copy
+        // has none)
+        const trodden = chunk.paths?.strips.some((st) => polylineDistance(st.pts, rx, rz)[0] < st.width / 2 + REAR_PATH) || chunk.paths?.squares.some(([sx, sz, r]) => Math.hypot(rx - sx, rz - sz) < r + REAR_PATH);
+        if (!trodden) stand(sprite, rx, rz, height * REAR.scale, flip, yawJitter, { tone: REAR.tone });
       };
       const taken: Array<[number, number, number]> = [];
       const free = (x: number, z: number, r: number) => taken.every(([tx, tz, tr]) => (tx - x) ** 2 + (tz - z) ** 2 > (tr + r) ** 2);
@@ -927,6 +952,8 @@ export class Terrain {
         });
       };
       for (const st of streams) claimLine(st.pts, (k) => Streams.widthAt(k) / 2 + 0.12);
+      // (and a stretch in front of it, the camera's side, so nothing tall stands between the eye and the water)
+      for (const p of ponds) taken.push([p.x, p.z, p.r * POND_CLAIM], [p.x, p.z + p.r * POND_FRONT[0], p.r * POND_FRONT[1]]);
       // (a river's ends, and the way on and off a footbridge)
       for (const st of streams) claimLine([st.pts[0], st.pts[st.pts.length - 1]], () => SOURCE_CLEAR);
       for (const b of footbridges) {
@@ -1008,7 +1035,7 @@ export class Terrain {
       // on this square's own ground)
       for (const l of layouts) {
         for (const b of l.buildings) if (own(b.x, b.z) && footOnLand(b.name, b.x, b.z, b.yaw)) this.addBuilding(chunk, b.name, b.x, heightAt(b.x, b.z), b.z, b.yaw);
-        for (const p of l.props) if (own(p.x, p.z)) add(p.name, p.x, p.z, p.height, p.flip, p.vignette || p.square ? 0 : 10, { vignette: p.vignette, awake: p.awake });
+        for (const p of l.props) if (own(p.x, p.z)) add(p.name, p.x, p.z, p.height, p.flip, p.vignette ? 0 : 10, { vignette: p.vignette, awake: p.awake, passable: p.passable, yaw: p.fixed ? p.yaw : undefined });
         for (const p of l.piers) {
           if (!own(p.x, p.z)) continue;
           // standing on the beach at its shore end
@@ -1054,6 +1081,7 @@ export class Terrain {
           else if (rng() < BANK_ANIMAL_CHANCE) add(['frog', 'duck', 'heron', 'duck'][Math.floor(rng() * 4)], px - nx * side * (hw + 0.22), pz - nz * side * (hw + 0.22));
         }
       }
+      for (const p of ownPonds) this.dressPond(p, add, rng);
       // papertrails' roadside props along the roads, a little off their edge
       for (const road of roads) {
         let run = rng() * ROADSIDE_STEP;
@@ -1164,7 +1192,7 @@ export class Terrain {
         biome: (x, z, d) => land.biome(x, z, d),
         blocked: (x, z, r) => !free(x, z, r) || inYard(x, z),
         claim: (x, z, r) => taken.push([x, z, r]),
-        place: (sprite, x, z, height, card = {}) => add(sprite, x, z, height, undefined, card.square ? 0 : undefined, card),
+        place: (sprite, x, z, height, card) => add(sprite, x, z, height, undefined, undefined, card),
         rng,
       };
       plantShallows(env, x0, z0, CHUNK);
@@ -1207,6 +1235,22 @@ export class Terrain {
     }
     // papertrails' walk field, made with the chunk (not when the feet first ask, in the middle of a walk)
     yield* this.makeField(chunk);
+  }
+
+  /**
+   * papertrails' pond tile round a pond: reeds on its bank, mostly the far side (so they never hide the water), a duck
+   * afloat on it now and then, a frog or a heron at its edge.
+   */
+  private dressPond(p: Pond, add: (sprite: string, x: number, z: number) => void, rng: () => number): void {
+    const bank = (a: number, out: number): [number, number] => [p.x + Math.cos(a) * (pondRadius(p, a) + out), p.z + Math.sin(a) * (pondRadius(p, a) + out)];
+    const reeds = POND_REEDS[0] + Math.floor(rng() * (POND_REEDS[1] - POND_REEDS[0] + 1));
+    for (let k = 0; k < reeds; k++) {
+      // (the far side: angles round the north of it, from a little past west to a little past east)
+      const a = Math.PI * (0.9 + 1.2 * ((k + rng() * 0.8) / reeds));
+      add(rng() < 0.6 ? 'cattails' : 'papyrus', ...bank(a, 0.12));
+    }
+    if (rng() < POND_DUCK) add('duck-float', p.x + (rng() - 0.5) * p.r * 0.8, p.z + (rng() - 0.5) * p.r * 0.6);
+    if (rng() < POND_BANK_ANIMAL) add(rng() < 0.6 ? 'frog' : 'heron', ...bank(rng() * Math.PI * 2, 0.2));
   }
 
   /** A fitting name for a coast (used by treasure messages). */

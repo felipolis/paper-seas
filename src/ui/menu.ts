@@ -10,14 +10,14 @@ export interface MenuState {
   lands: number;
   treasures: number;
   bottles: number;
-  muted: boolean;
+  musicOff: boolean;
   quality: 'high' | 'low';
   seed: number;
 }
 
 export interface MenuActions {
   onResume(): void;
-  onToggleSound(): void;
+  onToggleMusic(): void;
   onShipyard(): void;
   onToggleQuality(): void;
   /** A new world: the typed seed, or a random one when empty. */
@@ -39,25 +39,26 @@ export class Menu {
         <div class="menu-buttons">
           <button class="paper-btn primary" data-act="resume">Set sail again</button>
           <button class="paper-btn" data-act="yard">Shipyard: ship &amp; captain</button>
-          <button class="paper-btn" data-act="sound"></button>
+          <button class="paper-btn" data-act="music"></button>
           <button class="paper-btn" data-act="quality"></button>
           <div class="menu-seed">World seed <b class="menu-seed-now"></b></div>
           <div class="menu-new"><input class="menu-seed-in" inputmode="numeric" placeholder="seed (empty = random)" maxlength="7"><button class="paper-btn" data-act="new">New voyage</button></div>
         </div>
         <div class="menu-keys">
           <span><b>W</b>/<b>S</b> sails</span><span><b>A</b>/<b>D</b> helm</span><span><b>Wheel</b> zoom</span>
-          <span><b>E</b> chart</span><span><b>F</b> go ashore / aboard</span><span><b>T</b> hasten time</span><span><b>M</b> sound</span><span><b>Esc</b> pause</span>
+          <span><b>E</b> chart</span><span><b>F</b> go ashore / aboard</span><span><b>Shift</b> run</span><span><b>Ctrl</b> stroll</span>
+          <span><b>V</b> view</span><span><b>T</b> day / night</span><span><b>M</b> music</span><span><b>Esc</b> pause</span>
         </div>
       </div>`;
     parent.appendChild(this.root);
     this.root.inert = true;
-    // (M mutes from anywhere: the sound button follows)
-    bus.on('sound', () => this.render());
+    // (M turns the music off from anywhere: the music button follows)
+    bus.on('music', () => this.render());
     this.root.addEventListener('click', (e) => {
       const act = (e.target as HTMLElement).closest('button')?.dataset.act;
       if (act === 'resume') this.actions.onResume();
       else if (act === 'yard') this.actions.onShipyard();
-      else if (act === 'sound') this.actions.onToggleSound();
+      else if (act === 'music') this.actions.onToggleMusic();
       else if (act === 'quality') this.actions.onToggleQuality();
       else if (act === 'new') {
         const typed = Number((this.root.querySelector('.menu-seed-in') as HTMLInputElement).value.replace(/\D/g, ''));
@@ -88,7 +89,7 @@ export class Menu {
     const s = this.state();
     (this.root.querySelector('.menu-log') as HTMLElement).innerHTML =
       `<div><b>${s.lands}</b> lands discovered</div><div><b>${s.treasures}</b> treasures found</div><div><b>${s.bottles}</b> bottles read</div>`;
-    (this.root.querySelector('[data-act="sound"]') as HTMLElement).textContent = s.muted ? 'Sound: off' : 'Sound: on';
+    (this.root.querySelector('[data-act="music"]') as HTMLElement).textContent = s.musicOff ? 'Music: off' : 'Music: on';
     (this.root.querySelector('.menu-seed-now') as HTMLElement).textContent = String(s.seed);
     (this.root.querySelector('[data-act="quality"]') as HTMLElement).textContent = s.quality === 'high' ? 'Quality: high' : 'Quality: fast';
   }

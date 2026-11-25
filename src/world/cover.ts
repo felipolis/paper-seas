@@ -86,10 +86,10 @@ export interface CoverEnv {
   claim(x: number, z: number, r: number): void;
   /**
    * Stands a card; card.vignette: papertrails' animal tied to a piece (it keeps its place); card.tone: its clump
-   * shading; card.awake: an animal about by day or by night only; card.square: set square to the camera with the rest
-   * of its scene (a pen's fences), not turned a little as a lone card is.
+   * shading; card.awake: an animal about by day or by night only; card.passable: too low to stop the feet; card.yaw:
+   * its own turn, set with the rest of its scene (a pen's fences), not a random one.
    */
-  place(sprite: string, x: number, z: number, height: number, card?: Pick<CardSpec, 'vignette' | 'tone' | 'awake'> & { square?: boolean }): void;
+  place(sprite: string, x: number, z: number, height: number, card?: Pick<CardSpec, 'vignette' | 'tone' | 'awake' | 'passable'> & { yaw?: number }): void;
   rng(): number;
 }
 
@@ -131,6 +131,7 @@ function spot(env: CoverEnv, cx: number, cz: number, half: number, room: number,
 export function plantCover(env: CoverEnv, x0: number, z0: number, size: number): void {
   // (props and animals counted per region; a region lies within one square, its size a multiple of REGION)
   const counts = new Map<string, number>();
+  let pens = 0;
   const room = (sprite: string, x: number, z: number): boolean => {
     const key = `${Math.floor(x / REGION)},${Math.floor(z / REGION)}|${sprite}`;
     const n = counts.get(key) ?? 0;
@@ -147,6 +148,9 @@ export function plantCover(env: CoverEnv, x0: number, z0: number, size: number):
       const kinds = TILES[biome];
       const kind = pickWeighted(kinds, (k) => k.weight * (k.forest ? 0.06 + 5.2 * forest * forest : 1), env.rng());
       const clearing = !kind.forest && fbm(SEED + 331, cx / CLEARING_PERIOD, cz / CLEARING_PERIOD, 2) < CLEARING_LEVEL;
+      // (one pen at most in the square: a meadow of pens reads as a pattern, not a farm)
+      const pen = !pens && !!kind.pen && !clearing && env.rng() < kind.pen;
+      if (pen && plantPen(env, cx, cz)) pens++;
       plantTile(env, clearing ? clearingOf(kind) : kind, kinds.indexOf(kind), biome, cx, cz, room);
     }
   }
@@ -159,7 +163,6 @@ function clearingOf(kind: TileKind): TileKind {
 
 /** room(sprite, x, z): whether one more of this prop or animal may stand there (and counts it if so). */
 function plantTile(env: CoverEnv, kind: TileKind, kindIndex: number, biome: Biome, cx: number, cz: number, room: (sprite: string, x: number, z: number) => boolean): void {
-  if (kind.pen && env.rng() < kind.pen) plantPen(env, cx, cz);
   const talls: Array<[number, number]> = [];
   if (kind.tall) {
     const list = kind.tall.species;
@@ -263,15 +266,15 @@ function plantAnimals(env: CoverEnv, row: AnimalRow, cx: number, cz: number, tal
   }
 }
 
-/** papertrails' meadow pen (world/pen.ts) about the tile's middle, its herd keeping its place; or nothing. */
-function plantPen(env: CoverEnv, cx: number, cz: number): void {
+/** papertrails' meadow pen (world/pen.ts) about the tile's middle, its herd keeping its place; whether it found room. */
+function plantPen(env: CoverEnv, cx: number, cz: number): boolean {
   const pen = penAt(cx + (env.rng() - 0.5) * 0.4, cz + (env.rng() - 0.5) * 0.4, env.rng);
   const clear = (px: number, pz: number, r: number) => env.distance(px, pz) < -0.3 && !env.blocked(px, pz, r);
-  if (!pen.fences.every(([px, pz]) => clear(px, pz, pen.half))) return;
-  for (const [px, pz] of pen.fences) env.place(pen.fence, px, pz, pen.height, { square: true });
+  if (!clear(pen.x, pen.z, pen.room) || !pen.fences.every(([px, pz]) => env.distance(px, pz) < -0.3)) return false;
+  for (const [px, pz, yaw] of pen.fences) env.place(pen.fence, px, pz, pen.height, { yaw, passable: true });
   for (const [who, x, z] of pen.herd) env.place(who, x, z, heightOf(who, env.rng()), { vignette: { seat: 0 } });
-  const [mx, mz] = [(pen.fences[0][0] + pen.fences[pen.fences.length - 1][0]) / 2, (pen.fences[0][1] + pen.fences[pen.fences.length - 1][1]) / 2];
-  env.claim(mx, mz, pen.room);
+  env.claim(pen.x, pen.z, pen.room);
+  return true;
 }
 
 /** A spot for the next of a herd: within spread of its first, clear of the others of it by HERD_GAP; or null. */

@@ -35,6 +35,8 @@ export interface AmbienceWorld {
   distance: (x: number, z: number) => number;
   /** Distance to the nearest stream's bank (negative in the water). */
   bank: (x: number, z: number) => number;
+  /** The flower nearest (x, z) within r (a flowering card's foot), or null. */
+  flower: (x: number, z: number, r: number) => [number, number] | null;
   biome: (x: number, z: number) => Biome;
 }
 
@@ -43,8 +45,11 @@ interface Roamer {
   home: boolean;
   hx: number;
   hz: number;
-  /** A firefly whose home is by the water (it flies whatever its rank), and whether its home was searched yet. */
-  wet: boolean;
+  /**
+   * Its home was drawn to what its kind seeks (water for a firefly, a flower for a butterfly: it then flies whatever its
+   * rank), and whether its home was searched yet.
+   */
+  drawn: boolean;
   sought: boolean;
   r: number[];
 }
@@ -144,7 +149,7 @@ const glowTex = (inner: string, outer: string) =>
   });
 
 function roamers(n: number): Roamer[] {
-  return Array.from({ length: n }, () => ({ home: false, hx: 0, hz: 0, wet: false, sought: false, r: Array.from({ length: 6 }, random) }));
+  return Array.from({ length: n }, () => ({ home: false, hx: 0, hz: 0, drawn: false, sought: false, r: Array.from({ length: 6 }, random) }));
 }
 
 function landing(n: number): Landing {
@@ -340,7 +345,7 @@ export class Ambience {
     const { fx, fz } = this.frame;
     if (o.home && Math.hypot(o.hx - fx, o.hz - fz) <= RADIUS + 2) return true;
     o.home = false;
-    o.wet = false;
+    o.drawn = false;
     o.sought = false;
     // staggered, so a new stretch of land fills gradually
     if (random() > dt * 1.5) return false;
@@ -351,19 +356,27 @@ export class Ambience {
     return true;
   }
 
-  /** papertrails' butterflies: a Lissajous loop round the home, heading along it, wings hinged and beating. */
+  /**
+   * papertrails' butterflies: a Lissajous loop round the home, heading along it, wings hinged and beating. One whose home
+   * has flowers within reach takes its home over them, keeps closer round them and comes out whatever its rank (its
+   * flower tiles, `flowers`), so they gather over the flowers.
+   */
   private updateButterflies(dt: number): void {
     const B = AMBIENT.butterflies;
     const { t } = this.frame;
     const amount = this.frame.share('butterflies');
     this.butterflies.forEach((o, j) => {
-      const g = rankGate(amount, (j + 0.5) / B.count);
-      if (g <= 0 || !this.rehome(o, dt, 1.2)) return this.hideWings(j);
+      if (amount <= 0 || !this.rehome(o, dt, 1.2)) return this.hideWings(j);
+      if (!o.sought) this.seekFlower(o);
+      let g = rankGate(amount, (j + 0.5) / B.count);
+      if (o.drawn) g = Math.max(g, B.flowers * smoothstep(0.02, 0.2, amount));
+      if (g <= 0) return this.hideWings(j);
       const [, , r2, r3, r4, r5] = o.r;
       const a = t * 0.45 + r2 * TAU;
       const b = t * 0.31 + r3 * TAU;
-      const x = o.hx + B.roam * (Math.sin(a) + 0.4 * Math.sin(2.3 * b));
-      const z = o.hz + B.roam * (Math.cos(1.2 * b) + 0.4 * Math.sin(1.7 * a));
+      const roam = o.drawn ? B.roam * B.flowerRoam : B.roam;
+      const x = o.hx + roam * (Math.sin(a) + 0.4 * Math.sin(2.3 * b));
+      const z = o.hz + roam * (Math.cos(1.2 * b) + 0.4 * Math.sin(1.7 * a));
       const vx = 0.45 * Math.cos(a) + 0.285 * Math.cos(2.3 * b);
       const vz = -0.372 * Math.sin(1.2 * b) + 0.306 * Math.cos(1.7 * a);
       const y = mixRange(B.height, 0.5 + 0.5 * Math.sin(t * 0.8 + r4 * TAU)) + 0.04 * Math.sin(t * B.flap);
@@ -394,7 +407,7 @@ export class Ambience {
       if (night <= 0.01 || !this.rehome(o, dt, 0.3)) return this.hideSpark(j);
       if (!o.sought) this.seekWater(o);
       let g = rankGate(amount, (j + 0.5) / F.count);
-      if (o.wet) g = Math.max(g, F.water * smoothstep(0.02, 0.2, amount));
+      if (o.drawn) g = Math.max(g, F.water * smoothstep(0.02, 0.2, amount));
       if (g <= 0) return this.hideSpark(j);
       const [, , r2, r3, r4, r5] = o.r;
       const a = t * 0.33 + r2 * TAU;
@@ -424,11 +437,20 @@ export class Ambience {
         if (this.wet(o.hx + ox, o.hz + oz)) {
           o.hx += ox * 0.85;
           o.hz += oz * 0.85;
-          o.wet = true;
+          o.drawn = true;
           return;
         }
       }
     }
+  }
+
+  /** A butterfly's home moves onto the nearest flower within reach, if any (looked up once a home). */
+  private seekFlower(o: Roamer): void {
+    o.sought = true;
+    const f = this.world.flower(o.hx, o.hz, AMBIENT.butterflies.flowerReach);
+    if (!f) return;
+    [o.hx, o.hz] = f;
+    o.drawn = true;
   }
 
   private hideWings(j: number): void {

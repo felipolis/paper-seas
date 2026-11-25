@@ -7,7 +7,7 @@
   user-select: none;
 }
 
-/* one line of controls, no panel; it fades out once you are under way */
+/* two lines of controls, no panel; they fade out once you are under way (the walking keys: the first time ashore) */
 .hud-hint {
   position: absolute;
   left: 50%;
@@ -20,6 +20,8 @@
   color: rgb(255 240 214 / 0.78);
   text-shadow: 0 1px 4px rgb(20 12 6 / 0.6);
   white-space: nowrap;
+  text-align: center;
+  line-height: 1.75;
   transition: opacity 1.4s ease;
 }
 

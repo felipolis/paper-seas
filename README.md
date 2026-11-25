@@ -86,12 +86,12 @@ lanterns come on in the windows when night falls.
 | W / S | Raise / lower sails (furled → courses → all sails) |
 | A / D | Helm (port / starboard) |
 | S with sails furled | Back-paddle |
-| F | Go ashore by a coast or onto a pier (walk with WASD, Shift to run); F again by the ship to go back aboard |
+| F | Go ashore by a coast or onto a pier (walk with WASD, Shift to run, a tap of Ctrl to stroll slowly); F again by the ship to go back aboard |
 | E / Tab | Voyage chart (drag to pan, wheel to zoom) |
 | Mouse wheel | Zoom |
 | T | Day ↔ night (the clock runs through the evening or the morning) |
 | V | Change view (journey, close, wide, low, postcard); ashore, WASD always walks along the screen |
-| M | Mute / unmute |
+| M | Music off / on (the paper, the steps and the sea play on) |
 | Esc | Pause menu, shipyard and a new voyage |
 
 Sail close to an island to discover it, and nose the bow onto a beach that has a chest to find its treasure. Your

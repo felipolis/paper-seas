@@ -3,10 +3,14 @@
  * the Phantom by the clock), so they are always there to be found again; the Leviathan is a chance meeting, and small
  * details (which side a sight passes on, how the tentacles stand) are dealt at random each time:
  *
- *   the Phantom Galleon   between 23:30 and 01:00 a ghost ship sails past, glowing green, once a night
+ *   the Phantom Galleon   between 23:30 and 01:00, on one night in PHANTOM_NIGHTS, a ghost ship sails past the
+ *                         ship, glowing green
  *   Atlantis              here and there (one region in many) a ring of drowned temples lies under the sea; sail
  *                         over it and its pillars and arches rise out of the water around the ship
  *   the Leviathan         at night, very rarely, a huge sea serpent coils past
+ *
+ * The sights at sea come only to the ship with her captain aboard (they pass her, out on the water: from the middle of
+ * an island they would never be seen), and each is told the moment it has risen in her sight.
  *   the Kraken's Garden   near Atlantis by night, tentacles stand up all round the ruins
  */
 import * as THREE from 'three';
@@ -31,6 +35,12 @@ type Water = (x: number, z: number, margin: number) => boolean;
 const REGION = 260;
 const ATLANTIS_CHANCE = 0.35;
 const ATLANTIS_REACH = 9;
+/**
+ * The Phantom sails on one night in this many (which nights is the voyage seed's: she is a rare sight, not a clock),
+ * and is told once she has risen this far.
+ */
+const PHANTOM_NIGHTS = 5;
+const PHANTOM_SEEN = 0.6;
 /** The Phantom's green light at its brightest, and the Kraken Garden's tentacles' base height. */
 const PHANTOM_LIGHT = 2.2;
 const TENTACLE = 1.2;
@@ -210,6 +220,7 @@ export class Marvels {
   private readonly seen = new Set<number>();
   private phantom: Phantom | null = null;
   private phantomNight = -1;
+  private phantomTold = false;
   private leviathan: Leviathan | null = null;
   private garden: KrakenGarden | null = null;
   private gardenAt = -1;
@@ -231,7 +242,8 @@ export class Marvels {
     return [x, z];
   }
 
-  update(dt: number, x: number, z: number, hour: number, night: boolean): void {
+  /** (x, z): the ship; aboard: her captain is on her (the sights at sea come to her only then). */
+  update(dt: number, x: number, z: number, hour: number, night: boolean, aboard: boolean): void {
     this.time += dt;
     if (hour < this.lastHour - 12) this.days++;
     this.lastHour = hour;
@@ -266,7 +278,7 @@ export class Marvels {
         bus.emit('creature', { kind: 'kraken', x: a.x, z: a.z });
       }
       // by night the kraken keeps its garden there
-      if (night && d < 14 && !this.garden && this.time - this.gardenAt > 90) {
+      if (night && aboard && d < 14 && !this.garden && this.time - this.gardenAt > 90) {
         this.garden = new KrakenGarden(a.x, a.z);
         this.gardenAt = this.time;
         this.group.add(this.garden.group);
@@ -278,18 +290,16 @@ export class Marvels {
       this.garden = null;
     }
 
-    // the Phantom Galleon, once a night around midnight
+    // the Phantom Galleon, around midnight on one night in PHANTOM_NIGHTS (each night is tried once, its first midnight
+    // moment at sea)
     const midnight = hour > 23.5 || hour < 1;
-    if (midnight && !this.phantom && this.phantomNight !== this.days) {
-      const side = random() < 0.5 ? 1 : -1;
-      const px = x - side * 9;
-      const pz = z - 5 - random() * 3;
-      if (this.water(px, pz, 2)) {
-        this.phantomNight = this.days;
-        this.phantom = new Phantom(px, pz, side, this.phantomLight);
-        this.group.add(this.phantom.group);
-        bus.emit('marvel', { title: 'The Phantom Galleon', line: 'She sails at midnight, and never makes port' });
-      }
+    if (midnight && aboard && !this.phantom && this.phantomNight !== this.days) {
+      this.phantomNight = this.days;
+      if (hash01((83) ^ SEED, this.days, 0) < 1 / PHANTOM_NIGHTS) this.sailPhantom(x, z);
+    }
+    if (this.phantom && !this.phantomTold && aboard && this.phantom.fold.progress > PHANTOM_SEEN) {
+      this.phantomTold = true;
+      bus.emit('marvel', { title: 'The Phantom Galleon', line: 'She sails at midnight, and never makes port' });
     }
     if (this.phantom && !this.phantom.update(dt, this.water)) {
       this.group.remove(this.phantom.group);
@@ -298,7 +308,8 @@ export class Marvels {
     }
 
     // the Leviathan: by night, very rarely
-    if (night && !this.leviathan && random() < dt / 600) {
+    if (night && aboard && !this.leviathan && random() < dt / 600) {
+
       const side = random() < 0.5 ? 1 : -1;
       const lx = x - side * 10;
       const lz = z + (random() - 0.5) * 6;
@@ -313,6 +324,17 @@ export class Marvels {
       this.group.remove(this.leviathan.group);
       this.leviathan = null;
     }
+  }
+
+  /** The Phantom sets out off to one side of the ship and a little ahead of her, if the water there is open. */
+  private sailPhantom(x: number, z: number): void {
+    const side = random() < 0.5 ? 1 : -1;
+    const px = x - side * 9;
+    const pz = z - 5 - random() * 3;
+    if (!this.water(px, pz, 2)) return;
+    this.phantom = new Phantom(px, pz, side, this.phantomLight);
+    this.phantomTold = false;
+    this.group.add(this.phantom.group);
   }
 
 }

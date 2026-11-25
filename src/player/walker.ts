@@ -1,7 +1,7 @@
 /**
  * Going ashore: the captain steps off the ship and walks the island as a layered paper puppet, moved the way
  * papertrails moves its traveller (player/traveller.js there). F near a shore goes ashore, F by the ship goes back
- * aboard; WASD walks (screen directions), Shift runs.
+ * aboard; WASD walks (screen directions), Shift runs, a lone tap of Ctrl toggles a slow stroll (papertrails').
  *
  * Movement against what stands in the way works on a clearance field: c(x, z) is how much room there is round the
  * feet (the distance to the nearest blocker, the shore or a stream's bank; decks are free). A step is taken if it
@@ -34,6 +34,7 @@ export interface WalkWorld {
 
 const SPEED = PLAYER.speed;
 const RUN = SPEED * PLAYER.runMul;
+const STROLL = SPEED * PLAYER.slowMul;
 const ACCEL = PLAYER.accel;
 /** Turning toward the input (1/s), even while held up; the smoothing of the turn rate the puppet feels (1/s). */
 const TURN_RATE = 13;
@@ -73,6 +74,8 @@ export class Walker {
   private yawRate = 0;
   private y = 0;
   private world: WalkWorld | null = null;
+  /** Strolling slowly (a lone tap of Ctrl toggles it). */
+  private strolling = false;
   // going round an obstacle: the side committed to, how long we have been held
   private side = 1;
   private blocked = false;
@@ -140,7 +143,8 @@ export class Walker {
     // (the screen's right on the page is (cos yaw, -sin yaw), its up (-sin yaw, -cos yaw))
     [ix, iz] = [ix * Math.cos(yaw) + iz * Math.sin(yaw), -ix * Math.sin(yaw) + iz * Math.cos(yaw)];
     const il = Math.hypot(ix, iz);
-    const speed = input?.isDown('ShiftLeft', 'ShiftRight') ? RUN : SPEED;
+    if (input?.wasTapped('ControlLeft', 'ControlRight')) this.strolling = !this.strolling;
+    const speed = input?.isDown('ShiftLeft', 'ShiftRight') ? RUN : this.strolling ? STROLL : SPEED;
     // constant acceleration toward the wanted velocity
     const v0x = this.vx;
     const v0z = this.vz;

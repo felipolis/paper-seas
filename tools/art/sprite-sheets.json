@@ -175,16 +175,13 @@
   },
   {
    "file": "48-bushes-more.png",
-   "names": [
-    null,
-    null,
-    null,
-    null,
-    null,
-    "bush-coral",
-    "bush-plum"
-   ],
+   "names": [null, null, null, null, null, "bush-coral", "bush-plum"],
    "key": "#00ff00"
+  },
+  {
+   "file": "49-lily-pads.png",
+   "names": ["lily-0", "lily-1", null, "lily-2", "lily-3", null, "lily-flower", null],
+   "key": "#0000ff"
   }
  ]
 }

@@ -81,6 +81,8 @@ export interface CardSpec {
   tone?: number;
   /** An animal about by day or by night only (papertrails' d and n): out of its hours it is not there. */
   awake?: Awake;
+  /** Too low to stop the feet (papertrails' pen fences, under its lowest blocking height): they step over it. */
+  passable?: boolean;
 }
 
 export interface Card extends CardSpec {
@@ -299,6 +301,22 @@ export class CardField {
     return this.lampCards
       .filter((c) => !c.hidden && c.flap.p > 0)
       .map((c) => ({ x: c.x, y: c.y, z: c.z, height: c.height, risen: c.flap.p }));
+  }
+
+  /** The standing card nearest (x, z) within r whose sprite passes test (its foot), or null. */
+  nearest(x: number, z: number, r: number, test: (sprite: string) => boolean): Card | null {
+    let best: Card | null = null;
+    let bestD = r;
+    for (let j = Math.floor((z - r) / FLAT_CELL); j <= Math.floor((z + r) / FLAT_CELL); j++) {
+      for (let i = Math.floor((x - r) / FLAT_CELL); i <= Math.floor((x + r) / FLAT_CELL); i++) {
+        for (const c of this.flats.get(cellKey(i, j)) ?? []) {
+          if (c.hidden || c.flap.p < 0.9 || !test(c.sprite)) continue;
+          const d = Math.hypot(c.x - x, c.z - z);
+          if (d < bestD) [best, bestD] = [c, d];
+        }
+      }
+    }
+    return best;
   }
 
   /** Hides a card for good (a collected chest). */

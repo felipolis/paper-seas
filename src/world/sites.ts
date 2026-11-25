@@ -34,6 +34,8 @@ const BRANCH_SAVING = 0.75;
  * stilt huts, which keep to a clearing) line their houses along a street through the square, the others ring it.
  */
 const STREET_SHARE = 0.5;
+/** The village square's radius on the print (papertrails' road is 0.5 wide). */
+export const SQUARE_RADIUS = 0.95;
 /** The street's width on the print (between the lanes', 0.36, and a road's, 0.75). */
 export const STREET_WIDTH = 0.55;
 /**
@@ -92,8 +94,10 @@ export interface Placed {
   vignette?: { seat: number };
   /** An animal about by day or by night only. */
   awake?: Awake;
-  /** Set square to the camera with the rest of its scene (a pen's fences), not turned a little as a lone card is. */
-  square?: boolean;
+  /** Stands at its own yaw, set with the rest of its scene (a pen's fences), not turned a little at random. */
+  fixed?: boolean;
+  /** Too low to stop the feet (a pen's fences). */
+  passable?: boolean;
 }
 
 export interface Layout {
@@ -259,7 +263,9 @@ export function layoutOf(land: LandField, avoid: Avoid, site: Site): Layout {
     if (pts.some(([x, z]) => avoid.water(x, z, 0.2))) continue;
     lanes.push(pts);
   }
+  // (the square, the street and the lanes)
   const trodden = (x: number, z: number, r: number) =>
+    Math.hypot(x - site.x, z - site.z) < SQUARE_RADIUS + r ||
     lanes.some((l) => polylineDistance(l, x, z)[0] < r + 0.2) || (!!street && polylineDistance(street.pts, x, z)[0] < r + STREET_WIDTH / 2 + 0.1);
   // a prop's spot: round the square, or along the street, mostly on its near side
   const propSpot = (): Pt => {
@@ -431,8 +437,10 @@ const BEDS = { jungle: ['hibiscus', 'bush-pink', 'orchids'], plain: ['flowers-ye
 /** The houses that keep a bed by the door, and how many of them do. */
 const HOMES = /^(cottage|tavern|chapel|hut)$/;
 const BED_CHANCE = 0.55;
-/** How many sites keep a pen (world/pen.ts). */
-const PEN_CHANCE = 0.6;
+/** How many sites keep a pen (world/pen.ts), and how far out from the square it may stand (a ring of spots tried). */
+const PEN_CHANCE = 0.7;
+const PEN_RING: [number, number] = [2.4, 6.5];
+const PEN_TRIES = 40;
 
 /**
  * Little scenes, the way papertrails composes its tiles (rather than props strewn about): a bed of flowers by a door,
@@ -470,14 +478,14 @@ function scenes(
   }
   // a pen (world/pen.ts) a little way out from the square, its herd keeping its place
   if (!site.jungle && rng() < PEN_CHANCE) {
-    for (let a = 0; a < 16; a++) {
-      const r = 2.4 + rng() * 2.4;
+    for (let a = 0; a < PEN_TRIES; a++) {
+      const r = PEN_RING[0] + rng() * (PEN_RING[1] - PEN_RING[0]);
       const ang = rng() * Math.PI * 2;
       const x = site.x + Math.cos(ang) * r;
       const z = site.z + Math.sin(ang) * r;
       const pen = penAt(x, z, rng);
-      if (!pen.fences.every(([px, pz]) => ok(px, pz, pen.half)) || !ok(x, z, 0.3)) continue;
-      for (const [px, pz] of pen.fences) place(pen.fence, px, pz, { height: pen.height, flip: false, square: true });
+      if (!ok(x, z, pen.room) || !pen.fences.every(([px, pz]) => shore(px, pz) < -0.3)) continue;
+      for (const [px, pz, yaw] of pen.fences) place(pen.fence, px, pz, { height: pen.height, flip: false, yaw, fixed: true, passable: true });
       for (const [who, hx, hz] of pen.herd) place(who, hx, hz, { vignette: { seat: 0 } });
       claim(x, z, pen.room);
       break;

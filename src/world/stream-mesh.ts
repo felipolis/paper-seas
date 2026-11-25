@@ -12,6 +12,9 @@
  * The ribbon is a little wider than the water so its bank fits on it; beyond the bank the ribbon is cut away. Its colours
  * are papertrails' water of the biome it runs through (render/biome-tint.ts waterPalettes), blended along the stream: a
  * pinewood stream runs darker, a blossom one carries petals instead of leaves.
+ *
+ * A pond (world/ponds.ts) is the same water as a disc, still: its dashes and floaters lie where they are printed (laid
+ * out in the world's own axes) instead of riding a current.
  */
 import * as THREE from 'three';
 import { WATER_GLSL, waterUniforms } from '../sea/water';
@@ -20,6 +23,7 @@ import { mirrorSkip } from '../render/reflection';
 import { waterPalettes, waterRow } from '../render/biome-tint';
 import { LAND_TOP, type Biome } from './land';
 import { Streams, type Stream } from './streams';
+import { pondRadius, type Pond } from './ponds';
 
 /** Height of the streams' water: just above the land, so it never fights it for depth. */
 const STREAM_Y = LAND_TOP + 0.004;
@@ -29,13 +33,20 @@ const BANK = 0.14;
 const POOL_SEGMENTS = 8;
 /** A stream's water blends from one biome's to the next over this many points either side. */
 const BLEND = 4;
+/** Segments round a pond's rim. */
+const POND_SEGMENTS = 40;
 
-let material: THREE.MeshLambertMaterial | null = null;
+/** The water's material: running (a stream's) or still (a pond's), one of each, sharing their uniforms. */
+const materials: { running?: THREE.MeshLambertMaterial; still?: THREE.MeshLambertMaterial } = {};
+let shared: Record<string, THREE.IUniform> | null = null;
 
-function streamMaterial(): THREE.MeshLambertMaterial {
-  if (material) return material;
+function streamMaterial(still = false): THREE.MeshLambertMaterial {
+  const kind = still ? 'still' : 'running';
+  const known = materials[kind];
+  if (known) return known;
   const m = new THREE.MeshLambertMaterial({ color: '#ffffff', polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, alphaToCoverage: true, alphaTest: 0.02 });
-  const uniforms = { ...waterUniforms(), ...mirrorUniforms(), uRiverPal: { value: waterPalettes() } };
+  const uniforms = (shared ??= { ...waterUniforms(), ...mirrorUniforms(), uRiverPal: { value: waterPalettes() } });
+  if (still) m.defines = { RIVER_STILL: '' };
   m.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
     shader.vertexShader = shader.vertexShader
@@ -46,11 +57,52 @@ function streamMaterial(): THREE.MeshLambertMaterial {
       .replace('#include <color_fragment>', `#include <color_fragment>\ndiffuseColor.rgb *= riverColour();\ndiffuseColor.a = gRiverCover;\n${MIRROR_APPLY.colour}`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${MIRROR_APPLY.emissive}`);
   };
-  m.customProgramCacheKey = () => 'river-v5';
+  m.customProgramCacheKey = () => (still ? 'pond-v1' : 'river-v5');
   // (it lies on the land's tops, which never show in the sea: render/reflection.ts)
   mirrorSkip.add(m);
-  material = m;
+  materials[kind] = m;
   return m;
+}
+
+/**
+ * The ponds' water (world/ponds.ts) as one mesh, or null: each a fan from its middle (c 0) out past its wobbled shore
+ * by the bank's width (c 1), its half width its radius that way, its colours its biome's water.
+ */
+export function pondWater(ponds: readonly Pond[], biome: (x: number, z: number) => Biome): THREE.Mesh | null {
+  if (!ponds.length) return null;
+  const pos: number[] = [];
+  const river: number[] = [];
+  const mix: number[] = [];
+  const index: number[] = [];
+  for (const p of ponds) {
+    const row = waterRow(biome(p.x, p.z));
+    const palette = (): void => {
+      mix.push(row === 0 ? 1 : 0, row === 1 ? 1 : 0, row === 2 ? 1 : 0);
+    };
+    const centre = pos.length / 3;
+    pos.push(p.x, STREAM_Y, p.z);
+    river.push(0, 0, p.r);
+    palette();
+    for (let k = 0; k < POND_SEGMENTS; k++) {
+      const a = (k / POND_SEGMENTS) * Math.PI * 2;
+      const r = pondRadius(p, a);
+      pos.push(p.x + Math.cos(a) * (r + BANK), STREAM_Y, p.z + Math.sin(a) * (r + BANK));
+      river.push(0, 1, r);
+      palette();
+      // (counter-clockwise seen from above)
+      index.push(centre, centre + 1 + ((k + 1) % POND_SEGMENTS), centre + 1 + k);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('aRiver', new THREE.Float32BufferAttribute(river, 3));
+  g.setAttribute('aRiverMix', new THREE.Float32BufferAttribute(mix, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(new Array(pos.length).fill(0).map((_, k) => (k % 3 === 1 ? 1 : 0)), 3));
+  g.setIndex(index);
+  g.computeBoundingSphere();
+  const mesh = new THREE.Mesh(g, streamMaterial(true));
+  mesh.receiveShadow = true;
+  return mesh;
 }
 
 /**
@@ -204,6 +256,13 @@ vec3 riverBank(vec2 p, float out_, float aa) {
 }
 vec3 riverWater(vec2 p, float T, float s, float hw, float across, float edge, float aa) {
   gRiverCover = 1.0;
+  // (still water: its dashes and floaters printed in the world's own axes, where they lie)
+#ifdef RIVER_STILL
+  float Tf = 0.0;
+  s = p.x;
+#else
+  float Tf = T;
+#endif
   // ---- depth: shallow at the banks, deep in the middle, in three soft steps ----
   float ctr = 1.0 - smoothstep(0.0, 0.3, across);
   float dpt = smoothstep(0.0, hw, edge) * 0.45 + 0.7 * ctr * ctr;
@@ -215,8 +274,12 @@ vec3 riverWater(vec2 p, float T, float s, float hw, float across, float edge, fl
   float ca = sin(p.x * 3.1 + 1.4 * sin(p.y * 2.2 + T * 0.55)) * sin(p.y * 3.7 + 1.2 * sin(p.x * 2.6 - T * 0.4));
   col *= 1.0 + 0.07 * (smoothstep(0.3, 0.95, ca) - 0.5 * smoothstep(0.3, 0.95, -ca));
   // ---- dashes carried by the current: staggered rows across, a lens each, gathering by the banks ----
+#ifdef RIVER_STILL
+  float c = p.y;
+#else
   float c = vRiver.y * (hw + ${BANK.toFixed(3)});
-  vec2 q = vec2(s - T * 0.17, c) / vec2(0.5, 0.105);
+#endif
+  vec2 q = vec2(s - Tf * 0.17, c) / vec2(0.5, 0.105);
   float row = floor(q.y);
   q.x += mod(row, 2.0) * 0.5;
   vec2 id = floor(q);
@@ -230,7 +293,7 @@ vec3 riverWater(vec2 p, float T, float s, float hw, float across, float edge, fl
   // cross-fade so the pattern never shears: a leaf now and then with its shadow and midrib, faint long streaks ----
   float flo = 0.0, floSh = 0.0, floInk = 0.0, streak = 0.0;
   for (int i = 0; i < 2; i++) {
-    float fph = fract(T / 7.0 + 0.5 * float(i));
+    float fph = fract(Tf / 7.0 + 0.5 * float(i));
     float tau = (fph - 0.5) * 7.0;
     float wgt = 1.0 - abs(2.0 * fph - 1.0);
     float sx = s - 0.17 * tau;
@@ -240,7 +303,7 @@ vec3 riverWater(vec2 p, float T, float s, float hw, float across, float edge, fl
     float fx = sx + 0.5 * float(i);
     float cls = mod(floor(fx), 4.0);
     vec2 fc = vec2(fract(fx) - 0.5, c - (mod(cls, 2.0) - 0.5) * 0.44 - (cls - 1.5) * 0.06);
-    float fr = cls * 1.9 + 0.5 * sin(T * 0.5 + cls * 2.0) + float(i);
+    float fr = cls * 1.9 + 0.5 * sin(Tf * 0.5 + cls * 2.0) + float(i);
     vec2 fq = vec2(fc.x * cos(fr) - fc.y * sin(fr), fc.x * sin(fr) + fc.y * cos(fr));
     float keep = wgt * step(0.5, seaNoise(p * 0.75) + 0.25 * gRiverBlossom - 0.18 * mod(cls + float(i), 2.0));
     flo = max(flo, seaLens(fq, mix(0.1, 0.064, gRiverBlossom), mix(0.042, 0.032, gRiverBlossom), aa) * keep);

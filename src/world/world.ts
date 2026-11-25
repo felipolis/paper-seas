@@ -31,8 +31,8 @@ export class World {
   readonly land = new LandField();
   /** (the animals keep to the land, out of the streams, but for the ducks afloat on them) */
   readonly cards = new CardField({
-    canStand: (x, z) => this.terrain.distanceAt(x, z) < -0.08 && !this.places.streams.waterAt(x, z, 0.1) && this.room(x, z) > ANIMAL_ROOM,
-    water: (x, z) => this.places.streams.waterAt(x, z),
+    canStand: (x, z) => this.terrain.distanceAt(x, z) < -0.08 && !this.places.waterAt(x, z, 0.1) && this.room(x, z) > ANIMAL_ROOM,
+    water: (x, z) => this.places.waterAt(x, z),
     night: () => this.night,
   });
   /** Streams, villages, roads: what spans the chunks. */

@@ -10,7 +10,7 @@ Every sprite starts as a sheet of die-cut paper cards generated in Google Flow (
 with lit-side lips and bold ornaments on plants, cloth, wood and buildings (stone, water and animals stay plain), a thin
 dark cut line with a pale highlight on its lit side, never felt, stitching or an even cream sticker rim. A prompt is its
 sheet's subject (`assets-src/prompts/NN-*.txt`) followed by the shared style (`assets-src/prompts/style.txt`, with
-KEY set to the sheet's key colour: magenta `#FF00FF`, green `#00FF00` where a piece is pink or purple), generated
+KEY set to the sheet's key colour: magenta `#FF00FF`, green `#00FF00` where a piece is pink or purple, blue `#0000FF` where it is both pink and green: the lily pads, 49, drawn seen from above as they lie on the water), generated
 with two reference images attached: `assets-src/flow/00-style-sheets.jpg` (finished sheets of this set) and
 `00-style-oasis.jpg` (a frame of the skill's gallery, MIT licence).
 

@@ -397,7 +397,7 @@ class Serpent implements Encounter {
   }
 }
 
-/** Another ship crossing in the distance (a merchantman, or a ghost ship by night). */
+/** Another ship crossing in the distance (a merchantman, or now and then by night a ghost ship: GHOST_SHARE). */
 class PassingShip implements Encounter {
   readonly group = new THREE.Group();
   private readonly fold = new FoldGroup();
@@ -424,6 +424,9 @@ class PassingShip implements Encounter {
     return !(this.t > 14 && this.fold.isSettled);
   }
 }
+
+/** The share of the ships passing by night that are ghosts (a glimpse now and then; the Phantom is life/marvels.ts). */
+const GHOST_SHARE = 0.1;
 
 /** papertrails' paper flip: the card's facing eases round at this rate (1/s), cut across its middle below FLIP_CUT. */
 const FLIP_RATE = 11;
@@ -558,7 +561,7 @@ export class SeaLife {
       const z = s.z + Math.sin(a) * d;
       const dir = random() < 0.5 ? 1 : -1;
       for (let k = 0; k <= 16; k++) if (!this.isOpenWater(x + dir * k, z, 1.2)) return;
-      return this.add(new PassingShip(x, z, dir, this.isNight() && random() < 0.7));
+      return this.add(new PassingShip(x, z, dir, this.isNight() && random() < GHOST_SHARE));
     }
     // somewhere ahead-ish of the ship, in open water
     for (let attempt = 0; attempt < 8; attempt++) {

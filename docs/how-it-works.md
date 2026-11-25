@@ -89,18 +89,19 @@ What papertrails does, Paper Seas does the same way (its traveller is as tall as
   log, mushrooms, coconuts, shells, a woodpile) and about one row of animals (papertrails' spawn rows: goats and pigs
   in herds, hens and songbirds in flocks by day, monkeys and lizards by day, a boar behind a tree by day and in the
   open at night, the tortoise by night, the owl by night up on a stump or a log; out of its hours an animal pops away
-  and comes back when they return), now and then a pen of goats in the meadow, the woods massing where a low-frequency field is
+  and comes back when they return), now and then (one a square at most) a pen of goats in the meadow, the woods massing where a low-frequency field is
   high and clearings left where another is low (open ground between the groups, a low clump or two on it); no more than
   three of one prop or animal stand in any 9 x 9 square, about one on-foot view. Like papertrails' tiles (measured on its tiles.glb: 9 or 10 cards, 7 to 10 drawings) a tile hands out its
   species before repeating one (four pines, three broadleaf trees, two blossoms to draw from), and a clump is one to
   four cards of different species, the tallest at the back; the low cover is drawn as wide low drifts (about 2.4 x as
-  wide as tall), the ferns as compact clumps; a lone tuft of grass or a reed bed stands with papertrails' rear copy
-  behind it (0.75 of its tone, 1.08 its size, about 0.13 further back), so it reads as a thick clump. Villages ring
+  wide as tall), the ferns as compact clumps; a lone tuft of grass, a reed bed, a bush, a boulder or a crag stands with
+  papertrails' rear copy behind it (0.75 of its tone, 1.08 its size, about 0.13 further back), so it reads as a thick clump. Villages ring
   their square or, half of them, line a street through it (papertrails' village rows: the far side's houses face the
   camera and the street, the rest face it from the near side, the low props mostly on the near side so the street
   stays in sight); they have a well, stalls, laundry, bunting, carts, benches, lamps, hives and fences, flocks of hens
-  and chicks by day, a few goats and a pig or two, and little scenes: a bed of flowers by a door, a pen of goats between
-  two rows of fence, a handcart with its hay, a rowboat drawn up on the sand by the pier. Every few units of road a
+  and chicks by day, a few goats and a pig or two, and little scenes: a bed of flowers by a door, a pen of goats (or a
+  pig), a handcart with its hay, a rowboat drawn up on the sand by the pier. A pen is papertrails' fence_pad: a diamond
+  of low fence cards turned 45 degrees to the camera with a gate on the near side, too low to stop the feet. Every few units of road a
   guidepost, bench, cart (with its hay, often), lamp or barrel stands by it, and a signpost where roads meet (a fork
   past a village's square, a crossing);
   now and then a lookout tower or a camp of tents round a fire stands in the wild.
@@ -108,7 +109,9 @@ What papertrails does, Paper Seas does the same way (its traveller is as tall as
   dear), crossing the rivers on bridges, and every river has footbridges of its own along it; lanes lead to every door and pier.
   Both ends of a river are papertrails' river_source: a stone mound card with the water's mouth, three crags in a
   horseshoe behind it, reeds and a frog on the pool's bank; reeds stand along its banks, ducks float on it, frogs and herons wait at the
-  edge.
+  edge. Here and there a pond (`world/ponds.ts`, papertrails' pond tile) lies on level meadow, pine wood or jungle
+  ground clear of the roads and villages, the ground in front of it kept clear: the streams' water, still (its marks
+  printed where they lie), with giant lily pads on it (sheet 49, a pink lily open on some), reeds on its far bank, a duck afloat, a frog or a heron at its edge.
 - **A flat page**: the land is one sheet of paper cut to the shore; relief comes only from what stands on it. The world
   is mostly sea (the land is under a third of it).
 - **Paths as printed** (`world/ground-shader.ts`): roads 0.75 wide (the skill's leading line, 1.3 captains), lanes and squares are drawn into the ground by papertrails'
@@ -151,7 +154,8 @@ What papertrails does, Paper Seas does the same way (its traveller is as tall as
   staying the skill's.
 - **Life** (`life/`, `world/critters.ts`): papertrails' densities per biome (its rows mapped to ours: the meadow its
   blossom, the pine woods its pinewood, the jungle and rocks its heartland, sand its desert): falling leaves in five
-  autumn colours and blossom petals that settle and fade, drifting dust, butterflies with hinged wings, fireflies over
+  autumn colours and blossom petals that settle and fade, drifting dust, butterflies with hinged wings (gathering over the flowers: one
+  with a flower near its home takes its home over it and flies whatever its rank), fireflies over
   the banks at night, rain with splash rings and soft mist in the pine woods, flocks of birds crossing in a V with their
   shadows on the ground, chimney smoke by day, gulls circling spots of their own (nothing follows the ship: left behind, a gull shrinks
   away and comes back over a spot ahead), sea encounters now and then (9-18 s apart, two at most), each environment of the

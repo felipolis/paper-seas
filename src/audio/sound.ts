@@ -33,7 +33,7 @@ interface AudioGraph {
 
 export class Sound {
   private graph: AudioGraph | null = null;
-  private muted = false;
+  private musicOff = false;
   private listenerX = 0;
   private listenerZ = 0;
   private events = 0;
@@ -46,7 +46,7 @@ export class Sound {
     };
     window.addEventListener('keydown', start);
     window.addEventListener('pointerdown', start);
-    window.addEventListener('keydown', (e) => { if (e.code === 'KeyM' && !e.repeat) this.toggleMute(); });
+    window.addEventListener('keydown', (e) => { if (e.code === 'KeyM' && !e.repeat) this.toggleMusic(); });
 
     bus.on('paper', (e) => this.paper(e.x, e.z, e.height, e.up, e.delay ?? 0, e.key));
     bus.on('paperCancel', (e) => this.graph?.voices.cancel(e.key));
@@ -66,17 +66,15 @@ export class Sound {
     bus.on('bottle', () => this.graph?.music.chime('bottle'));
   }
 
-  get isMuted(): boolean {
-    return this.muted;
+  get isMusicOff(): boolean {
+    return this.musicOff;
   }
 
-  toggleMute(): void {
-    this.muted = !this.muted;
-    bus.emit('sound', { muted: this.muted });
-    if (!this.graph) return;
-    const { ctx, master } = this.graph;
-    master.gain.cancelScheduledValues(ctx.currentTime);
-    master.gain.setTargetAtTime(this.muted ? 0 : AUDIO.masterGain, ctx.currentTime, 0.05);
+  /** M: the music off or on again (papertrails' M: the paper, the steps and the sea play on). */
+  toggleMusic(): void {
+    this.musicOff = !this.musicOff;
+    bus.emit('music', { off: this.musicOff });
+    this.graph?.music.setOff(this.musicOff);
   }
 
   /** Per frame: where the listener is. */
@@ -96,7 +94,7 @@ export class Sound {
       ctx = new AudioContext();
     }
     const master = ctx.createGain();
-    master.gain.value = this.muted ? 0 : AUDIO.masterGain;
+    master.gain.value = AUDIO.masterGain;
     master.connect(ctx.destination);
     // effects: soft-knee limiter (scaled in and out of its range)
     const shaper = ctx.createWaveShaper();
@@ -123,6 +121,7 @@ export class Sound {
     sea.connect(seaGain).connect(master);
     sea.start();
     this.graph = { ctx, master, fx, voices: new PaperVoices(ctx, fx), music: new Music(ctx, master), noise };
+    this.graph.music.setOff(this.musicOff);
   }
 
   /** Gain (0..1), pan (-1..1) and distance softening (0..1) of a sound at (x, z). */
@@ -134,9 +133,9 @@ export class Sound {
     return { gain, pan: clamp(dx / A.panSpan, -1, 1), air: clamp(d / A.earshot, 0, 1) };
   }
 
-  /** The graph, if it is running and not muted. */
+  /** The graph, if it is running. */
   private live(): AudioGraph | null {
-    return this.graph && this.graph.ctx.state === 'running' && !this.muted ? this.graph : null;
+    return this.graph && this.graph.ctx.state === 'running' ? this.graph : null;
   }
 
   /** A piece height tall rose or folded at (x, z): a flap as large as it is in papertrails' tiles. */

@@ -1,7 +1,7 @@
 /**
  * Everything on the land that spans more than one chunk, worked out once and shared (all pure functions of the seed,
- * cached): the streams, the sites where people live, the roads between them with their bridges, and each site's
- * layout. A chunk asks for what reaches its square; whichever chunk asks first, the answer is the same.
+ * cached): the streams, the sites where people live, the roads between them with their bridges, each site's layout,
+ * and the ponds (laid after all of them, clear of them). A chunk asks for what reaches its square; whichever chunk asks first, the answer is the same.
  */
 import { MAX_LINK, MAX_RUINS_LINK, ROUTE_PAD, onRoad, routeRoad, type Road } from './roads';
 import { SITE_CELL, laidOutBefore, layoutOf, siteIn, type Layout, type Site } from './sites';
@@ -9,11 +9,14 @@ import { Streams } from './streams';
 import { overlaps, type Box } from './polyline';
 import type { LandField } from './land';
 import { cellKey } from '../core/grid';
+import { pondDistance, pondIn, type Pond } from './ponds';
 
 /** How many nearest settlements each one is joined to. */
 const LINKS = 2;
 /** How far a site's layout reaches from its square (its buildings, props, piers). */
 const LAYOUT_REACH = 10;
+/** The farthest a pond's water reaches from its centre (its largest radius and wobble). */
+const POND_REACH = 1.6;
 
 export class Places {
   readonly streams: Streams;
@@ -21,6 +24,7 @@ export class Places {
   private readonly roads = new Map<string, Road | null>();
   private readonly layouts = new Map<number, Layout>();
   private readonly links = new Map<number, Site[]>();
+  private readonly ponds = new Map<number, Pond | null>();
 
   constructor(private readonly land: LandField) {
     this.streams = new Streams(land);
@@ -122,6 +126,45 @@ export class Places {
       this.layouts.set(s.id, l);
     }
     return l;
+  }
+
+  /** The ponds whose water may come within the box. */
+  pondsNear(box: Box): Pond[] {
+    const out: Pond[] = [];
+    // (a pond lies inside its square, give or take its rim)
+    for (let j = Math.floor((box[1] - POND_REACH) / SITE_CELL); j <= Math.floor((box[3] + POND_REACH) / SITE_CELL); j++) {
+      for (let i = Math.floor((box[0] - POND_REACH) / SITE_CELL); i <= Math.floor((box[2] + POND_REACH) / SITE_CELL); i++) {
+        const p = this.pondOf(i, j);
+        if (p && p.x + POND_REACH > box[0] && p.x - POND_REACH < box[2] && p.z + POND_REACH > box[1] && p.z - POND_REACH < box[3]) out.push(p);
+      }
+    }
+    return out;
+  }
+
+  /** Distance from (x, z) to the nearest bank of a stream or a pond (negative on the water; large when none is near). */
+  waterDistance(x: number, z: number): number {
+    let d = this.streams.bankDistance(x, z);
+    for (const p of this.pondsNear([x - 1, z - 1, x + 1, z + 1])) d = Math.min(d, pondDistance(p, x, z));
+    return d;
+  }
+
+  /** True if (x, z) lies on a stream's or a pond's water (plus margin). */
+  waterAt(x: number, z: number, margin = 0): boolean {
+    return this.waterDistance(x, z) < margin;
+  }
+
+  private pondOf(i: number, j: number): Pond | null {
+    const key = cellKey(i, j);
+    let p = this.ponds.get(key);
+    if (p === undefined) {
+      p = pondIn(this.land, {
+        stream: (x, z, r) => this.streams.waterAt(x, z, r),
+        road: (x, z, r) => this.roadsNear([x - r, z - r, x + r, z + r]).some((road) => onRoad(road, x, z, r)),
+        site: (x, z, r) => this.sitesNear(x, z, r).length > 0,
+      }, i, j);
+      this.ponds.set(key, p);
+    }
+    return p;
   }
 
   /** Layouts that come within the box. */

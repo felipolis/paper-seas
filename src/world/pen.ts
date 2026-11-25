@@ -1,38 +1,55 @@
 /**
- * papertrails' pen (its fence_pad with the herd in it, on the meadow and the farm tiles): fence cards in a row behind
- * and a row in front, set square to the camera, and the herd between them toward the back, where the front row does
- * not hide it (a card 0.34 tall hides about 0.38 behind it, seen 42 degrees down). Villages and meadows both keep one.
+ * papertrails' pen (tiles.glb fence_pad on its meadow and barn_farm tiles, measured): a diamond of low fence cards
+ * turned 45 degrees either way to the camera, one left out on the near side for a gate, and the herd inside it. Its
+ * fences are 0.18 tall, under papertrails' lowest blocking height (0.2), so the traveller steps over them: here they
+ * are passable cards. Villages and meadows both keep one now and then.
  */
 import { cardWidth } from '../art/sprites';
-import { heightOf } from '../config/flora';
-import type { Pt } from './polyline';
 
 const FENCE = 'fence-rail';
-/** Fence cards in each row, and the rows' distance apart (world units). */
-const PER_ROW = 3;
-const DEPTH = 0.95;
-/** The herd stands this far behind the pen's middle, this far apart. */
-const BACK = 0.14;
-const APART = 0.34;
+/** papertrails' fence_pad card height (world units). */
+const FENCE_HEIGHT = 0.18;
+/** Fence cards along each side of the diamond, a little overlapped. */
+const PER_SIDE = 3;
+const OVERLAP = 0.97;
+/** The herd stands about the middle, this far apart. */
+const APART = 0.24;
 
 export interface Pen {
+  /** Its middle. */
+  x: number;
+  z: number;
   fence: string;
   height: number;
-  /** Half a fence card's width: the room each needs. */
-  half: number;
-  fences: Pt[];
+  /** The fences: where, and their yaw (radians). */
+  fences: Array<[number, number, number]>;
   /** The herd: who, and where. */
   herd: Array<[string, number, number]>;
   /** The ground the pen holds round its middle (nothing grows in it or right in front of it). */
   room: number;
 }
 
-/** A pen about (x, z): its fences, and two or three goats (or now and then a pig) between them. */
+/** A pen about (x, z): its fences round a diamond, and two or three goats (or now and then a pig) in it. */
 export function penAt(x: number, z: number, rng: () => number): Pen {
-  const height = heightOf(FENCE, rng());
-  const w = cardWidth(FENCE, height) * 0.96;
-  const fences = [-1, 1].flatMap((row) => Array.from({ length: PER_ROW }, (_, k): Pt => [x + (k - (PER_ROW - 1) / 2) * w, z + (row * DEPTH) / 2]));
+  const height = FENCE_HEIGHT * (0.95 + rng() * 0.1);
+  const w = cardWidth(FENCE, height) * OVERLAP;
+  // the diamond's corners north, east, south and west of the middle, each side PER_SIDE cards long
+  const r = (PER_SIDE * w) / Math.SQRT2;
+  const corners: Array<[number, number]> = [[0, -r], [r, 0], [0, r], [-r, 0], [0, -r]];
+  const fences: Array<[number, number, number]> = [];
+  for (let side = 0; side < 4; side++) {
+    const [ax, az] = corners[side];
+    const [bx, bz] = corners[side + 1];
+    // (a card's width runs along (cos yaw, -sin yaw): the side's own direction)
+    const yaw = Math.atan2(-(bz - az), bx - ax);
+    for (let k = 0; k < PER_SIDE; k++) {
+      // (the gate: the middle card of the near-left side, toward the camera)
+      if (side === 2 && k === Math.floor(PER_SIDE / 2)) continue;
+      const t = (k + 0.5) / PER_SIDE;
+      fences.push([x + ax + (bx - ax) * t, z + az + (bz - az) * t, yaw]);
+    }
+  }
   const kinds = rng() < 0.75 ? Array<string>(2 + Math.floor(rng() * 2)).fill('goat') : ['pig'];
-  const herd = kinds.map((who, k): [string, number, number] => [who, x + (k - (kinds.length - 1) / 2) * APART + (rng() - 0.5) * 0.08, z - BACK + (rng() - 0.5) * 0.1]);
-  return { fence: FENCE, height, half: w / 2, fences, herd, room: (w * PER_ROW) / 2 + DEPTH / 2 };
+  const herd = kinds.map((who, k): [string, number, number] => [who, x + (k - (kinds.length - 1) / 2) * APART + (rng() - 0.5) * 0.06, z + (rng() - 0.5) * 0.12]);
+  return { x, z, fence: FENCE, height, fences, herd, room: r + 0.3 };
 }
