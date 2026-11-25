@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 /**
- * Synthesises the piano's notes off the main thread (each takes 10-20 ms of maths), one message per note so the
- * music can start with the first ones while the rest are still being made.
+ * Synthesises the piano's notes off the main thread (each takes 10-20 ms of maths), one message per note, its samples
+ * handed over without a copy; the music starts once every note has come (music.ts).
  */
 import { synthNote } from './piano-synth';
 

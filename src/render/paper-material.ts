@@ -49,7 +49,7 @@ const CARDSTOCK = {
  * its colour beyond printFar.
  */
 const BOOK = {
-  cream: new THREE.Color('#efe0c2'),
+  cream: new THREE.Color(PALETTE.page),
   fadedInk: 0.8,
   printNear: 6.8,
   printFar: 9.6,
@@ -243,7 +243,6 @@ uniform float uPaperFlat;
 attribute float ${PAPER_FLAT_ATTRIBUTE};
 #endif
 varying float vPaperFlat;
-varying vec2 vPaperW;
 #endif
 float paperHash( vec2 p ) { return fract( sin( dot( p, vec2( 127.1, 311.7 ) ) ) * 43758.5453 ); }
 float paperVNoise( vec2 p ) {
@@ -276,7 +275,6 @@ const VERT_PROJECT = /* glsl */ `#include <project_vertex>
     #else
       vPaperFlat = ${PAPER_FLAT_ATTRIBUTE};
     #endif
-    vPaperW = ( paperM * vec4( transformed, 1.0 ) ).xz;
   #endif
 }`;
 
@@ -316,7 +314,6 @@ uniform vec3 uPaperShadowLeak;
 uniform vec2 uPageFocus;
 #ifdef PAPER_PENCIL
 varying float vPaperFlat;
-varying vec2 vPaperW;
 #endif
 float gPaperPoint = 0.0;
 vec2 paperUv;
@@ -360,9 +357,10 @@ const FRAG_FIBRE = /* glsl */ `#include <color_fragment>
 #ifdef PAPER_PENCIL
 {
   // a card lying flat comes up with the distance: full colour near the focus, a pencil plan farther out
-  float wpx = max( fwidth( vPaperW.x ), fwidth( vPaperW.y ) );
-  float ink = mix( 1.0, 1.0 - ${f(BOOK.printFade)} * smoothstep( ${f(BOOK.printNear)}, ${f(BOOK.printFar)}, distance( vPaperW, uPageFocus ) ), vPaperFlat );
-  diffuseColor.rgb = mix( pageUnpainted( diffuseColor.rgb, vPaperW, wpx, vPaperFlat ), diffuseColor.rgb, ink * ink * ( 3.0 - 2.0 * ink ) );
+  vec2 wq = vPaperWorld.xz;
+  float wpx = max( fwidth( wq.x ), fwidth( wq.y ) );
+  float ink = mix( 1.0, 1.0 - ${f(BOOK.printFade)} * smoothstep( ${f(BOOK.printNear)}, ${f(BOOK.printFar)}, distance( wq, uPageFocus ) ), vPaperFlat );
+  diffuseColor.rgb = mix( pageUnpainted( diffuseColor.rgb, wq, wpx, vPaperFlat ), diffuseColor.rgb, ink * ink * ( 3.0 - 2.0 * ink ) );
 }
 #endif
 #ifndef PAPER_NO_FIBRE

@@ -99,7 +99,7 @@ progress is kept in your browser.
 
 ## Run it locally
 
-Vite + TypeScript + Three.js, no framework. You need Node 22.
+Vite + TypeScript + Three.js, no framework. You need Node 22.18 or later (the art tools import TypeScript straight into Node; CI builds on Node 24).
 
 ```bash
 npm install

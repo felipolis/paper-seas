@@ -29,18 +29,26 @@ src/
                      the camera-to-captain line they keep clear of (clear-line.ts)
   game/              voyage progress (discoveries, treasure)
   audio/             synthesised sound: felt-piano barcarolle (notes made in a worker), paper flaps, footsteps, sea
-tools/qa/            world QA (plays the dev build headless and checks the world), the captains' and the models' clip checks
+tools/browser.mjs    the headless Edge every tool drives, and openGame (the dev build, opened on a seed)
+tools/qa/            world QA (plays the dev build headless and checks the world), the captains' and the models' clip
+                     checks (crew-clips, model-clips: each .mjs runs its .ts in the dev build's page)
 tools/media/         the README's screenshots (docs/media), taken headless from the dev build
 docs/                these pages and the screenshots
 assets-src/          generated art sources (Flow prompts and sheets) and audit pages
-tools/art/           sprite sheet cutter (cut-sprites: keys the game's sprites out of their flat key colour; peels
-                     the margin of the models' printed faces) and audit (audit-sprites: contact sheet)
+tools/art/           sheet cutter (cut-sprites: keys the game's sprites out of their flat key colour; peels the margin
+                     of the models' and the ship's printed faces) and its configs (sprite-sheets, model-sheets,
+                     ship-sheets .json); crop-card (a card cropped by hand), paint-domes (the mountains' faces),
+                     pack-atlas (the models' atlas), outline (a print's traced cut outline) and audits (audit-sprites:
+                     contact sheet; audit-pages: large pages)
 public/art/          cut sprites + manifest (loaded at startup)
 public/models/       Blender-built models (models.glb, ship-*.glb), their printed atlas and textures
 tools/blender/       Blender build scripts (buildings, mountains, the pier and the skill's bridge: ramps and a crown
                      between sides leaning out; the ships)
-tools/ship/          exports the hull shape for the Blender build
-assets-src/models/   cut and painted faces of the models, the atlas layout (atlas.json), the dome outlines (domes.json)
+tools/ship/          the ships' build (build-ships.sh): exports the hull shapes (export-shape), traces the printed
+                     details' outlines (trace-details), then builds each hull in Blender
+assets-src/models/   cut and painted faces of the models, the atlas layout (atlas.json), the dome outlines (domes.json),
+                     the hull shapes (ship-shape-<id>.json), the details' outlines (ship-details.json), the terrain
+                     swatches the mountains are painted over (swatches/)
 ```
 
 The world is a pure function of the seed (`config/world.ts`): sail back to a place and it is the same. Every new

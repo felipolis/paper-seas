@@ -26,7 +26,8 @@ import { Ambience } from '../life/ambience';
 import { Marvels } from '../life/marvels';
 import { Walker, type WalkWorld } from '../player/walker';
 import { ClickWalk } from '../player/click-walk';
-import { Reveal } from '../world/reveal';
+import { CELL, Reveal } from '../world/reveal';
+import { PLAYER } from '../config/player';
 import { Smoke } from '../life/smoke';
 import { ClearLine } from '../life/clear-line';
 import { activeCaptain } from '../config/ships';
@@ -59,7 +60,8 @@ const KNOTS_PER_UNIT = 3.6;
  * at papertrails' 1.5 tiles).
  */
 const REACH_FROM = ON_FOOT.distance;
-const REACH_PER_UNIT = 1.8 / (14.5 - ON_FOOT.distance);
+const WIDE = VIEWS.find((v) => v.name === 'wide')!;
+const REACH_PER_UNIT = (WIDE.reach! * CELL) / (WIDE.distance! - ON_FOOT.distance);
 export class Game {
   readonly scene = new THREE.Scene();
   readonly input = new Input();
@@ -87,7 +89,7 @@ export class Game {
   /** The biome's light and grade round the traveller (papertrails' biomegrade). */
   private readonly biomeLook = new BiomeLook();
   readonly distanceMap: DistanceMap;
-  readonly reflection = new Reflection(0.5);
+  readonly reflection = new Reflection();
   /** What the mirror leaves out: the sea itself. */
   private readonly unmirrored: THREE.Object3D[] = [this.sea.mesh];
   private time = 0;
@@ -236,10 +238,11 @@ export class Game {
     this.distanceMap.prime(x, z);
   }
 
-  /** Puts the captain ashore at (x, z), the land round him built. */
+  /** Puts the captain ashore at (x, z), the land round him built and the camera placed afresh. */
   landCaptain(x: number, z: number): void {
     this.world.prime(x, z);
     this.goAshore(x, z);
+    this.view.recenter();
   }
 
   /** The captain steps ashore at (x, z): he leaves the wheel, and the camera comes down to papertrails' distance. */
@@ -284,10 +287,7 @@ export class Game {
     const walking = this.walker.active;
     const keys = this.chart.isOpen ? null : this.input;
     ship.update(dt, walking ? null : keys, this.world, this.chart.isOpen || walking);
-    if (walking) {
-      p.vx *= Math.max(0, 1 - dt * 3);
-      p.vz *= Math.max(0, 1 - dt * 3);
-    }
+    if (walking) p.anchor(dt);
     // (a click walks him while no key does; a key lets the click's walk go)
     this.clickWalk.enabled = walking && !this.chart.isOpen;
     this.walker.update(dt, keys, this.walkWorld, this.view.yaw, this.clickWalk.steer(dt));
@@ -296,7 +296,7 @@ export class Game {
     const fx = walking ? this.walker.x : p.x;
     const fz = walking ? this.walker.z : p.z;
     // (with the chart open the camera lifts off the diorama and the wheel is the chart's)
-    this.view.lift += ((this.chart.isOpen ? 1 : 0) - this.view.lift) * Math.min(1, dt * 4);
+    this.view.lift += ((this.chart.isOpen ? 1 : 0) - this.view.lift) * (1 - Math.exp(-4 * dt));
     if (keys?.wasPressed('KeyV')) {
       const i = this.view.nextView();
       this.hud.showView(VIEWS[i].name, i, VIEWS.length);
@@ -322,7 +322,7 @@ export class Game {
     // (the living pieces keep clear of the one we follow, and their weather and biomes are his, as papertrails'
     // life.js)
     this.clearLine.update(this.view.camera, fx, fz);
-    this.life.update(dt, { x: p.x, z: p.z, vx: p.vx, vz: p.vz, fx: p.forwardX, fz: p.forwardZ });
+    this.life.update(dt, { x: p.x, z: p.z, fx: p.forwardX, fz: p.forwardZ });
     this.flotsam.update(dt, p.x, p.z, this.reveal, viewReach);
     this.marvels.update(dt, p.x, p.z, this.dayNight.hour, this.dayNight.lanterns > 0.5, !walking);
     this.walker.updateLantern(this.dayNight.lanterns);
@@ -353,7 +353,7 @@ export class Game {
     this.input.endFrame();
     this.post.driftClouds(dt, fx, fz, ship.wind.x, ship.wind.z, this.dayNight.lanterns);
     // (on foot papertrails' focus point: his chest)
-    this.lensFocus.set(fx, walking ? this.walker.group.position.y + 0.58 * ON_FOOT.focusHeight : 0.5, fz);
+    this.lensFocus.set(fx, walking ? this.walker.group.position.y + PLAYER.height * ON_FOOT.focusHeight : 0.5, fz);
     // (papertrails' page: full colour round the traveller, the unpainted book further out)
     setPageFocus(fx, fz);
     this.post.setFocus(this.lensFocus);

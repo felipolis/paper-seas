@@ -47,6 +47,11 @@ const LIGHT_STREAK = '0.42';
 const MIRROR_FRAMING = 10.8;
 /** The wave's frequencies are multiples of 2 pi / MIRROR_WRAP (papertrails' WKF), so its offset wraps there exactly. */
 const MIRROR_WRAP = 256;
+/** papertrails' WKF(n): n whole waves over MIRROR_WRAP, as a GLSL literal written out in full so the wrap stays exact. */
+const wkf = (n: number): string => ((2 * Math.PI * n) / MIRROR_WRAP).toFixed(8);
+/** The broad wave train's frequency across the image and the slower one that bends it (WKF(1700), WKF(260)). */
+const MIRROR_WAVE = wkf(1700);
+const MIRROR_BEND = wkf(260);
 
 /** The uniforms every water material shares for its mirror: the image, its projection, and the ripple's framing. */
 const uniforms = {
@@ -135,7 +140,7 @@ void mirrorImage(vec2 p, float h, vec3 col, float clear) {
   // it split the image into rows with water showing between them, stripes papertrails' mid-tone pieces over deep
   // teal never show
   vec2 rp = (p - uReflAnchor.xy) / uReflScale + uReflAnchor.zw;
-  float w1 = sin(rp.y * 41.72 + T * 1.5 + 1.8 * sin(rp.x * 6.381 + T * 0.45));
+  float w1 = sin(rp.y * ${MIRROR_WAVE} + T * 1.5 + 1.8 * sin(rp.x * ${MIRROR_BEND} + T * 0.45));
   vec4 rc4 = uReflMatrix * vec4(p.x + w1 * ${MIRROR_DISTORT} * uReflScale, h, p.y, 1.0);
   vec2 ruv = rc4.xy / rc4.w;
   vec4 m = texture2D(uRefl, ruv);

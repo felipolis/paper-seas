@@ -80,8 +80,6 @@ export interface CardSpec {
   height: number;
   yaw: number;
   flip: boolean;
-  /** Extra start delay (s) when rising. */
-  delay: number;
   /** A slotted cross: the card and two half cards square to it (CROSS_PLANES off the view), like a pop-up tree. */
   cross?: boolean;
   /**
@@ -98,6 +96,9 @@ export interface CardSpec {
   /** Too low to stop the feet (papertrails' pen fences, under its lowest blocking height): they step over it. */
   passable?: boolean;
 }
+
+/** How a card is set down besides its place: see CardSpec, and its own yaw when its scene sets it (a pen's fences). */
+export type SetDown = Pick<CardSpec, 'vignette' | 'tone' | 'awake' | 'passable'> & { yaw?: number };
 
 export interface Card extends CardSpec {
   id: number;
@@ -166,6 +167,20 @@ const HIDE_RATE = 10;
 /** Side of the squares the folded cards are filed under (world units), to find the ones a card lies over. */
 const FLAT_CELL = 1;
 
+/** The keys of the FLAT_CELL squares a folded card's bounds reach. */
+function flatSquares([x0, z0, x1, z1]: Box): number[] {
+  const keys: number[] = [];
+  for (let j = Math.floor(z0 / FLAT_CELL); j <= Math.floor(z1 / FLAT_CELL); j++) {
+    for (let i = Math.floor(x0 / FLAT_CELL); i <= Math.floor(x1 / FLAT_CELL); i++) keys.push(cellKey(i, j));
+  }
+  return keys;
+}
+
+/** The key of the cell (world/reveal.ts CELL) that (x, z) lies in. */
+function cellOf(x: number, z: number): number {
+  return cellKey(Math.floor(x / CELL), Math.floor(z / CELL));
+}
+
 const _m = new THREE.Matrix4();
 const _mh = new THREE.Matrix4();
 const _q = new THREE.Quaternion();
@@ -183,6 +198,8 @@ export class CardField {
   private time = 0;
   /** Every card filed under each FLAT_CELL square its folded bounds reach. */
   private readonly flats = new Map<number, Card[]>();
+  /** Every card filed under its cell (cellOf), in the cell's rise order. */
+  private readonly cells = new Map<number, Card[]>();
   private readonly critters: Critters;
   /** The lamp cards (see LAMPS). */
   private lampCards: Card[] = [];
@@ -204,7 +221,9 @@ export class CardField {
   /** Adds cards (returns them, so their owner can remove them later). */
   add(specs: CardSpec[]): Card[] {
     const out: Card[] = [];
-    const cells = new Map<string, Card[]>();
+    const first = this.nextId;
+    // (the cells the new cards stand in, and whether each held cards already)
+    const touched = new Map<number, boolean>();
     for (const s of specs) {
       const i = Math.floor(s.x / CELL);
       const j = Math.floor(s.z / CELL);
@@ -232,9 +251,10 @@ export class CardField {
         flatY: s.y,
       };
       if (card.halves) card.halves.parent = flap;
-      const key = `${i},${j}`;
-      let cell = cells.get(key);
-      if (!cell) cells.set(key, (cell = []));
+      const key = cellKey(i, j);
+      let cell = this.cells.get(key);
+      if (!touched.has(key)) touched.set(key, !!cell);
+      if (!cell) this.cells.set(key, (cell = []));
       cell.push(card);
       for (const b of this.batchesOf(card)) {
         b.cards.push(card);
@@ -243,36 +263,50 @@ export class CardField {
       out.push(card);
       if (LAMPS.has(s.sprite)) this.lampCards.push(card);
     }
-    // the rise order inside each cell (a chunk holds whole cells)
-    for (const cell of cells.values()) {
+    // the rise order inside each cell, ranked whole: a card stands where it stands, now and then past the square of the
+    // chunk that adds it, so one cell's cards may come from several adds; a cell that held cards already has its flat
+    // stack laid again from scratch, its cards there before with the new ones
+    const lay = [...out];
+    for (const [key, held] of touched) {
+      const cell = this.cells.get(key)!;
       cell.sort((a, b) => riseOrder(a, b) || a.phase - b.phase);
       cell.forEach((c, k) => (c.order = cell.length > 1 ? k / (cell.length - 1) : 0));
+      if (!held) continue;
+      const before = cell.filter((c) => c.id < first);
+      this.unfile(before);
+      for (const c of before) {
+        c.flatY = c.y;
+        for (const b of this.batchesOf(c)) b.dirty = true;
+      }
+      lay.push(...before);
     }
     // (laid bottom of the stack first: the cards that rise last)
-    for (const c of [...out].sort((a, b) => b.order - a.order)) this.layFlat(c);
+    for (const c of lay.sort((a, b) => b.order - a.order)) this.layFlat(c);
     return out;
   }
 
+  /** The cards of the cell (world/reveal.ts CELL) that (x, z) lies in, in its rise order. */
+  cellCards(x: number, z: number): readonly Card[] {
+    return this.cells.get(cellOf(x, z)) ?? [];
+  }
+
   /**
-   * Lays a new card in the flat stack. It lies above every card of its cell it overlaps that rises after it (the skill's
-   * flat stack: the top of the stack rises first, so no card swings up through one lying over it, and folding down is
-   * the same film run backward). And it keeps off the plane of every card it overlaps: two faces in one plane flicker,
-   * the depth test picking either one frame by frame; it goes up in POPUP.flatStep layers until it is at least that far
-   * from each of them (the lowest such height, so the flat stacks stay a few hundredths thin).
+   * Lays a card in the flat stack (a new one, or one of a cell laid again: add). It lies above every card of its cell it
+   * overlaps that rises after it (the skill's flat stack: the top of the stack rises first, so no card swings up through
+   * one lying over it, and folding down is the same film run backward). And it keeps off the plane of every card it
+   * overlaps: two faces in one plane flicker, the depth test picking either one frame by frame; it goes up in
+   * POPUP.flatStep layers until it is at least that far from each of them (the lowest such height, so the flat stacks
+   * stay a few hundredths thin).
    */
   private layFlat(c: Card): void {
     // (a lying cross shows two faces: its card's and, above it, its front half card's)
     const faces = (o: Card) => (o.cross ? [0, HALF_RISE] : [0]);
-    const [x0, z0, x1, z1] = c.flatBox;
     const over = new Set<Card>();
-    for (let j = Math.floor(z0 / FLAT_CELL); j <= Math.floor(z1 / FLAT_CELL); j++) {
-      for (let i = Math.floor(x0 / FLAT_CELL); i <= Math.floor(x1 / FLAT_CELL); i++) {
-        const key = cellKey(i, j);
-        const list = this.flats.get(key);
-        for (const o of list ?? []) if (overlaps(o.flatBox, c.flatBox)) over.add(o);
-        if (list) list.push(c);
-        else this.flats.set(key, [c]);
-      }
+    for (const key of flatSquares(c.flatBox)) {
+      const list = this.flats.get(key);
+      for (const o of list ?? []) if (overlaps(o.flatBox, c.flatBox)) over.add(o);
+      if (list) list.push(c);
+      else this.flats.set(key, [c]);
     }
     for (const o of over) {
       if (o.cx === c.cx && o.cz === c.cz && o.order > c.order) c.flatY = Math.max(c.flatY, o.flatY + Math.max(...faces(o)) + POPUP.flatStep);
@@ -282,13 +316,24 @@ export class CardField {
     while (fights()) c.flatY += POPUP.flatStep;
   }
 
+  /** Takes cards out of the flat stacks' index (flats). */
+  private unfile(cards: Card[]): void {
+    const gone = new Set(cards);
+    for (const key of new Set(cards.flatMap((c) => flatSquares(c.flatBox)))) {
+      const kept = this.flats.get(key)!.filter((c) => !gone.has(c));
+      if (kept.length) this.flats.set(key, kept);
+      else this.flats.delete(key);
+    }
+  }
+
   remove(cards: Card[]): void {
     const dead = new Set(cards);
     this.lampCards = this.lampCards.filter((c) => !dead.has(c));
-    for (const [key, list] of this.flats) {
-      const kept = list.filter((c) => !dead.has(c));
-      if (kept.length) this.flats.set(key, kept);
-      else this.flats.delete(key);
+    this.unfile(cards);
+    for (const key of new Set(cards.map((c) => cellOf(c.x, c.z)))) {
+      const kept = this.cells.get(key)!.filter((c) => !dead.has(c));
+      if (kept.length) this.cells.set(key, kept);
+      else this.cells.delete(key);
     }
     for (const b of this.batches.values()) {
       const before = b.cards.length;
@@ -376,7 +421,7 @@ export class CardField {
           if (may && reveal.wantsUp(c.cx, c.cz)) {
             if (reveal.holds(c.cx, c.cz, c.held)) c.held += dt;
             else if (reveal.claimRise(c.cx, c.cz)) {
-              const delay = c.delay + reveal.riseDelay(c.cx, c.cz, c.jitter) + c.order * STAGGER;
+              const delay = reveal.riseDelay(c.cx, c.cz, c.jitter) + c.order * STAGGER;
               f.setTarget(1, delay);
               c.halves?.setTarget(1, delay + POPUP.nested.lag);
               c.flipAt = this.time;

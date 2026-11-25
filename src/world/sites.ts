@@ -36,7 +36,9 @@ const BRANCH_SAVING = 0.75;
 const STREET_SHARE = 0.5;
 /** The village square's radius on the print (papertrails' road is 0.5 wide). */
 export const SQUARE_RADIUS = 0.95;
-/** The street's width on the print (between the lanes', 0.36, and a road's, 0.75). */
+/** Width of the lanes from a village square to its doors on the print (papertrails' road: 0.5). */
+export const LANE_WIDTH = 0.36;
+/** The street's width on the print (between the lanes' and a road's, world/roads.ts ROAD_WIDTH). */
 export const STREET_WIDTH = 0.55;
 /**
  * It runs within STREET_TURN of east-west (rad), so the row behind it shows its fronts, past the end houses by
@@ -180,16 +182,6 @@ export function layoutOf(land: LandField, avoid: Avoid, site: Site): Layout {
     stops.push([x, z]);
     return true;
   };
-  // round the square: a spot rMin..rMax from it, the front turned roughly toward the camera
-  const place = (name: string, rMin: number, rMax: number, dMin: number, dMax: number, tries: number): boolean => {
-    for (let a = 0; a < tries; a++) {
-      const r = rMin + rng() * (rMax - rMin);
-      const ang = rng() * Math.PI * 2;
-      if (build(name, site.x + Math.cos(ang) * r, site.z + Math.sin(ang) * r, (rng() - 0.5) * 0.9, dMin, dMax)) return true;
-    }
-    return false;
-  };
-
   if (site.kind === 'ruins') {
     for (const sprite of ['ruin-arch', 'pillars', 'tiki', 'tiki']) {
       const x = site.x + (rng() - 0.5) * 3.2;
@@ -208,6 +200,21 @@ export function layoutOf(land: LandField, avoid: Avoid, site: Site): Layout {
   const houses = Array.from({ length: count }, (_, k) => (site.kind === 'hamlet' ? (site.jungle ? 'hut' : 'cottage') : plan[k % plan.length]));
   // along a street through the square, or round it; a house the street has no room for stands round the square
   const street = lined ? lineStreet(site, houses, rng, build, avoid.water) : null;
+  // round the square: a spot rMin..rMax from it, the front turned roughly toward the camera, its ground clear of the
+  // street (the street's own houses stand beside it: lineStreet)
+  const place = (name: string, rMin: number, rMax: number, dMin: number, dMax: number, tries: number): boolean => {
+    const foot = footOf(modelInfo(name)!);
+    for (let a = 0; a < tries; a++) {
+      const r = rMin + rng() * (rMax - rMin);
+      const ang = rng() * Math.PI * 2;
+      const x = site.x + Math.cos(ang) * r;
+      const z = site.z + Math.sin(ang) * r;
+      const yaw = (rng() - 0.5) * 0.9;
+      if (street && polylineDistance(street.pts, x, z)[0] < foot + STREET_WIDTH / 2) continue;
+      if (build(name, x, z, yaw, dMin, dMax)) return true;
+    }
+    return false;
+  };
   for (const name of street ? street.left : houses) place(name, 1.2, 4.2, -40, 0, 16);
   if (site.kind === 'port') {
     // the waterfront: warehouses and a tavern just up the beach, a lighthouse at the water, a fort behind
@@ -266,7 +273,7 @@ export function layoutOf(land: LandField, avoid: Avoid, site: Site): Layout {
   // (the square, the street and the lanes)
   const trodden = (x: number, z: number, r: number) =>
     Math.hypot(x - site.x, z - site.z) < SQUARE_RADIUS + r ||
-    lanes.some((l) => polylineDistance(l, x, z)[0] < r + 0.2) || (!!street && polylineDistance(street.pts, x, z)[0] < r + STREET_WIDTH / 2 + 0.1);
+    lanes.some((l) => polylineDistance(l, x, z)[0] < r + LANE_WIDTH / 2 + 0.02) || (!!street && polylineDistance(street.pts, x, z)[0] < r + STREET_WIDTH / 2 + 0.1);
   // a prop's spot: round the square, or along the street, mostly on its near side
   const propSpot = (): Pt => {
     if (street && rng() < STREET_PROPS) {
@@ -347,7 +354,7 @@ interface Street {
 }
 
 /** The ground a building holds: a circle round it, through its corners and a little beyond. */
-function footOf(info: ModelInfo): number {
+export function footOf(info: ModelInfo): number {
   return Math.hypot(info.width, info.depth) * 0.5 + 0.12;
 }
 

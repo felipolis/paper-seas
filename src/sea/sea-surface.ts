@@ -5,13 +5,14 @@
  *              aqua toward every beach (shore distance from the DistanceMap texture)
  *   light net  a slow moving caustic net, strongest in the shallows
  *   shore      cream foam lines lapping in and out along the beaches, a dark waterline just off the sand
- *   marks      engraved swell marks, and cream lens-shaped dashes drifting with the wind (gathering near coasts),
- *              now and then a ring spreading where a fish touched the surface
+ *   marks      cream lens-shaped dashes drifting with the wind (gathering near coasts), now and then a ring
+ *              spreading where a fish touched the surface
+ *   fibre      the paper's own fibre over all of it
  *   mirror     the world mirrored in the water (sea/mirror.ts), rippled and tinted teal
  */
 import * as THREE from 'three';
 import { WATER_GLSL, waterUniforms } from './water';
-import type { DistanceMap } from './distance-map';
+import { FAR, type DistanceMap } from './distance-map';
 import { MIRROR_APPLY, MIRROR_GLSL, mirrorUniforms } from './mirror';
 
 const SIZE = 280;
@@ -24,8 +25,8 @@ float shoreDist(vec2 p) {
   vec2 uv = (p - uDistInfo.xy) / uDistInfo.z;
   // (open sea past the window's edge, eased in over its last 10 units so its edge never shows as a seam)
   float edge = min(min(uv.x, uv.y), min(1.0 - uv.x, 1.0 - uv.y)) * uDistInfo.z;
-  if (edge <= 0.0) return 12.0;
-  return mix(12.0, texture2D(uDist, uv).r, smoothstep(0.0, 10.0, edge));
+  if (edge <= 0.0) return ${FAR.toFixed(1)};
+  return mix(${FAR.toFixed(1)}, texture2D(uDist, uv).r, smoothstep(0.0, 10.0, edge));
 }
 
 vec3 seaColour(vec2 p) {

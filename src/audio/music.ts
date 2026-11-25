@@ -193,7 +193,10 @@ export class Music {
       // (it fades in once, as it starts, unless it was turned off before)
       if (!this.off) this.out.gain.setTargetAtTime(AUDIO.music.gain, this.ctx.currentTime, AUDIO.music.fadeIn / 3);
     }
-    const until = this.ctx.currentTime - this.origin + 1.2;
+    const now = this.ctx.currentTime - this.origin;
+    // (after a stall - a hidden tab, a long block - the notes it missed are skipped, not all played at once)
+    this.done = Math.max(this.done, now);
+    const until = now + 1.2;
     if (until > this.done) {
       this.schedule(this.done, until);
       this.done = until;

@@ -1,5 +1,7 @@
 /** The captain ashore: papertrails' traveller (config/player.js there), who is as tall as the captain. */
 export const PLAYER = {
+  /** His height (papertrails' traveller's, before his outfit's): the lens focuses on his chest, sight is tested to his hat. */
+  height: 0.6,
   /**
    * Walking speed (u/s), Shift's run multiplier, the slow stroll's (a lone tap of Ctrl toggles it, papertrails'
    * slowMul), the acceleration toward the wanted velocity (u/s²).

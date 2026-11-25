@@ -30,6 +30,9 @@ export const LIFE = {
   gullAhead: [3, 8] as [number, number],
 } as const;
 
+/** papertrails' ground shadow colour: the soft shadows lying on the page (the birds', the clouds'). */
+export const GROUND_SHADOW = '#0b0a1c';
+
 /** The kinds of ambient life whose numbers follow the biome and the night. */
 export type LifeKind = 'leaves' | 'petals' | 'dust' | 'rain' | 'mist' | 'butterflies' | 'fireflies' | 'birds';
 
@@ -74,5 +77,5 @@ export const AMBIENT = {
    * Flocks of 3 to flockSize in a V crossing the view: one every `period` s (each later flock 23 % slower) for `cross` s,
    * over `span` units, just above the treetops; wing = half span; shadow = the strength of their ground shadows.
    */
-  birds: { flocks: 5, flockSize: 5, period: 30, cross: 15, span: 34, height: 2.1, wing: 0.2, flap: 6.5, shadow: 0.2, shadowColor: '#0b0a1c', colors: ['#f6f1e6', '#e9e2d4'] },
+  birds: { flocks: 5, flockSize: 5, period: 30, cross: 15, span: 34, height: 2.1, wing: 0.2, flap: 6.5, shadow: 0.2, shadowColor: GROUND_SHADOW, colors: ['#f6f1e6', '#e9e2d4'] },
 } as const;

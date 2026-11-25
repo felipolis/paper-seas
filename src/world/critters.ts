@@ -187,9 +187,10 @@ interface State {
   bank: boolean;
   /** Its own random sequence (papertrails' per-animal stream). */
   rand: () => number;
-  /** Where it heads once down from its seat, and whether it was fleeing. */
+  /** Where it heads once down from its seat, whether it was fleeing, and whether it bounds there. */
   leapTo: [number, number] | null;
   leapFlee: boolean;
+  leapAir: boolean;
 }
 
 /** The pose of an animal this frame, relative to its card's spot: offset, lift, extra yaw and roll. */
@@ -297,7 +298,7 @@ export class Critters {
           // cornered: it stays frozen a while longer
           if (d2 < ar * ar) {
             if (!this.startFlee(s, c, kind, dx, dz, sp.flee, false)) s.dur = s.t + 1.2;
-          } else if (d2 >= sp.alert * sp.alert) {
+          } else {
             s.st = 'idle';
             s.t = 0;
             s.dur = 1.5 + s.rand() * 2;
@@ -375,6 +376,7 @@ export class Critters {
           if (s.leapTo) {
             [s.tx, s.tz] = s.leapTo;
             s.st = s.leapFlee ? 'flee' : 'walk';
+            s.air = s.leapAir;
             s.leapTo = null;
           }
         }
@@ -429,7 +431,7 @@ export class Critters {
     const s: State = {
       x: 0, z: 0, hx: 0, hz: 0, tx: 0, tz: 0, fx: 0, fz: 0, st: 'idle', t: 0, dur: 0, v: 0, air: false, ph: 0, stuck: 0,
       cool: 0, mv: false, idle: 'stand', face: 1, faceK: 1, side: 1, ang: 0, rad: 0, dir: 1, spin: 0, bank: false, down: 0,
-      leapTo: null, leapFlee: false,
+      leapTo: null, leapFlee: false, leapAir: false,
       rand: mulberry32(Math.floor(c.phase * 4294967296)),
     };
     const sp = kind.sp;
@@ -494,14 +496,15 @@ export class Critters {
     const tx = s.hx + (s.rand() - 0.5) * 2 * sp.roam;
     const tz = s.hz + (s.rand() - 0.5) * 2 * sp.roam;
     if (!this.habitat.canStand(c.x + tx, c.z + tz)) return false;
-    if (this.leapDown(s, c, tx, tz, false)) return true;
+    const air = !!sp.air && sp.b === 'shy';
+    if (this.leapDown(s, c, tx, tz, false, air)) return true;
     s.tx = tx;
     s.tz = tz;
     s.st = 'walk';
     s.t = 0;
     s.stuck = 0;
     s.v = sp.speed;
-    s.air = !!sp.air && sp.b === 'shy';
+    s.air = air;
     return true;
   }
 
@@ -520,13 +523,15 @@ export class Critters {
   private startFlee(s: State, c: Card, kind: Kind, dx: number, dz: number, dist: number, fly: boolean, walk?: number): boolean {
     const ok = (x: number, z: number) => this.habitat.canStand(c.x + x, c.z + z);
     const base = Math.atan2(-dz, -dx);
+    // (it bounds when it runs, not when it walks aside)
+    const air = walk === undefined && (!!kind.sp.air || !!kind.sp.leap);
     for (const d of [dist, dist * 0.6]) {
       for (const off of FLEE_OFFS) {
         const a = base + off * s.side;
         const tx = s.x + Math.cos(a) * d;
         const tz = s.z + Math.sin(a) * d;
         if (!ok(tx, tz) || (!fly && !ok((s.x + tx) / 2, (s.z + tz) / 2))) continue;
-        if (!fly && this.leapDown(s, c, tx, tz, true)) return true;
+        if (!fly && this.leapDown(s, c, tx, tz, true, air)) return true;
         s.tx = tx;
         s.tz = tz;
         s.t = 0;
@@ -543,7 +548,7 @@ export class Critters {
         } else {
           s.st = 'flee';
           s.v = kind.sp.run ?? kind.sp.speed;
-          s.air = !!kind.sp.air || !!kind.sp.leap;
+          s.air = air;
         }
         return true;
       }
@@ -553,9 +558,10 @@ export class Critters {
 
   /**
    * Up on a seat, a walk or a flight starts with papertrails' leap down to the ground beside the piece, toward
-   * (tx, tz), where it goes on afterwards; false when it is already on the ground (or finds no spot to land on).
+   * (tx, tz), where it goes on afterwards (bounding with `air`); false when it is already on the ground (or finds no
+   * spot to land on).
    */
-  private leapDown(s: State, c: Card, tx: number, tz: number, flee: boolean): boolean {
+  private leapDown(s: State, c: Card, tx: number, tz: number, flee: boolean, air: boolean): boolean {
     const seat = c.vignette?.seat ?? 0;
     if (seat <= 0 || s.down >= seat) return false;
     const ex = tx - s.x;
@@ -571,6 +577,7 @@ export class Critters {
       s.tz = lz;
       s.leapTo = [tx, tz];
       s.leapFlee = flee;
+      s.leapAir = air;
       s.st = 'leap';
       s.t = 0;
       s.v = flee ? (CRITTERS[c.sprite].sp.run ?? CRITTERS[c.sprite].sp.speed) : CRITTERS[c.sprite].sp.speed;

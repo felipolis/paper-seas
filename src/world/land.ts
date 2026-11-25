@@ -6,13 +6,15 @@
  *               ship can sail into, so a continent is a maze of waterways rather than a wall
  *   islands     the hand-shaped islands of IslandLayout (atolls, twins, crescents...) stamped into open sea
  *
- * distance(x, z) is an approximate signed distance to the shore in world units (< 0 on land). Inland, terraces of
- * stacked paper rise with the distance from the coast (and a highland noise), and biomes vary with two more noises.
+ * distance(x, z) is an approximate signed distance to the shore in world units (< 0 on land). The land is one flat
+ * sheet (LAND_TOP); inland it is printed in bands that change with the distance from the coast (and a highland noise),
+ * and biomes vary with two more noises.
  */
 import { WORLD } from '../config/world';
 import { clamp, smoothstep } from '../core/math';
 import { fbm, valueNoise } from './noise';
 import { IslandLayout, shoreDistance, type IslandSpec } from './island-layout';
+import { BoundedCache } from '../core/bounded-cache';
 
 export type Biome = 'beach' | 'jungle' | 'pine' | 'meadow' | 'rocky';
 /** Every biome. */
@@ -37,7 +39,7 @@ const RIVER_WIDTH = 0.05;
 
 export class LandField {
   readonly layout = new IslandLayout();
-  private readonly stampCache = new Map<number, boolean>();
+  private readonly stampCache = new BoundedCache<number, boolean>();
   private readonly scratch: IslandSpec[] = [];
 
   /** Continental field only (no stamped islands), world units, < 0 on land. */
@@ -83,19 +85,15 @@ export class LandField {
 
   /** Stamped islands only stand in open sea (well away from any continent). */
   accepts(s: IslandSpec): boolean {
-    let ok = this.stampCache.get(s.id);
-    if (ok === undefined) {
-      ok = true;
+    return this.stampCache.get(s.id, () => {
       const R = s.shape.extent + 7;
-      for (let a = 0; a < 8 && ok; a++) {
+      for (let a = 0; a < 8; a++) {
         const x = s.x + Math.cos((a / 8) * Math.PI * 2) * R;
         const z = s.z + Math.sin((a / 8) * Math.PI * 2) * R;
-        if (this.continent(x, z) < 3) ok = false;
+        if (this.continent(x, z) < 3) return false;
       }
-      if (ok && this.continent(s.x, s.z) < s.shape.extent + 4) ok = false;
-      this.stampCache.set(s.id, ok);
-    }
-    return ok;
+      return this.continent(s.x, s.z) >= s.shape.extent + 4;
+    });
   }
 
   /** Stamped islands near a point (accepted ones). */
@@ -103,7 +101,7 @@ export class LandField {
     return this.layout.near(x, z, r, []).filter((s) => this.accepts(s));
   }
 
-  /** Highland strength 0..1 (where terraces climb into hills and mountains). */
+  /** Highland strength 0..1 (where the printed bands turn to hills and heights sooner). */
   highland(x: number, z: number): number {
     return fbm(SEED + 91, x / 40, z / 40, 3);
   }
@@ -114,7 +112,7 @@ export class LandField {
     const w = valueNoise(SEED + 97, x / 6, z / 6);
     return [
       0.65 + 0.5 * w,
-      // hills climb close behind the beach even on small islands; the heights stand well up from the page
+      // hills come close behind the beach even on small islands; the heights lie well inland
       2.2 + 1.5 * w - 1.2 * smoothstep(0.45, 0.75, h) + 3 * (1 - smoothstep(0.25, 0.45, h)),
       4.6 + 2 * w - 1.8 * smoothstep(0.55, 0.8, h) + 6 * (1 - smoothstep(0.38, 0.55, h)),
     ];

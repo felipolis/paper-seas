@@ -149,6 +149,12 @@ export const HEIGHT: Record<string, [number, number]> = {
 };
 
 /**
+ * A rock spire standing off the shore as a sea stack (world/cover.ts plantShallows) is far taller than one on the land
+ * (its HEIGHT): as tall as a sea arch, its height drawn evenly over this range.
+ */
+export const SEA_STACK: [number, number] = [1.2, 1.6];
+
+/**
  * A sprite's height for a random r in [0, 1): the middle of its range, varied +-SIZE_VARY (the skill: every kind ~15 %
  * in scale, so no two of a kind stand alike).
  */

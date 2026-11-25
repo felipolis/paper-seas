@@ -57,6 +57,9 @@ interface Prototype {
   scale: number;
   /** The top of its chimney (model space, scaled), if it has one. */
   smoke: THREE.Vector3 | null;
+  /** What it is culled with (model space): its bounds standing, grown over its pieces folded flat (see foldedBounds). */
+  sphere: THREE.Sphere;
+  box: THREE.Box3;
 }
 
 /**
@@ -94,6 +97,7 @@ export async function loadModels(paperMaps: Promise<void>, base = `${import.meta
     if (!name) continue;
     const proto = prototype(node, SCALE[name] ?? 1, SOLID.test(name));
     separateFlat(proto, paper);
+    foldedBounds(proto, paper);
     prototypes.set(name, proto);
   }
 }
@@ -214,6 +218,8 @@ function prototype(root: THREE.Object3D, scale: number, solid: boolean): Prototy
     foot: solid ? hullSegments(footSegments(geometry, scale)) : footSegments(geometry, scale),
     scale,
     smoke,
+    sphere: geometry.boundingSphere!.clone(),
+    box: geometry.boundingBox!.clone(),
   };
 }
 
@@ -267,9 +273,9 @@ export function buildModel(name: string, x: number, y: number, z: number, yaw: n
   mesh.rotation.y = yaw;
   mesh.castShadow = true;
   mesh.receiveShadow = true;
-  // culled with its assembled bounds (it is hidden while folded flat)
-  mesh.boundingSphere = proto.geometry.boundingSphere!.clone();
-  mesh.boundingBox = proto.geometry.boundingBox!.clone();
+  // culled with its bounds standing and folded flat (folded, it is still drawn within sight: terrain.ts updateHouses)
+  mesh.boundingSphere = proto.sphere.clone();
+  mesh.boundingBox = proto.box.clone();
   fold.snap(0);
   mesh.onBeforeRender = () => {
     setPaperFlat(paper, 1 - fold.progress);
@@ -479,6 +485,26 @@ function area(poly: Array<[number, number]>): number {
     s += x0 * z1 - x1 * z0;
   }
   return Math.abs(s) / 2;
+}
+
+/**
+ * Grows a prototype's culling bounds over its pieces folded flat (with their lifts, so after separateFlat): a folded
+ * piece lies out round the foot, as far from its hinge as it stands tall, past the bounds of the standing model, and a
+ * folded building is drawn within sight (terrain.ts updateHouses), so it must not vanish at the edge of the view.
+ */
+function foldedBounds(proto: Prototype, paper: THREE.Material): void {
+  const { mesh, fold } = rig(proto, paper, 0, 0);
+  fold.snap(0);
+  mesh.updateMatrixWorld(true);
+  mesh.skeleton.update();
+  const pos = proto.geometry.getAttribute('position');
+  const v = new THREE.Vector3();
+  for (let k = 0; k < pos.count; k++) {
+    // (the skinned vertex in the mesh's own space, as the bounds are)
+    mesh.applyBoneTransform(k, v.fromBufferAttribute(pos, k));
+    proto.sphere.expandByPoint(v);
+    proto.box.expandByPoint(v);
+  }
 }
 
 /**

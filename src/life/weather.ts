@@ -10,14 +10,15 @@
  */
 import * as THREE from 'three';
 import { AMBIENT } from '../config/life';
-import { hash01 } from '../core/rng';
 import type { ClearLine } from './clear-line';
+import { fallerCycle, LandingCache, type FallerCycle } from './fallers';
 import { randomTable, type LifeFrame } from './life-frame';
 import { Bits } from './paper-bits';
 import { SoftQuads } from './soft-quads';
-import { TAU, mixRange } from '../core/math';
+import { HALF_PI, TAU, mixRange } from '../core/math';
 
-const HALF_PI = Math.PI / 2;
+/** A raindrop's cycle, this frame (fallers.ts). */
+const _drop: FallerCycle = { u: 0, tFall: 0, dx: 0, dz: 0 };
 
 export class Weather {
   readonly group = new THREE.Group();
@@ -27,20 +28,16 @@ export class Weather {
   /** Six random numbers per raindrop and per mist card. */
   private readonly r = randomTable(AMBIENT.rain.count * 6, 0x5a1e);
   private readonly q = randomTable(AMBIENT.mist.count * 6, 0x3157);
-  /** Where each drop of this cycle lands, and the ground's height there. */
-  private readonly landX = new Float32Array(AMBIENT.rain.count).fill(1e9);
-  private readonly landZ = new Float32Array(AMBIENT.rain.count).fill(1e9);
-  private readonly landH = new Float32Array(AMBIENT.rain.count);
+  /** The ground's height where each drop of this cycle lands. */
+  private readonly landing: LandingCache;
   private readonly mistDay = new THREE.Color(AMBIENT.mist.day);
   private readonly mistNight = new THREE.Color(AMBIENT.mist.night);
   private readonly mistColor = new THREE.Color();
 
   /** ground: the height of the ground at a point. */
-  constructor(
-    private readonly ground: (x: number, z: number) => number,
-    private readonly clearLine: ClearLine,
-  ) {
+  constructor(ground: (x: number, z: number) => number, private readonly clearLine: ClearLine) {
     const R = AMBIENT.rain;
+    this.landing = new LandingCache(R.count, ground);
     this.streaks = new Bits(R.count, ['bar'], R.colors, 0x2a1);
     this.rings = new Bits(R.count, ['ring'], R.colors, 0x2a1);
     this.mist = new SoftQuads(AMBIENT.mist.count, (i) => this.q[i * 6 + 5]);
@@ -54,29 +51,21 @@ export class Weather {
 
   private rain(f: LifeFrame): void {
     const cfg = AMBIENT.rain;
-    const { w: W, d: D, h: H } = AMBIENT.box;
-    const { t, fx, fz, windX, windZ, camYaw } = f;
+    const { w: W, d: D } = AMBIENT.box;
+    const { fx, fz, windX, windZ, camYaw } = f;
     const R = this.r;
     const slant = Math.atan2(cfg.wind, 7) * (Math.cos(camYaw) * windX - Math.sin(camYaw) * windZ);
     for (let i = 0; i < cfg.count; i++) {
       const r = i * 6;
       const fall = mixRange(cfg.fall, R[r]);
-      const tFall = H / fall;
-      const period = tFall + cfg.land;
-      const ph = t / period + R[r + 1] * 7;
-      const cyc = Math.floor(ph);
-      const u = (ph - cyc) * period;
-      let dx = hash01(11, i, cyc) * W - fx;
-      dx -= W * Math.round(dx / W);
-      let dz = hash01(23, i, cyc) * D - fz;
-      dz -= D * Math.round(dz / D);
+      const { u, tFall, dx, dz } = fallerCycle(_drop, f, i, fall, cfg.land, R[r + 1], 0);
       const g = f.gate('rain', dx, dz, (i + 0.5) / cfg.count, W, D);
       if (g <= 0) {
         this.streaks.hide(i);
         this.rings.hide(i);
         continue;
       }
-      const landH = this.landing(i, fx + dx, fz + dz);
+      const landH = this.landing.at(i, fx + dx, fz + dz);
       if (u < tFall) {
         const rem = tFall - u;
         const len = mixRange(cfg.size, R[r + 2]);
@@ -96,16 +85,6 @@ export class Weather {
     }
     this.streaks.commit();
     this.rings.commit();
-  }
-
-  /** The ground's height where drop i lands (looked up once per fall). */
-  private landing(i: number, x: number, z: number): number {
-    if (Math.abs(this.landX[i] - x) >= 0.01 || Math.abs(this.landZ[i] - z) >= 0.01) {
-      this.landX[i] = x;
-      this.landZ[i] = z;
-      this.landH[i] = this.ground(x, z);
-    }
-    return this.landH[i];
   }
 
   private updateMist(f: LifeFrame): void {

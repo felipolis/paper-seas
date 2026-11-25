@@ -39,13 +39,19 @@ export class Sound {
   private events = 0;
 
   constructor() {
-    const start = () => {
-      this.start();
-      window.removeEventListener('keydown', start);
-      window.removeEventListener('pointerdown', start);
+    // A context made by a key that is not a user activation (Esc) stays suspended: every key and click resumes it until
+    // it runs.
+    const wake = () => {
+      const { ctx } = this.start();
+      if (ctx.state === 'running') awake();
+      else void ctx.resume().then(awake);
     };
-    window.addEventListener('keydown', start);
-    window.addEventListener('pointerdown', start);
+    const awake = () => {
+      window.removeEventListener('keydown', wake);
+      window.removeEventListener('pointerdown', wake);
+    };
+    window.addEventListener('keydown', wake);
+    window.addEventListener('pointerdown', wake);
     window.addEventListener('keydown', (e) => { if (e.code === 'KeyM' && !e.repeat) this.toggleMusic(); });
 
     bus.on('paper', (e) => this.paper(e.x, e.z, e.height, e.up, e.delay ?? 0, e.key));
@@ -84,8 +90,9 @@ export class Sound {
     this.graph?.voices.update();
   }
 
-  private start(): void {
-    if (this.graph) return;
+  /** The audio graph, made the first time. */
+  private start(): AudioGraph {
+    if (this.graph) return this.graph;
     let ctx: AudioContext;
     try {
       ctx = new AudioContext({ sampleRate: AUDIO.sampleRate, latencyHint: 'interactive' });
@@ -122,6 +129,7 @@ export class Sound {
     sea.start();
     this.graph = { ctx, master, fx, voices: new PaperVoices(ctx, fx), music: new Music(ctx, master), noise };
     this.graph.music.setOff(this.musicOff);
+    return this.graph;
   }
 
   /** Gain (0..1), pan (-1..1) and distance softening (0..1) of a sound at (x, z). */

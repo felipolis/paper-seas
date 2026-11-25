@@ -1,4 +1,5 @@
 export const TAU = Math.PI * 2;
+export const HALF_PI = Math.PI / 2;
 export const DEG = Math.PI / 180;
 
 /** '#rrggbb' -> [r, g, b] (0..255). */
@@ -12,6 +13,12 @@ export const smoothstep = (e0: number, e1: number, x: number): number => {
   const t = clamp((x - e0) / (e1 - e0), 0, 1);
   return t * t * (3 - 2 * t);
 };
+
+/**
+ * papertrails' rank gate (life/life.js there): the piece of this rank (0..1) in a pool shows once the pool's amount
+ * (0..1) reaches its rank, fading in, so the pool fills and empties piece by piece in rank order.
+ */
+export const rankGate = (amount: number, rank: number): number => smoothstep(0, 1, (amount - rank * 0.88) / 0.12);
 
 /** Moves `value` toward `target` by at most `maxDelta`. */
 export function approach(value: number, target: number, maxDelta: number): number {

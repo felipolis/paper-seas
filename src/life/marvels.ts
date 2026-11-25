@@ -22,6 +22,7 @@ import { spriteArt } from '../art/sprites';
 import { WORLD } from '../config/world';
 import { mirrorFor } from '../art/facing';
 import { cellKey } from '../core/grid';
+import { paperCopy } from '../render/paper-material';
 
 /** This module's seeded randomness (core/rng.ts stream). */
 const random = stream('marvels');
@@ -45,16 +46,11 @@ const PHANTOM_SEEN = 0.6;
 const PHANTOM_LIGHT = 2.2;
 const TENTACLE = 1.2;
 
-/**
- * A card on its hinge, `height` tall and drawn `scale` times that (a sight dealt a size at random keeps the card art
- * of its base height: popup/card.ts caches a geometry per art, and every new height would be a new one for good).
- */
-function card(name: string, height: number, fold: FoldGroup, delay: number, flip = false, scale = 1): THREE.Group {
+/** A card on its hinge, `height` tall. */
+function card(name: string, height: number, fold: FoldGroup, delay: number, flip = false): THREE.Group {
   const hinge = new THREE.Group();
-  const c = createCard(spriteArt(name, { height }), { flipX: flip });
-  c.scale.set(scale, scale, 1);
-  hinge.add(c);
-  fold.add(hinge, { size: height * scale, seed: random(), delay, wobble: 1.2 });
+  hinge.add(createCard(spriteArt(name, { height }), { flipX: flip }));
+  fold.add(hinge, { size: height, seed: random(), delay, wobble: 1.2 });
   return hinge;
 }
 
@@ -113,7 +109,7 @@ class Phantom {
   readonly group = new THREE.Group();
   readonly fold = new FoldGroup();
   private t = 0;
-  /** The green glow materials she was dealt (her card's own, cloned). */
+  /** The green glow materials she was dealt (copies of her card's own paper). */
   private readonly glows: THREE.Material[] = [];
 
   constructor(x: number, z: number, private readonly dir: number, private readonly light: THREE.PointLight) {
@@ -123,7 +119,7 @@ class Phantom {
     c.traverse((o) => {
       const m = (o as THREE.Mesh).material as THREE.MeshLambertMaterial | undefined;
       if (m && 'emissive' in m && !Array.isArray(m)) {
-        const glow = m.clone();
+        const glow = paperCopy(m);
         glow.emissive = new THREE.Color('#5dff9a');
         glow.emissiveIntensity = 0.55;
         (o as THREE.Mesh).material = glow;
@@ -185,6 +181,8 @@ class Leviathan {
 class KrakenGarden {
   readonly group = new THREE.Group();
   readonly fold = new FoldGroup(1.2);
+  /** Each tentacle's sway node, inside its hinge (the fold drives the hinge's pose), as sea-life's Kraken. */
+  private readonly sways: THREE.Group[] = [];
   private t = 0;
 
   constructor(x: number, z: number) {
@@ -192,16 +190,27 @@ class KrakenGarden {
     for (let i = 0; i < 9; i++) {
       const a = (i / 9) * Math.PI * 2 + random() * 0.3;
       const r = 2 + random() * 4.5;
-      const c = card(i % 2 ? 'tentacle-1' : 'tentacle-0', TENTACLE, this.fold, i / 9, random() < 0.5, 1 + (random() * 0.7) / TENTACLE);
-      c.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
-      this.group.add(c);
+      const flip = random() < 0.5;
+      const scale = 1 + (random() * 0.7) / TENTACLE;
+      const sway = new THREE.Group();
+      // (dealt a size by scale, keeping the art of its base height: popup/card.ts caches a geometry per art, and every
+      // new height would be a new one for good)
+      const tentacle = createCard(spriteArt(i % 2 ? 'tentacle-1' : 'tentacle-0', { height: TENTACLE }), { flipX: flip });
+      tentacle.scale.set(scale, scale, 1);
+      sway.add(tentacle);
+      const hinge = new THREE.Group();
+      hinge.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
+      hinge.add(sway);
+      this.fold.add(hinge, { size: TENTACLE * scale, seed: random(), delay: i / 9, wobble: 1.2 });
+      this.sways.push(sway);
+      this.group.add(hinge);
     }
     this.fold.setTarget(1);
   }
 
   update(dt: number): boolean {
     this.t += dt;
-    this.group.children.forEach((c, i) => { c.rotation.z = Math.sin(this.t * 1.4 + i) * 0.12; });
+    this.sways.forEach((s, i) => { s.rotation.z = Math.sin(this.t * 1.4 + i) * 0.12; });
     if (this.t > 12) this.fold.setTarget(0);
     this.fold.update(dt);
     this.group.visible = !this.fold.isDown;
@@ -217,6 +226,13 @@ export class Marvels {
    */
   private readonly phantomLight = new THREE.PointLight('#6dffa8', 0, 9, 1.2);
   private readonly sites = new Map<number, Atlantis>();
+  /**
+   * The nearby regions siteOf found no Atlantis in (so they are not tested again every frame), forgotten whenever the
+   * ship enters another region.
+   */
+  private readonly barren = new Set<number>();
+  /** The region the ship is in (its cellKey). */
+  private region = -1;
   private readonly seen = new Set<number>();
   private phantom: Phantom | null = null;
   private phantomNight = -1;
@@ -251,12 +267,20 @@ export class Marvels {
     // Atlantis: keep the nearby sites, drop the far ones
     const ri = Math.floor(x / REGION);
     const rj = Math.floor(z / REGION);
+    const region = cellKey(ri, rj);
+    if (region !== this.region) {
+      this.region = region;
+      this.barren.clear();
+    }
     for (let j = rj - 1; j <= rj + 1; j++) {
       for (let i = ri - 1; i <= ri + 1; i++) {
         const key = cellKey(i, j);
-        if (this.sites.has(key)) continue;
+        if (this.sites.has(key) || this.barren.has(key)) continue;
         const s = this.siteOf(i, j);
-        if (!s) continue;
+        if (!s) {
+          this.barren.add(key);
+          continue;
+        }
         const a = new Atlantis(s[0], s[1]);
         this.sites.set(key, a);
         this.group.add(a.group);

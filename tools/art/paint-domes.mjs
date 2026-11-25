@@ -1,6 +1,7 @@
 // Paints the printed faces of the mountains (after papertrails' dunes, hills and boulders): rounded dome cards and
 // rounded stone slabs, each a band of colours (a pale cap hugging the top, wavy strata below, a darker foot), printed
-// over the grain of a terrain swatch, with the pale paper rim of a cut card along the outline.
+// over the grain of a terrain swatch (assets-src/models/swatches, cut by cut-sprites with tools/art/ship-sheets.json),
+// with the pale paper rim of a cut card along the outline.
 //
 //   node tools/art/paint-domes.mjs        (then pack-atlas and the Blender build)
 //
@@ -13,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { launch } from '../browser.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const swatch = (n) => `data:image/png;base64,${readFileSync(join(root, 'public/models/tex', `${n}.png`)).toString('base64')}`;
+const swatch = (n) => `data:image/png;base64,${readFileSync(join(root, 'assets-src/models/swatches', `${n}.png`)).toString('base64')}`;
 
 // bands from the foot up; cap = the pale band along the top; grain = the swatch printed under the colour
 const KINDS = {

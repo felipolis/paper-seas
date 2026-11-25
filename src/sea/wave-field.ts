@@ -82,8 +82,8 @@ export class WaveField {
   private lastCellI = Number.NaN;
   private lastCellJ = Number.NaN;
   private time = 0;
-  /** How far round the focus waves exist (lying flat until the ring raises them): the view's reach. */
-  private reach = 0;
+  /** The reach the field was last streamed with: a zoom that moves it by more than a unit re-streams. */
+  private streamedReach = 0;
 
   constructor(private readonly isOpenWater: (x: number, z: number, margin: number) => boolean) {
     for (const name of spritesWithPrefix('wave-')) {
@@ -109,10 +109,8 @@ export class WaveField {
   /** reveal: the ring the land rises in (the waves keep to it); viewReach: how far the camera sees round the focus. */
   update(dt: number, focusX: number, focusZ: number, ship: WakeSource, reveal: Reveal, viewReach: number): void {
     this.time += dt;
-    const reach = Math.max(WORLD.waveSpawnRadius, Math.min(40, viewReach + 2));
-    if (Math.abs(reach - this.reach) > 1) this.lastCellI = Number.NaN; // re-stream with the new reach
-    this.reach = reach;
-    this.stream(focusX, focusZ);
+    // (waves exist this far round the focus, lying flat until the ring raises them: the view's reach)
+    this.stream(focusX, focusZ, Math.max(WORLD.waveSpawnRadius, Math.min(40, viewReach + 2)));
 
     const W = WORLD;
     const shipX = (ship.sternX + ship.bowX) / 2;
@@ -176,17 +174,20 @@ export class WaveField {
     }
   }
 
-  /** Spawns waves entering the spawn radius and drops those that left it (once lying flat). */
-  private stream(fx: number, fz: number): void {
+  /**
+   * Spawns waves entering radius r and drops those that left it (once lying flat). Runs when the focus enters a new
+   * cell or r has moved by more than a unit since the last pass (a zoom).
+   */
+  private stream(fx: number, fz: number, r: number): void {
     const W = WORLD;
     const cell = W.waveCell;
     const ci = Math.floor(fx / cell);
     const cj = Math.floor(fz / cell);
-    if (ci === this.lastCellI && cj === this.lastCellJ) return;
+    if (ci === this.lastCellI && cj === this.lastCellJ && Math.abs(r - this.streamedReach) <= 1) return;
     this.lastCellI = ci;
     this.lastCellJ = cj;
+    this.streamedReach = r;
 
-    const r = this.reach;
     const rc = Math.ceil(r / cell);
     for (let j = cj - rc; j <= cj + rc; j++) {
       for (let i = ci - rc; i <= ci + rc; i++) {
@@ -198,7 +199,7 @@ export class WaveField {
         const z = (j + 0.15 + 0.7 * hash01(seed + 2, i, j)) * cell;
         if ((x - fx) ** 2 + (z - fz) ** 2 > r * r) continue;
         if (!this.isOpenWater(x, z, 0.9)) continue;
-        this.spawn(key, x, z, hash01(seed + 3, i, j), hash01(seed + 4, i, j));
+        this.spawn(key, x, z, hash01(seed + 3, i, j), hash01(seed + 4, i, j), hash01(seed + 5, i, j));
       }
     }
     const far = (r + cell * 1.5) ** 2;
@@ -208,7 +209,8 @@ export class WaveField {
     }
   }
 
-  private spawn(key: number, x: number, z: number, a: number, b: number): void {
+  /** a picks the variant and phase, b the scale, c the yaw (three draws, so size and turn are independent). */
+  private spawn(key: number, x: number, z: number, a: number, b: number, c: number): void {
     const variants = this.byVariant.length;
     const variant = Math.floor(a * variants) % variants;
     const list = this.byVariant[variant];
@@ -217,7 +219,7 @@ export class WaveField {
     const wave: Wave = {
       x,
       z,
-      yaw: (b - 0.5) * 30 * DEG,
+      yaw: (c - 0.5) * 30 * DEG,
       scale,
       variant,
       phase: (a * 17.3) % 1,

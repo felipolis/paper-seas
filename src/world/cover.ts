@@ -14,13 +14,13 @@
  */
 import { WORLD } from '../config/world';
 import { pickWeighted } from '../core/rng';
-import { ANIMALS, TILES, heightOf, variantOf, type AnimalRow, type TileKind } from '../config/flora';
+import { ANIMALS, SEA_STACK, TILES, heightOf, variantOf, type AnimalRow, type TileKind } from '../config/flora';
 import { spriteTop } from '../art/sprites';
 import { penAt } from './pen';
 import { fbm, valueNoise } from './noise';
 import { CELL } from './reveal';
 import type { Biome } from './land';
-import type { CardSpec } from './card-field';
+import type { SetDown } from './card-field';
 
 const SEED = WORLD.seed;
 /** Tall pieces stand this far from the tile centre along both axes (papertrails: about 0.6-0.9), give or take. */
@@ -89,7 +89,7 @@ export interface CoverEnv {
    * shading; card.awake: an animal about by day or by night only; card.passable: too low to stop the feet; card.yaw:
    * its own turn, set with the rest of its scene (a pen's fences), not a random one.
    */
-  place(sprite: string, x: number, z: number, height: number, card?: Pick<CardSpec, 'vignette' | 'tone' | 'awake' | 'passable'> & { yaw?: number }): void;
+  place(sprite: string, x: number, z: number, height: number, card?: SetDown): void;
   rng(): number;
 }
 
@@ -300,7 +300,7 @@ export function plantShallows(env: CoverEnv, x0: number, z0: number, size: numbe
       else if (d > 1.2 && d < 2.6 && env.rng() < 0.025 && !env.blocked(x, z, 1.5)) {
         env.claim(x, z, 1.5);
         const sprite = env.rng() < 0.6 ? 'sea-arch' : 'rock-spire';
-        env.place(sprite, x, z, sprite === 'sea-arch' ? heightOf('sea-arch', env.rng()) : 1.2 + env.rng() * 0.4);
+        env.place(sprite, x, z, sprite === 'sea-arch' ? heightOf('sea-arch', env.rng()) : SEA_STACK[0] + env.rng() * (SEA_STACK[1] - SEA_STACK[0]));
       }
     }
   }

@@ -4,6 +4,8 @@
  */
 export const PALETTE = {
   // papers
+  /** The unpainted page: papertrails' book cream, and the interface's cardstock (ui/paper.css --page). */
+  page: '#efe0c2',
   kraft: '#e1c9a0',
   cutEdge: '#fbf3e1',
   ink: '#5a3a28',

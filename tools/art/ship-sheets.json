@@ -48,6 +48,7 @@
     },
     {
       "file": "33-terrain-swatches.png",
+      "out": "assets-src/models/swatches",
       "names": [
         "rock",
         "grass",

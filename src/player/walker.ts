@@ -111,6 +111,8 @@ export class Walker {
     this.x = x;
     this.z = z;
     this.vx = this.vz = 0;
+    this.yawRate = 0;
+    this.puppet.settle();
     this.blocked = false;
     this.y = world.deck(x, z) ?? world.ground(x, z);
     this.group.visible = true;

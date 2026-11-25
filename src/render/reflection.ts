@@ -22,25 +22,23 @@ const _plane = new THREE.Plane();
 const _clip = new THREE.Vector4();
 const _q = new THREE.Vector4();
 const UP = new THREE.Vector3(0, 1, 0);
-/** The mirror is rippled and tinted: it never needs more than this many pixels across. */
+/** The mirror is rippled and tinted: it is rendered at this share of the screen's resolution... */
+const SCALE = 0.5;
+/** ...and never needs more than this many pixels across. */
 const MAX_WIDTH = 1024;
 /** Height of the water plane cut (just above the sea, so flat things lying on it are not mirrored). */
 const CLIP_Y = 0.012;
 const _dir = new THREE.Vector3();
 
 export class Reflection {
-  readonly target: THREE.WebGLRenderTarget;
+  readonly target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType });
   /** World position -> mirror image uv (with w), for the water shaders (sea/mirror.ts). */
   readonly matrix = new THREE.Matrix4();
   private readonly camera = new THREE.PerspectiveCamera();
   private readonly bias = new THREE.Matrix4().set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1);
 
-  constructor(private readonly scale = 0.5) {
-    this.target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType });
-  }
-
   setSize(width: number, height: number): void {
-    const s = Math.min(this.scale, MAX_WIDTH / Math.max(1, width));
+    const s = Math.min(SCALE, MAX_WIDTH / Math.max(1, width));
     this.target.setSize(Math.max(1, Math.round(width * s)), Math.max(1, Math.round(height * s)));
   }
 

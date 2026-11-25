@@ -1,5 +1,6 @@
 /**
- * Diorama camera: fixed yaw (north is up) and pitch, so every card faces the viewer like a pop-up book on a table.
+ * Diorama camera: in the plain view north is up and the pitch fixed, so every card faces the viewer like a pop-up book
+ * on a table (the V views turn and tip it, the sight assist and the open chart a little more).
  *
  * On foot it is papertrails' follow camera (camera/follow.js, config/player.js there), ported as it is:
  *   - the look target is a critically damped spring, stepped exactly toward the goal at the middle of the step, so it
@@ -22,13 +23,12 @@
  */
 import * as THREE from 'three';
 import { CAMERA, ON_FOOT, VIEWS } from '../config/view';
+import { PLAYER } from '../config/player';
 import { DEG, clamp, smoothstep } from '../core/math';
 
 /** papertrails' sightBlocked: does the ray from (ox, oy, oz) along the unit (dx, dy, dz) meet a large piece within len? */
 export type SightTest = (ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, len: number) => boolean;
 
-/** The captain's height (papertrails' TRAVELLER_HEIGHT): thigh, chest and hat are where sight is tested. */
-const TRAVELLER_HEIGHT = 0.6;
 const SIGHT_HEIGHTS = [0.35, 0.65, 0.95];
 
 /** How long a change of view (boarding, going ashore) takes (s; the skill's 0.9). */
@@ -98,6 +98,7 @@ export class FollowCamera {
   /** On its next update the camera jumps to its goal instead of easing there (after a jump of what it follows). */
   recenter(): void {
     this.initialised = false;
+    this.zoneLive = false;
   }
   /** 0..1: on foot (papertrails' pose) or at sea, as the glide has it now. */
   private foot = 0;
@@ -387,7 +388,7 @@ export class FollowCamera {
     _cam.set(this.focus.x + Math.sin(yaw) * h, this.focus.y + Math.sin(pitch) * dist, this.focus.z + Math.cos(yaw) * h);
     let n = 0;
     for (const f of SIGHT_HEIGHTS) {
-      const oy = py + TRAVELLER_HEIGHT * f;
+      const oy = py + PLAYER.height * f;
       _v.set(_cam.x - px, _cam.y - oy, _cam.z - pz);
       const l = _v.length() || 1;
       _v.divideScalar(l);

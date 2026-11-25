@@ -9,22 +9,25 @@ import { Streams } from './streams';
 import { overlaps, type Box } from './polyline';
 import type { LandField } from './land';
 import { cellKey } from '../core/grid';
+import { BoundedCache } from '../core/bounded-cache';
 import { pondDistance, pondIn, type Pond } from './ponds';
 
 /** How many nearest settlements each one is joined to. */
 const LINKS = 2;
 /** How far a site's layout reaches from its square (its buildings, props, piers). */
 const LAYOUT_REACH = 10;
+/** A search for the sites whose layouts may reach a place looks this much further than LAYOUT_REACH, to be safe. */
+const SEARCH_MARGIN = 2;
 /** The farthest a pond's water reaches from its centre (its largest radius and wobble). */
 const POND_REACH = 1.6;
 
 export class Places {
   readonly streams: Streams;
-  private readonly sites = new Map<number, Site | null>();
-  private readonly roads = new Map<string, Road | null>();
-  private readonly layouts = new Map<number, Layout>();
-  private readonly links = new Map<number, Site[]>();
-  private readonly ponds = new Map<number, Pond | null>();
+  private readonly sites = new BoundedCache<number, Site | null>();
+  private readonly roads = new BoundedCache<string, Road | null>();
+  private readonly layouts = new BoundedCache<number, Layout>();
+  private readonly links = new BoundedCache<number, Site[]>();
+  private readonly ponds = new BoundedCache<number, Pond | null>();
 
   constructor(private readonly land: LandField) {
     this.streams = new Streams(land);
@@ -32,13 +35,7 @@ export class Places {
 
   /** The site of the chunk square (i, j), or null. */
   siteIn(i: number, j: number): Site | null {
-    const key = cellKey(i, j);
-    let s = this.sites.get(key);
-    if (s === undefined) {
-      s = siteIn(this.land, (x, z, r) => this.streams.waterAt(x, z, r), i, j);
-      this.sites.set(key, s);
-    }
-    return s;
+    return this.sites.get(cellKey(i, j), () => siteIn(this.land, (x, z, r) => this.streams.waterAt(x, z, r), i, j));
   }
 
   /** Sites within r of (x, z). */
@@ -69,19 +66,17 @@ export class Places {
   }
 
   private linksOf(s: Site): Site[] {
-    let out = this.links.get(s.id);
-    if (!out) {
-      out = this.chosen(s);
+    return this.links.get(s.id, () => {
+      const out = this.chosen(s);
       // ... and every site that chose this one (ruins included)
       if (s.kind !== 'ruins') {
         for (const o of this.sitesNear(s.x, s.z, MAX_LINK)) {
-          if (o.id === s.id || out.includes(o)) continue;
+          if (o.id === s.id || out.some((c) => c.id === o.id)) continue;
           if (this.chosen(o).some((c) => c.id === s.id)) out.push(o);
         }
       }
-      this.links.set(s.id, out);
-    }
-    return out;
+      return out;
+    });
   }
 
   /** The roads that reach a site. */
@@ -117,15 +112,12 @@ export class Places {
    * the neighbouring sites laid out before it, so two villages close together never build on the same spot).
    */
   layout(s: Site): Layout {
-    let l = this.layouts.get(s.id);
-    if (!l) {
+    return this.layouts.get(s.id, () => {
       const roads = this.roadsNear([s.x - LAYOUT_REACH, s.z - LAYOUT_REACH, s.x + LAYOUT_REACH, s.z + LAYOUT_REACH]);
       // (the order is strict, so this never comes back round to s)
       const claimed = this.sitesNear(s.x, s.z, 2 * LAYOUT_REACH).filter((o) => laidOutBefore(o, s)).flatMap((o) => this.layout(o).claims);
-      l = layoutOf(this.land, { road: (x, z, r) => roads.some((road) => onRoad(road, x, z, r)), water: (x, z, r) => this.streams.waterAt(x, z, r), claimed }, s);
-      this.layouts.set(s.id, l);
-    }
-    return l;
+      return layoutOf(this.land, { road: (x, z, r) => roads.some((road) => onRoad(road, x, z, r)), water: (x, z, r) => this.streams.waterAt(x, z, r), claimed }, s);
+    });
   }
 
   /** The ponds whose water may come within the box. */
@@ -154,41 +146,32 @@ export class Places {
   }
 
   private pondOf(i: number, j: number): Pond | null {
-    const key = cellKey(i, j);
-    let p = this.ponds.get(key);
-    if (p === undefined) {
-      p = pondIn(this.land, {
-        stream: (x, z, r) => this.streams.waterAt(x, z, r),
-        road: (x, z, r) => this.roadsNear([x - r, z - r, x + r, z + r]).some((road) => onRoad(road, x, z, r)),
-        site: (x, z, r) => this.sitesNear(x, z, r).length > 0,
-      }, i, j);
-      this.ponds.set(key, p);
-    }
-    return p;
+    return this.ponds.get(cellKey(i, j), () => pondIn(this.land, {
+      stream: (x, z, r) => this.streams.waterAt(x, z, r),
+      road: (x, z, r) => this.roadsNear([x - r, z - r, x + r, z + r]).some((road) => onRoad(road, x, z, r)),
+      site: (x, z, r) => this.sitesNear(x, z, r).length > 0,
+    }, i, j));
   }
 
   /** Layouts that come within the box. */
   layoutsNear(box: Box): Layout[] {
     const cx = (box[0] + box[2]) / 2;
     const cz = (box[1] + box[3]) / 2;
-    const r = Math.hypot(box[2] - box[0], box[3] - box[1]) / 2 + 12;
+    const r = Math.hypot(box[2] - box[0], box[3] - box[1]) / 2 + LAYOUT_REACH + SEARCH_MARGIN;
     return this.sitesNear(cx, cz, r).map((s) => this.layout(s)).filter((l) => overlaps(l.box, box));
   }
 
   private road(a: Site, b: Site): Road | null {
     const id = a.id < b.id ? `${a.id}-${b.id}` : `${b.id}-${a.id}`;
-    let r = this.roads.get(id);
-    if (r === undefined) {
+    return this.roads.get(id, () => {
       const lo = a.id < b.id ? a : b;
       const hi = a.id < b.id ? b : a;
       const mx = (a.x + b.x) / 2;
       const mz = (a.z + b.z) / 2;
-      const span = Math.hypot(a.x - b.x, a.z - b.z) / 2 + 12;
+      const span = Math.hypot(a.x - b.x, a.z - b.z) / 2 + LAYOUT_REACH + SEARCH_MARGIN;
       const others = this.sitesNear(mx, mz, span).filter((s) => s.id !== a.id && s.id !== b.id && s.kind !== 'ruins');
       const streams = this.streams.near([mx - span, mz - span, mx + span, mz + span]);
-      r = routeRoad(this.land, lo, hi, others, streams);
-      this.roads.set(id, r);
-    }
-    return r;
+      return routeRoad(this.land, lo, hi, others, streams);
+    });
   }
 }

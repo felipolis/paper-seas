@@ -12,9 +12,7 @@ import { hash01 } from '../core/rng';
 import type { LifeFrame } from './life-frame';
 import { Bits } from './paper-bits';
 import { SoftQuads } from './soft-quads';
-import { TAU } from '../core/math';
-
-const HALF_PI = Math.PI / 2;
+import { HALF_PI, TAU } from '../core/math';
 
 export class Flocks {
   readonly group = new THREE.Group();

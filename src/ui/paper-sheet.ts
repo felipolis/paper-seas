@@ -5,9 +5,9 @@
  */
 import './paper.css';
 import { mulberry32 } from '../core/rng';
+import { PALETTE } from '../config/palette';
 
 const SIZE = 384;
-const PAGE = '#efe0c2';
 
 /** Draws the tile and installs it as --paper (each mark drawn at its wrapped copies too, so the tile is seamless). */
 export function installPaper(seed = 7): void {
@@ -16,7 +16,7 @@ export function installPaper(seed = 7): void {
   const g = c.getContext('2d')!;
   const r = mulberry32(seed);
   const u = SIZE / 100;
-  g.fillStyle = PAGE;
+  g.fillStyle = PALETTE.page;
   g.fillRect(0, 0, SIZE, SIZE);
   const wrapped = (draw: (dx: number, dy: number) => void) => {
     for (const dx of [-SIZE, 0, SIZE]) for (const dy of [-SIZE, 0, SIZE]) draw(dx, dy);

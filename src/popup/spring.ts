@@ -93,10 +93,17 @@ export class Flap {
 
   constructor(readonly k: FlapConstants) {}
 
-  /** Asks the flap to rise (1) or fold (0) after `delay` seconds. No-op if it is already heading there. */
+  /**
+   * Asks the flap to rise (1) or fold (0) after `delay` seconds. No-op if it is already heading there; if it is
+   * heading there with the other change still waiting, that change is called off and the flap keeps its course (a
+   * card still wobbling after its latch stays latched).
+   */
   setTarget(target: 0 | 1, delay = 0): void {
     if (this.pendingTarget === target) return;
-    if (this.pendingTarget < 0 && this.target === target) return;
+    if (this.target === target) {
+      this.pendingTarget = -1;
+      return;
+    }
     if (delay <= 0) {
       this.start(target);
       return;

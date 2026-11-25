@@ -12,7 +12,8 @@ const CELL = 0.5;
 const SIZE = N * CELL;
 const RECENTRE = 14;
 const ROWS_PER_FRAME = 3;
-const FAR = 12;
+/** The shore distance the field is clamped to (world units): open sea, and what the shader reads past the window. */
+export const FAR = 12;
 
 export class DistanceMap {
   readonly texture: THREE.DataTexture;

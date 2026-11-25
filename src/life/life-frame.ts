@@ -11,7 +11,7 @@ import * as THREE from 'three';
 import { AMBIENT, type LifeKind } from '../config/life';
 import { mulberry32 } from '../core/rng';
 import type { Biome } from '../world/land';
-import { smoothstep } from '../core/math';
+import { rankGate, smoothstep } from '../core/math';
 
 /** World units between the biome samples of the gradient. */
 const GRAD = 5;
@@ -94,11 +94,10 @@ export class LifeFrame {
    * rank, fading in, and fades out over the outer 14 % of a w x d box.
    */
   gate(kind: LifeKind, dx: number, dz: number, rank: number, w: number, d: number): number {
-    let g = (this.c[kind] + this.gx[kind] * dx + this.gz[kind] * dz - rank * 0.88) / 0.12;
+    const g = rankGate(this.c[kind] + this.gx[kind] * dx + this.gz[kind] * dz, rank);
     if (g <= 0) return 0;
-    if (g > 1) g = 1;
     const e = Math.max(Math.abs(dx) / (w * 0.5), Math.abs(dz) / (d * 0.5));
-    return g * g * (3 - 2 * g) * (e < 0.86 ? 1 : Math.max(0, (1 - e) / 0.14));
+    return g * (e < 0.86 ? 1 : Math.max(0, (1 - e) / 0.14));
   }
 
   /** Each kind's share at a point: the rows of the biomes round it, weighted by their (sharpened) shares there. */

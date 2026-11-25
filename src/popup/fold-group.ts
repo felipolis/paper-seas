@@ -80,10 +80,6 @@ export class FoldGroup {
     this.pose(this.hinges[this.hinges.length - 1]);
   }
 
-  get count(): number {
-    return this.hinges.length;
-  }
-
   get isSettled(): boolean {
     return this.settled;
   }

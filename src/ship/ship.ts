@@ -27,7 +27,6 @@ export class Ship {
   readonly physics = new ShipPhysics();
   private sailIndex = 0;
   private time = 0;
-  private launched = false;
   private readonly wake: WakeSource = { sternX: 0, sternZ: 0, bowX: 0, bowZ: 0, halfBeam: planHalfBeam(0.5), speed: 0 };
 
   get sailLevel(): number {
@@ -51,8 +50,7 @@ export class Ship {
 
   /** Masts pop up after `delay` seconds (the launch). */
   launch(delay: number): void {
-    this.model.raiseMasts(true, delay);
-    this.launched = true;
+    this.model.raiseMasts(delay);
     // (as tall as her tallest mast)
     const height = Math.max(...activeShip().masts.map((m) => m.height));
     bus.emit('paper', { x: this.physics.x, z: this.physics.z, height, up: true, delay, key: 'ship' });
@@ -64,7 +62,7 @@ export class Ship {
    */
   update(dt: number, input: Input | null, shores: ShoreCollider, frozen = false): void {
     this.time += dt;
-    if (this.launched && input) {
+    if (input) {
       const step = (input.wasPressed('KeyW', 'ArrowUp') ? 1 : 0) - (input.wasPressed('KeyS', 'ArrowDown') ? 1 : 0);
       const next = clamp(this.sailIndex + step, 0, SHIP.sailLevels.length - 1);
       if (next !== this.sailIndex) this.setSailSetting(next);

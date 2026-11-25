@@ -28,13 +28,16 @@ node tools/art/audit-sprites.mjs                  # one contact sheet of them al
 ```
 
 Each sheet entry names its cards in reading order (`null` for a piece the game does not use); the cutter's header
-comment describes its options (the key colour, `merge` for pieces of one item cut apart by a narrow gap, the white
-sheets' `clean` modes). A tall piece spanning both rows makes its sheet read as one row, left to right. The audit
-pages are generated and not kept in git.
+comment describes its options (the key colour, `tears` for torn cloth, `merge` for pieces of one item cut apart by a
+narrow gap, the white sheets' `clean: open` and `keepPale`, a sheet's own `out` folder). A tall piece spanning both
+rows makes its sheet read as one row, left to right. The audit pages are generated and not kept in git.
 
 ## Buildings (Blender)
 
-Villages, lighthouses and forts are real paper constructions built by a Blender script, like papertrails' tiles:
+Villages, lighthouses and forts are real paper constructions built by a Blender script, like papertrails' tiles. On a
+fresh cut, run the ship's sheets first ([below](#the-ships-hull-blender)): `paint-domes.mjs` prints the mountains
+over the terrain swatches (`assets-src/models/swatches`) and `pack-atlas.mjs` prints the pier's planks from
+`public/models/tex/plank-oak.png`, both cut from them.
 
 ```bash
 node tools/art/cut-sprites.mjs tools/art/model-sheets.json   # cut the printed faces (assets-src/flow/19-21)
@@ -60,6 +63,10 @@ node tools/art/cut-sprites.mjs tools/art/ship-sheets.json   # printed wood, ship
 bash tools/ship/build-ships.sh                              # export shapes, trace the details, build in Blender
 ```
 
+The wood and the details go to `public/models/tex`, loaded by the game; the terrain swatches (sheet 33) only feed
+`paint-domes.mjs`, so they go to `assets-src/models/swatches` and stay out of the build. The snow swatch is cropped
+by hand (`crop-card.mjs`, its slot in the sheet is `null`).
+
 Every ship has her own structure (`HullSpec` in `src/config/ships.ts`): which decks and castles she has (poop,
 quarterdeck, forecastle) and how high, her plan, sweep and tumblehome, her gun decks, wood and carvings. The shape
 functions (`src/ship/hull-shape.ts`) are shared by the game and, through `tools/ship/export-shape.mjs`, by Blender,
@@ -80,9 +87,10 @@ by battens), and how it stands (`rake`, `lean`, a `sprung` topmast hanging in it
 three-tier stern with a lion figurehead and a lateen mizzen; the shadow a long low raider with a ram, raked masts and a
 serpent figurehead; the ghost ship four crooked masts, one topmast snapped, a maiden figurehead; the frigate a long
 flush deck with two rows of guns; the junk three battened sails and painted eyes. Figureheads and lateen sails are
-printed cards (`assets-src/flow` sheets 34 and 35). The cutter clears the paper left inside sails and balustrades
-with its `clean` modes: `holes` for torn cloth, `sheet` for the sheet's plain white showing through a tear, `rails`
-for the openings of a balustrade (rows of like openings, so a painted eye or stripe stays).
+printed cards (`assets-src/flow` sheets 34 and 35). The sails come on key-colour sheets like every sprite, so a tear
+through the cloth shows the key and is keyed out with it; the shadow's torn sails (sheet 26) also set `"tears": 0.025`,
+so a slit too narrow to show the key cleanly (a dark mix of cloth and key) is cut through as soon as its key tint
+reaches that share of the key's span. The balustrades are Blender-built balusters, not prints.
 
 ## The captains
 

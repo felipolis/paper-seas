@@ -15,6 +15,7 @@ import { boundsOf, overlaps, polylineDistance, type Box, type Pt } from './polyl
 import type { LandField } from './land';
 import type { Bridge } from './roads';
 import { cellKey } from '../core/grid';
+import { BoundedCache } from '../core/bounded-cache';
 
 const SEED = WORLD.seed;
 /** One river at most per REGION x REGION square, with this chance (papertrails' rivers: about 43 units apart). */
@@ -63,7 +64,7 @@ export interface Stream {
 }
 
 export class Streams {
-  private readonly cache = new Map<number, Stream | null>();
+  private readonly cache = new BoundedCache<number, Stream | null>();
 
   constructor(private readonly land: LandField) {}
 
@@ -86,13 +87,16 @@ export class Streams {
 
   /** True if (x, z) lies on the water of a stream (inside its banks, plus `margin`). */
   waterAt(x: number, z: number, margin = 0): boolean {
-    return this.bankDistance(x, z) < margin;
+    return this.bankDistance(x, z, margin + 1) < margin;
   }
 
-  /** Distance from (x, z) to the nearest stream's bank (negative on the water; large when none is near). */
-  bankDistance(x: number, z: number): number {
+  /**
+   * Distance from (x, z) to the nearest stream's bank (negative on the water). Only the streams that come within reach
+   * of the point are measured: with none there it is Infinity.
+   */
+  bankDistance(x: number, z: number, reach = 1): number {
     let best = Infinity;
-    for (const s of this.near([x - 1, z - 1, x + 1, z + 1])) {
+    for (const s of this.near([x - reach, z - reach, x + reach, z + reach])) {
       const [d, at] = polylineDistance(s.pts, x, z);
       best = Math.min(best, d - Streams.widthAt(at) / 2);
     }
@@ -100,13 +104,7 @@ export class Streams {
   }
 
   private stream(i: number, j: number): Stream | null {
-    const key = cellKey(i, j);
-    let s = this.cache.get(key);
-    if (s === undefined) {
-      s = this.river(i, j);
-      this.cache.set(key, s);
-    }
-    return s;
+    return this.cache.get(cellKey(i, j), () => this.river(i, j));
   }
 
   /** The river of square (i, j), or null: from the first spring tried whose river runs at least MIN_STEPS. */

@@ -6,12 +6,12 @@
 // Every scene is seed 865510: the ship held still with all sails set in open water just below the place it looks at
 // (mode 'ship'), or the captain ashore there (mode 'walk'), at a camera framing (dist) and a clock hour; the HUD is
 // hidden, and the chart or the shipyard opened over the scene when it asks for them (ui).
-import { GAME_URL, launch } from '../browser.mjs';
+import { launch, openGame } from '../browser.mjs';
 import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const SEED = '865510';
+const SEED = 865510;
 const out = join(dirname(fileURLToPath(import.meta.url)), '../../docs/media');
 const SCENES = [
   { name: 'hero', mode: 'ship', at: [-55, -82], dist: 19, hour: 16.5 },
@@ -30,10 +30,7 @@ const only = process.argv.slice(2);
 mkdirSync(out, { recursive: true });
 const browser = await launch({ gpu: true });
 for (const scene of SCENES.filter((s) => !only.length || only.includes(s.name))) {
-  const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
-  await page.addInitScript((seed) => localStorage.setItem('paper-seas:seed', seed), SEED);
-  await page.goto(GAME_URL, { waitUntil: 'networkidle' });
-  await page.waitForFunction(() => window.game && window.game.frames > 2, null, { timeout: 90000 });
+  const page = await openGame(browser, { viewport: { width: 1600, height: 900 }, seed: SEED });
   await page.evaluate(stage, scene);
   // (the chart and the shipyard open on CSS transitions, in real time: the chart has settled and no transition runs)
   if (scene.ui === 'chart') await page.waitForFunction(() => window.game.chartSettled);

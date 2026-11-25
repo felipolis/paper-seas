@@ -4,12 +4,22 @@
 //   node tools/art/cut-sprites.mjs [config]
 //
 // config defaults to tools/art/sprite-sheets.json (the game's sprites); tools/art/model-sheets.json holds the
-// printed faces of the Blender-built models (cut to assets-src/models/faces, then packed into their atlas).
+// printed faces of the Blender-built models (cut to assets-src/models/faces, then packed into their atlas) and
+// tools/art/ship-sheets.json the ship's printed wood and details (public/models/tex) and the terrain swatches the
+// mountains are painted over (assets-src/models/swatches: that sheet's own "out").
 //
 // How: each sheet is processed in a headless Edge page (canvas); its background is taken away, the remaining connected
 // components are the cards, sorted in reading order (rows by vertical overlap, then left to right) and named from the
-// config (a null name skips a piece nobody uses). The manifest ({ name: { w, h } }) is written unless the config says
+// config (a null name skips a piece nobody uses). Cards go to the config's "out" folder, or to the sheet's own "out";
+// the manifest ({ name: { w, h } }) of the cards in the config's folder is written there unless the config says
 // "manifest": false.
+//
+// Per sheet: "key" (keyed sheets, below), "tears" (keyed: torn cloth, below), "merge" (pieces of one item cut apart
+// by a narrow gap, below), "clean" ({ name: "open" }: a white-sheet piece whose cream opens onto the outside, see
+// clearCream). Per config: "keepPale" (white-sheet pieces whose pale areas reach the edge by design, see peelFringe).
+//
+// For comparing a cut with and without its cleanup: ART_OUT=<dir> writes every card there instead, ART_NOCLEAN=1 skips
+// the "clean" pass, ART_NOFRINGE=1 the fringe peel.
 //
 // Two kinds of sheet:
 //   keyed ("key": "#rrggbb", per sheet or for the whole config; the game's sprites): the papercraft skill's sheets, on
@@ -26,8 +36,8 @@ import { launch } from '../browser.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const config = JSON.parse(readFileSync(resolve(root, process.argv[2] ?? 'tools/art/sprite-sheets.json'), 'utf8'));
-const outDir = process.env.ART_OUT ?? join(root, config.out);
-mkdirSync(outDir, { recursive: true });
+const outDir = (folder) => process.env.ART_OUT ?? join(root, folder);
+mkdirSync(outDir(config.out), { recursive: true });
 
 const browser = await launch();
 const page = await browser.newPage();
@@ -38,47 +48,50 @@ for (const sheet of config.sheets) {
   const bytes = readFileSync(resolve(root, config.source, sheet.file));
   const mime = bytes[0] === 0x89 ? 'image/png' : 'image/jpeg';
   const dataUrl = `data:${mime};base64,${bytes.toString('base64')}`;
-  let sprites = await page.evaluate(cutSheet, { dataUrl, crop: sheet.crop ?? [0, 0, 1, 1], white: sheet.white ?? 232, peel: sheet.peel ?? true, peelGrey: sheet.peelGrey ?? true, peelDepth: sheet.peelDepth, merge: sheet.merge ?? 0, key: sheet.key ?? config.key, tears: sheet.tears ?? 0 });
-  // per-piece cleanup: plain cream areas the generator left as card stock (an arch's opening, a patch of ground)
+  const key = sheet.key ?? config.key;
+  let sprites = await page.evaluate(cutSheet, { dataUrl, merge: sheet.merge ?? 0, key, tears: sheet.tears ?? 0 });
+  // per-piece cleanup: plain cream the generator left as card stock where it opens onto the outside (an arch's opening)
   for (const [k, name] of sheet.names.entries()) {
-    // clean: { name: 'open' | 'enclosed' | 'ground' | 'rails' | 'holes' | 'sheet' } (see clearCream)
-    const mode = name && !process.env.ART_NOCLEAN ? (sheet.clean ?? {})[name] : undefined;
-    if (!mode || !sprites[k]) continue;
-    sprites[k] = { ...sprites[k], png: await page.evaluate(clearCream, { dataUrl: sprites[k].png, mode }) };
+    if (!name || !sprites[k] || (sheet.clean ?? {})[name] !== 'open' || process.env.ART_NOCLEAN) continue;
+    sprites[k] = { ...sprites[k], png: await page.evaluate(clearCream, { dataUrl: sprites[k].png }) };
   }
   // last: peel the pale fringe the cut left outside the ink (cream specks in the notches of pines, palms...)
   for (const [k, name] of sheet.names.entries()) {
-    if ((sheet.key ?? config.key) || !name || !sprites[k] || (config.keepPale ?? []).includes(name) || process.env.ART_NOFRINGE) continue;
-    sprites[k] = { ...sprites[k], png: await page.evaluate(peelFringe, { dataUrl: sprites[k].png, depth: (config.fringeDepth ?? {})[name] ?? 6 }) };
+    if (key || !name || !sprites[k] || (config.keepPale ?? []).includes(name) || process.env.ART_NOFRINGE) continue;
+    sprites[k] = { ...sprites[k], png: await page.evaluate(peelFringe, { dataUrl: sprites[k].png }) };
   }
   if (sprites.length !== sheet.names.length) {
     console.warn(`${sheet.file}: found ${sprites.length} cards, expected ${sheet.names.length}`);
   }
+  const dir = outDir(sheet.out ?? config.out);
+  mkdirSync(dir, { recursive: true });
   sprites.slice(0, sheet.names.length).forEach((s, i) => {
     const name = sheet.names[i];
     if (!name) return; // a piece of the sheet nobody uses (or a broken one)
-    writeFileSync(join(outDir, `${name}.png`), Buffer.from(s.png.split(',')[1], 'base64'));
-    manifest[name] = { w: s.w, h: s.h };
+    writeFileSync(join(dir, `${name}.png`), Buffer.from(s.png.split(',')[1], 'base64'));
+    if (!sheet.out) manifest[name] = { w: s.w, h: s.h };
     console.log(`${sheet.file} -> ${name}.png ${s.w}x${s.h}`);
   });
 }
-if (config.manifest !== false) writeFileSync(join(outDir, 'manifest.json'), JSON.stringify(manifest, null, 1));
+if (config.manifest !== false) writeFileSync(join(outDir(config.out), 'manifest.json'), JSON.stringify(manifest, null, 1));
 await browser.close();
 
 /** Runs in the page. */
-async function cutSheet({ dataUrl, crop, white, peel, peelGrey, peelDepth, merge, key, tears }) {
+async function cutSheet({ dataUrl, merge, key, tears }) {
+  /** white sheet: how bright and neutral a pixel is to be the sheet (whiteness, 255 = pure white). */
+  const WHITE = 232;
+  /** white sheet: how deep the cream die-cut margin is peeled, in px of a 1376-px-wide sheet. */
+  const PEEL_DEPTH = 22;
   const img = new Image();
   img.src = dataUrl;
   await img.decode();
-  const sx = Math.round(crop[0] * img.width);
-  const sy = Math.round(crop[1] * img.height);
-  const W = Math.round((crop[2] - crop[0]) * img.width);
-  const H = Math.round((crop[3] - crop[1]) * img.height);
+  const W = img.width;
+  const H = img.height;
   const canvas = document.createElement('canvas');
   canvas.width = W;
   canvas.height = H;
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  ctx.drawImage(img, sx, sy, W, H, 0, 0, W, H);
+  ctx.drawImage(img, 0, 0);
   const data = ctx.getImageData(0, 0, W, H).data;
 
   const N = W * H;
@@ -172,7 +185,7 @@ async function cutSheet({ dataUrl, crop, white, peel, peelGrey, peelDepth, merge
     const mn = Math.min(r, g, b), mx = Math.max(r, g, b);
     whiteness[i] = mx - mn < 18 ? mn : 0;
   }
-  const pushBg = (i) => { if (label[i] === 0 && whiteness[i] >= white) { label[i] = BG; stack[sp++] = i; } };
+  const pushBg = (i) => { if (label[i] === 0 && whiteness[i] >= WHITE) { label[i] = BG; stack[sp++] = i; } };
   if (!keyed) for (let x = 0; x < W; x++) { pushBg(x); pushBg((H - 1) * W + x); }
   if (!keyed) for (let y = 0; y < H; y++) { pushBg(y * W); pushBg(y * W + W - 1); }
   while (sp > 0) {
@@ -200,7 +213,7 @@ async function cutSheet({ dataUrl, crop, white, peel, peelGrey, peelDepth, merge
     const seen = new Uint8Array(N);
     const region = new Int32Array(N);
     for (let start = 0; start < N; start++) {
-      if (label[start] !== 0 || seen[start] || whiteness[start] < white) continue;
+      if (label[start] !== 0 || seen[start] || whiteness[start] < WHITE) continue;
       // flood one white pocket
       let n = 0;
       sp = 0;
@@ -212,7 +225,7 @@ async function cutSheet({ dataUrl, crop, white, peel, peelGrey, peelDepth, merge
         const x = i % W;
         const nb = [x > 0 ? i - 1 : -1, x < W - 1 ? i + 1 : -1, i >= W ? i - W : -1, i < N - W ? i + W : -1];
         for (const j of nb) {
-          if (j < 0 || seen[j] || label[j] !== 0 || whiteness[j] < white) continue;
+          if (j < 0 || seen[j] || label[j] !== 0 || whiteness[j] < WHITE) continue;
           seen[j] = 1;
           stack[sp++] = j;
         }
@@ -255,8 +268,8 @@ async function cutSheet({ dataUrl, crop, white, peel, peelGrey, peelDepth, merge
   // ---- peel the cream die-cut margin: pale warm pixels reachable from the background within a few pixels ----
   // (the generator prints every card with an even cream border; the game's own cut edge replaces it, so the card
   // ends at its ink outline like a real hand-cut piece). The depth limit keeps cream areas inside the art safe.
-  if (peel && !keyed) {
-    const limit = Math.max(4, Math.round(((peelDepth ?? 22) * W) / 1376));
+  if (!keyed) {
+    const limit = Math.max(4, Math.round((PEEL_DEPTH * W) / 1376));
     const depth = new Int16Array(N).fill(-1);
     const queue = new Int32Array(N);
     let qh = 0;
@@ -268,7 +281,7 @@ async function cutSheet({ dataUrl, crop, white, peel, peelGrey, peelDepth, merge
       // everything outside the ink outline that is not saturated art: the cream margin, and the grey shadow line the
       // generator draws around it. The dark ink stops the peel; the depth limit bounds any leak through a gap.
       const avg = (r + g + b) / 3;
-      return (mn > 150 && mx - mn < 85 && avg > 185) || (peelGrey && mx - mn < 55 && avg > 118);
+      return (mn > 150 && mx - mn < 85 && avg > 185) || (mx - mn < 55 && avg > 118);
     };
     while (qh < qt) {
       const i = queue[qh++];
@@ -396,31 +409,11 @@ async function cutSheet({ dataUrl, crop, white, peel, peelGrey, peelDepth, merge
 }
 
 /**
- * Runs in the page: makes the paper the generator left inside a cut piece transparent, then feathers the new edges.
- *   open      flat cream (its margin's) that opens onto the outside: an arch's opening
- *   enclosed  also cream pockets framed by the art: between leaves, arms, posts
- *   ground    cream in the bottom rows: a patch of ground under the feet
- *   rails     the openings of a balustrade: enclosed pockets of the margin's cream or the sheet's plain white that come
- *             in rows of like openings (a pale patch of the art itself, a painted eye or a cream stripe, stands alone)
- *   holes     the tears in a sail or flag, cut through to the cream paper (framed by the ink of the torn edge)
- *   sheet     the sheet's plain white left enclosed inside the piece (a tear through the cloth showing the sheet)
- * The cream die-cut border round the outside is never touched (it opens onto the outside, and is not pure white).
+ * Runs in the page ("clean": "open"): makes transparent the flat cream (its margin's) the generator left inside a cut
+ * piece where it opens onto the outside (an arch's opening), then feathers the new edges. The cream die-cut border round
+ * the outside is never touched (it is not one flat patch reaching into the piece).
  */
-async function clearCream({ dataUrl, mode }) {
-  /** holes mode: the largest speck left standing inside a hole that is cleared too (px), and how far in from a hole's
-   * cut a highlight painted inside it may stand (px). */
-  const SPECK_MAX = 12;
-  const HIGHLIGHT_REACH = 4;
-  /** holes mode: the narrowest a tear is (px, odd): a cut thinner than this is put back. */
-  const CORE = 3;
-  /** rails mode: how many like openings make a row (besides the one), and how alike: area within this share, the
-   * centre's height within this share of the piece's height; the largest an opening is (share of the piece). */
-  const ROW_PEERS = 3;
-  const ROW_AREA = 0.4;
-  const ROW_HEIGHT = 0.025;
-  const OPENING_MAX = 0.01;
-  /** sheet mode: how many pixels deep the white's soft blend into the art round it is cut away too. */
-  const SHEET_RIM = 2;
+async function clearCream({ dataUrl }) {
   const img = new Image();
   img.src = dataUrl;
   await img.decode();
@@ -434,27 +427,15 @@ async function clearCream({ dataUrl, mode }) {
   const im = ctx.getImageData(0, 0, W, H);
   const d = im.data;
   const N = W * H;
-  // the sheet's plain white: very bright and neutral (cloth, felt and paper are warmer or darker)
-  const plainWhite = (i) => d[i * 4 + 3] > 0 && Math.min(d[i * 4], d[i * 4 + 1], d[i * 4 + 2]) > 240 && Math.max(d[i * 4], d[i * 4 + 1], d[i * 4 + 2]) - Math.min(d[i * 4], d[i * 4 + 1], d[i * 4 + 2]) < 14;
   const creamy = (i) => {
     const r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2];
     if (d[i * 4 + 3] === 0) return false;
-    if (mode === 'sheet') return plainWhite(i);
-    if (mode === 'rails' && plainWhite(i)) return true;
-    // holes: the paper showing through a torn sail or flag: bright warm cream (measured on the ghost sails: mean 219,
-    // red 25-42 over blue), apart from any cloth (the ghost's pale grey-green is darker, ~180, and at most red ~24 over blue
-    // where a stain warms it); its brightest, palest cream is less warm (red 16-24 over blue) but brighter than any cloth
-    if (mode === 'holes') { const l = (r + g + b) / 3; return l > 198 && (r - b > 24 || (l > 225 && r - b > 15) || Math.min(r, g, b) > 235); }
     return Math.min(r, g, b) > 170 && r - b > 4 && r - b < 60 && (r + g + b) / 3 > 195;
   };
   const seen = new Uint8Array(N);
   const stack = new Int32Array(N);
   const region = new Int32Array(N);
-  // (holes mode: the pixels cut out as holes)
-  const hole = new Uint8Array(N);
   const minArea = Math.max(150, N * 0.004);
-  // (rails mode: the enclosed pockets that may be openings, kept until the rows are known)
-  const pockets = [];
   for (let start = 0; start < N; start++) {
     if (seen[start] || !creamy(start)) continue;
     let n = 0;
@@ -463,192 +444,28 @@ async function clearCream({ dataUrl, mode }) {
     seen[start] = 1;
     let sl = 0, sl2 = 0, sr = 0, sg = 0, sb = 0;
     let touches = false;
-    // what borders the region: how much of it is ink (or the outside), and how much is something else pale
-    let rim = 0, rimInk = 0;
     while (sp > 0) {
       const i = stack[--sp];
       region[n++] = i;
-      {
-        const xx = i % W;
-        const yy = (i / W) | 0;
-        // touching the piece's outside: the sprite border, or a transparent neighbour
-        if (xx < 2 || yy < 2 || xx > W - 3 || yy > H - 3) touches = true;
-        else if (d[(i - 1) * 4 + 3] === 0 || d[(i + 1) * 4 + 3] === 0 || d[(i - W) * 4 + 3] === 0 || d[(i + W) * 4 + 3] === 0) touches = true;
-      }
+      const x = i % W;
+      const y = (i / W) | 0;
+      // touching the piece's outside: the sprite border, or a transparent neighbour
+      if (x < 2 || y < 2 || x > W - 3 || y > H - 3) touches = true;
+      else if (d[(i - 1) * 4 + 3] === 0 || d[(i + 1) * 4 + 3] === 0 || d[(i - W) * 4 + 3] === 0 || d[(i + W) * 4 + 3] === 0) touches = true;
       const l = (d[i * 4] + d[i * 4 + 1] + d[i * 4 + 2]) / 3;
       sl += l; sl2 += l * l;
       sr += d[i * 4]; sg += d[i * 4 + 1]; sb += d[i * 4 + 2];
-      const x = i % W;
       const nb = [x > 0 ? i - 1 : -1, x < W - 1 ? i + 1 : -1, i >= W ? i - W : -1, i < N - W ? i + W : -1];
-      for (const j of nb) {
-        if (j < 0) continue;
-        if (creamy(j)) {
-          if (!seen[j]) { seen[j] = 1; stack[sp++] = j; }
-        } else {
-          rim++;
-          // (ink, or the darker blend into it: a skull's own pale shades stay above this)
-          if (d[j * 4 + 3] === 0 || (d[j * 4] + d[j * 4 + 1] + d[j * 4 + 2]) / 3 < 175) rimInk++;
-        }
-      }
+      for (const j of nb) if (j >= 0 && !seen[j] && creamy(j)) { seen[j] = 1; stack[sp++] = j; }
     }
     const std = Math.sqrt(Math.max(0, sl2 / n - (sl / n) ** 2));
-    // holes: a small pale patch framed by the ink of a torn edge is cut out (a skull or a highlight, framed by the
-    // art's own colours, is not); the cloth round it keeps its ink edge
-    if (mode === 'holes') {
-      if (n >= 4 && n <= N * 0.03 && rimInk >= rim * 0.5) for (let k = 0; k < n; k++) {
-        d[region[k] * 4 + 3] = 0;
-        hole[region[k]] = 1;
-      }
-      continue;
-    }
-    if (mode === 'sheet') {
-      if (n >= 6 && !touches) for (let k = 0; k < n; k++) {
-        d[region[k] * 4 + 3] = 0;
-        hole[region[k]] = 1;
-      }
-      continue;
-    }
     // the generator's margin has one colour signature: bright warm cream (measured: R 235-248, G 221-235, B 195-217).
     // Pale areas of the art itself do not match it: stone is darker (R < 226), bellies are green or yellow (G ~ R),
     // white plumage, foam and snow are cool (B close to R).
     const mr = sr / n, mg = sg / n, mb = sb / n;
     const marginColour = mr >= 232 && mg >= 216 && mr - mg >= 5 && mr - mg <= 24 && mr - mb >= 20 && mr - mb <= 52;
-    const white = Math.min(mr, mg, mb) > 240;
-    if (n < (mode === 'open' ? minArea : 12) || std > 12 || !(marginColour || (mode === 'rails' && white))) continue;
-    if (mode === 'open' && !touches) continue;
-    if (mode === 'rails') {
-      if (touches || n > N * OPENING_MAX) continue;
-      let my = 0;
-      for (let k = 0; k < n; k++) my += (region[k] / W) | 0;
-      pockets.push({ pixels: region.slice(0, n), y: my / n });
-      continue;
-    }
-    if (mode === 'ground') {
-      for (let k = 0; k < n; k++) if (region[k] / W >= H * 0.74) d[region[k] * 4 + 3] = 0;
-      continue;
-    }
+    if (n < minArea || std > 12 || !marginColour || !touches) continue;
     for (let k = 0; k < n; k++) d[region[k] * 4 + 3] = 0;
-  }
-  if (mode === 'rails') {
-    // a balustrade's openings stand in a row of like ones; a pocket with too few like it is the art's own
-    for (const p of pockets) {
-      const peers = pockets.filter((q) => q !== p && Math.abs(q.pixels.length - p.pixels.length) <= ROW_AREA * p.pixels.length && Math.abs(q.y - p.y) <= ROW_HEIGHT * H).length;
-      if (peers >= ROW_PEERS) for (const i of p.pixels) d[i * 4 + 3] = 0;
-    }
-  }
-  if (mode === 'sheet') {
-    // the white's soft blend into the art round it (pale and neutral, between the white and the ink) goes with it
-    for (let pass = 0; pass < SHEET_RIM; pass++) {
-      const next = [];
-      for (let i = 0; i < N; i++) {
-        if (d[i * 4 + 3] === 0 || hole[i]) continue;
-        const x = i % W;
-        const by = (x > 0 && hole[i - 1]) || (x < W - 1 && hole[i + 1]) || (i >= W && hole[i - W]) || (i < N - W && hole[i + W]);
-        const r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2];
-        if (by && Math.min(r, g, b) > 200 && Math.max(r, g, b) - Math.min(r, g, b) < 20) next.push(i);
-      }
-      for (const i of next) {
-        d[i * 4 + 3] = 0;
-        hole[i] = 1;
-      }
-    }
-  }
-  if (mode === 'holes') {
-    const near = (mask, i) => {
-      const x = i % W;
-      return (x > 0 && mask[i - 1]) || (x < W - 1 && mask[i + 1]) || (i >= W && mask[i - W]) || (i < N - W && mask[i + W]);
-    };
-    // grows mask (and the holes) into neighbouring opaque pixels that pass ok, passes times
-    const grow = (mask, passes, ok) => {
-      for (let pass = 0; pass < passes; pass++) {
-        const next = [];
-        for (let i = 0; i < N; i++) if (d[i * 4 + 3] > 0 && near(mask, i) && ok(d[i * 4], d[i * 4 + 1], d[i * 4 + 2])) next.push(i);
-        for (const i of next) {
-          d[i * 4 + 3] = 0;
-          hole[i] = 1;
-          mask[i] = 1;
-        }
-      }
-    };
-    // the hand-inked edge of a tear fades from cream to ink over a pixel or two: those warm, not yet dark pixels go too,
-    // up to the ink (the ghost's cloth, neutral, is never warm enough to be taken), so no cream rim is left round a hole
-    const warm = (r, g, b) => (r + g + b) / 3 > 120 && r - b > 18;
-    grow(hole, 3, warm);
-    // a highlight painted inside a tear stands within a grey shade, a few pixels in from the cut: it is near white (no
-    // cloth or skull here gets that pale), so a near-white patch with a hole within HIGHLIGHT_REACH goes, and then its
-    // grey shade, grown out from it only (the cloth is never reached that way)
-    const reach = new Uint8Array(N);
-    for (let i = 0; i < N; i++) {
-      if (!hole[i]) continue;
-      const x = i % W;
-      const y = (i / W) | 0;
-      for (let dy = -HIGHLIGHT_REACH; dy <= HIGHLIGHT_REACH; dy++) {
-        for (let dx = -HIGHLIGHT_REACH; dx <= HIGHLIGHT_REACH; dx++) {
-          const xx = x + dx, yy = y + dy;
-          if (xx >= 0 && yy >= 0 && xx < W && yy < H) reach[yy * W + xx] = 1;
-        }
-      }
-    }
-    const white = (i) => d[i * 4 + 3] > 0 && Math.min(d[i * 4], d[i * 4 + 1], d[i * 4 + 2]) > 232;
-    const highlight = new Uint8Array(N);
-    const seenW = new Uint8Array(N);
-    for (let s0 = 0; s0 < N; s0++) {
-      if (seenW[s0] || !white(s0)) continue;
-      let n = 0, sp = 0, inReach = false;
-      stack[sp++] = s0;
-      seenW[s0] = 1;
-      while (sp > 0) {
-        const i = stack[--sp];
-        region[n++] = i;
-        if (reach[i]) inReach = true;
-        const x = i % W;
-        for (const j of [x > 0 ? i - 1 : -1, x < W - 1 ? i + 1 : -1, i >= W ? i - W : -1, i < N - W ? i + W : -1]) {
-          if (j >= 0 && !seenW[j] && white(j)) { seenW[j] = 1; stack[sp++] = j; }
-        }
-      }
-      if (inReach && n <= N * 0.03) for (let k = 0; k < n; k++) { d[region[k] * 4 + 3] = 0; hole[region[k]] = 1; highlight[region[k]] = 1; }
-    }
-    grow(highlight, HIGHLIGHT_REACH, (r, g, b) => (r + g + b) / 3 > 140);
-    grow(hole, 1, warm);
-    // then: specks of a shading stroke left alone inside a hole (a few pixels with nothing but hole round them) go
-    // too; the ink round a hole has cloth on its other side and stays
-    const seenS = new Uint8Array(N);
-    for (let s0 = 0; s0 < N; s0++) {
-      if (seenS[s0] || d[s0 * 4 + 3] === 0) continue;
-      let n = 0, sp = 0, enclosed = true;
-      stack[sp++] = s0;
-      seenS[s0] = 1;
-      while (sp > 0 && n <= SPECK_MAX) {
-        const i = stack[--sp];
-        region[n++] = i;
-        const x = i % W;
-        for (const j of [x > 0 ? i - 1 : -1, x < W - 1 ? i + 1 : -1, i >= W ? i - W : -1, i < N - W ? i + W : -1]) {
-          if (j < 0) { enclosed = false; continue; }
-          if (d[j * 4 + 3] > 0) {
-            if (!seenS[j]) { seenS[j] = 1; stack[sp++] = j; }
-          } else if (!hole[j]) enclosed = false;
-        }
-      }
-      if (enclosed && sp === 0 && n <= SPECK_MAX) for (let k = 0; k < n; k++) { d[region[k] * 4 + 3] = 0; hole[region[k]] = 1; }
-    }
-    // and the other way round: a tear is open paper, at least CORE pixels across. A cut thinner than that (a pale gap
-    // between two hatching strokes, a fleck of the paper's grain, a whisker run up a stroke) is put back, only its alpha
-    // was cleared; of what is put back, the warm paper of a tear's narrowing tip grows back out of the open part
-    const open = new Uint8Array(N);
-    const r0 = (CORE - 1) / 2;
-    for (let y = r0; y < H - r0; y++) {
-      for (let x = r0; x < W - r0; x++) {
-        let all = true;
-        for (let dy = -r0; dy <= r0 && all; dy++) for (let dx = -r0; dx <= r0 && all; dx++) all = hole[(y + dy) * W + x + dx] === 1;
-        if (!all) continue;
-        for (let dy = -r0; dy <= r0; dy++) for (let dx = -r0; dx <= r0; dx++) open[(y + dy) * W + x + dx] = 1;
-      }
-    }
-    for (let i = 0; i < N; i++) if (hole[i] && !open[i]) d[i * 4 + 3] = 255;
-    hole.set(open);
-    grow(hole, 3, warm);
-    ctx.putImageData(im, 0, 0);
-    return c.toDataURL('image/png');
   }
   // feather: opaque pixels next to transparency get partial alpha if they are still pale
   for (let i = 0; i < N; i++) {
@@ -665,12 +482,12 @@ async function clearCream({ dataUrl, mode }) {
  * Runs in the page: removes pale, unsaturated pixels that sit on the outside of a piece (reached from the
  * transparent area within a few pixels): the last cream and grey specks of the sheet caught in the notches of the
  * outline (between pine boughs, palm fronds, roots). The piece's ink outline stops it, so pale art inside the
- * outline is kept. Pieces whose pale areas reach the edge by design (foam, gulls, snow, sails) are listed in
- * sprite-sheets.json as keepPale and skip this pass; fringeDepth lets the peel reach further into a piece whose
- * sheet cream fills wide gaps (a ghost ship's torn sails).
+ * outline is kept. White-sheet pieces whose pale areas reach the edge by design (a chapel's pale front, the ship's
+ * gallery and windows) are listed in their config as keepPale and skip this pass. (Keyed sheets never need it.)
  */
-async function peelFringe({ dataUrl, depth }) {
-  const DEPTH = depth;
+async function peelFringe({ dataUrl }) {
+  /** how many pixels in from the outside the peel reaches. */
+  const DEPTH = 6;
   const img = new Image();
   img.src = dataUrl;
   await img.decode();

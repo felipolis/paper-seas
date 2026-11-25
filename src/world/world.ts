@@ -1,7 +1,7 @@
 /**
  * The world the ship sails through: the land field (continents, channels, stamped islands), the streamed terrain
- * chunks (stacked paper ground) and the instanced standing cards. Also answers the world queries the other
- * systems need: open water, shore collisions, ground height.
+ * chunks (the land's printed paper sheet) and the instanced standing cards. Also answers the world queries the other
+ * systems need: where a voyage begins, open water, collisions with the shore and the piers.
  */
 import * as THREE from 'three';
 import { LandField } from './land';

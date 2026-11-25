@@ -29,7 +29,6 @@ export interface FinishOptions {
   ink?: number;
   /** Strength of the printed grain (0..1). */
   grain?: number;
-  inkColor?: string;
 }
 
 const MAX_PX = 2048;
@@ -38,8 +37,6 @@ export class CardPainter {
   readonly ctx: CanvasRenderingContext2D;
   readonly canvas: HTMLCanvasElement;
   readonly bounds: CardBounds;
-  /** Pixels per card unit actually used (may be reduced to respect the texture size cap). */
-  readonly ppu: number;
 
   /**
    * @param art   the rectangle the painter draws in (card units)
@@ -62,7 +59,6 @@ export class CardPainter {
     // (pixels per unit as the canvas came out: its size is rounded up, and the print must span the bounds exactly)
     const sx = this.canvas.width / w;
     const sy = this.canvas.height / h;
-    this.ppu = sx;
     this.ctx = this.canvas.getContext('2d')!;
     // card units, y up
     this.ctx.setTransform(sx, 0, 0, -sy, -this.bounds.left * sx, this.bounds.top * sy);
@@ -96,7 +92,7 @@ export class CardPainter {
     const grain = options.grain ?? 0.5;
 
     if (grain > 0) printGrain(this.canvas, this.ctx, 0.11 * grain);
-    if (ink > 0) this.stroke(outline, options.inkColor ?? PALETTE.ink, ink);
+    if (ink > 0) this.stroke(outline, PALETTE.ink, ink);
     return { ...this.bounds, texture: toTexture(this.canvas) };
   }
 }
@@ -153,11 +149,12 @@ export function smoothOpenPath(points: ReadonlyArray<readonly [number, number]>,
   return path;
 }
 
-export function polygonPath(points: ReadonlyArray<readonly [number, number]>, close = true): Path2D {
+/** Closed polygon through points. */
+export function polygonPath(points: ReadonlyArray<readonly [number, number]>): Path2D {
   const path = new Path2D();
   path.moveTo(points[0][0], points[0][1]);
   for (let i = 1; i < points.length; i++) path.lineTo(points[i][0], points[i][1]);
-  if (close) path.closePath();
+  path.closePath();
   return path;
 }
 

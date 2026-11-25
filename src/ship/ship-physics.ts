@@ -24,6 +24,15 @@ export interface ShoreCollider {
  * Hull sample circles along the keel: offset from the centre (forward +) and radius, laid out on a 2.6 hull and
  * stretched along the chosen ship's own length (the longest is 3.15: its bow and stern must not reach past them).
  */
+/**
+ * Rates (1/s) of the exponential decays: the shore contact's strength, the speed a grounding scrapes off, the
+ * acceleration the pitch follows, and the way and turn the ship loses at anchor.
+ */
+const IMPACT_DECAY = 9.75;
+const SCRAPE_RATE = 5;
+const ACCEL_RATE = 4;
+const ANCHOR_DAMPING = 3;
+
 const HULL_CIRCLES: ReadonlyArray<[number, number]> = ([[0.95, 0.28], [0.35, 0.42], [-0.35, 0.42], [-0.95, 0.36]] as const).map(
   ([off, r]): [number, number] => [(off * HULL_LENGTH) / 2.6, r],
 );
@@ -42,7 +51,6 @@ export class ShipPhysics {
   rudder = 0;
   /** Speed along the keel (+ forward) and across it (+ starboard). */
   surge = 0;
-  sway = 0;
   accel = 0;
   roll = 0;
   rollV = 0;
@@ -83,9 +91,8 @@ export class ShipPhysics {
     if (input.reverse && sailArea < 0.05 && u > -S.reverseMax) du -= S.reverseThrust;
     u += du * dt;
     w *= Math.exp(-S.dragLateral * dt);
-    this.accel += (du - this.accel) * Math.min(1, dt * 4);
+    this.accel += (du - this.accel) * (1 - Math.exp(-ACCEL_RATE * dt));
     this.surge = u;
-    this.sway = w;
 
     // ---- helm: the rudder comes over at a finite rate; turning needs way on ----
     this.rudder = approach(this.rudder, clamp(input.steer, -1, 1), S.rudderRate * dt);
@@ -100,7 +107,7 @@ export class ShipPhysics {
     this.x += this.vx * dt;
     this.z += this.vz * dt;
 
-    this.resolveShores(shores);
+    this.resolveShores(shores, dt);
 
     // ---- heel and pitch: under-damped springs ----
     const om = 2 * Math.PI * S.heelHz;
@@ -112,10 +119,21 @@ export class ShipPhysics {
     this.pitch += this.pitchV * dt;
   }
 
-  private resolveShores(shores: ShoreCollider): void {
+  /** At anchor (the captain ashore): the way she still has, her turn and her rudder die away. */
+  anchor(dt: number): void {
+    const k = Math.exp(-ANCHOR_DAMPING * dt);
+    this.vx *= k;
+    this.vz *= k;
+    this.surge *= k;
+    this.yawRate *= k;
+    this.rudder = approach(this.rudder, 0, SHIP.rudderRate * dt);
+  }
+
+  private resolveShores(shores: ShoreCollider, dt: number): void {
     const fx = this.forwardX;
     const fz = this.forwardZ;
-    this.impact *= 0.85;
+    this.impact *= Math.exp(-IMPACT_DECAY * dt);
+    const scrape = Math.exp(-SCRAPE_RATE * dt);
     for (const [off, r] of HULL_CIRCLES) {
       const hit = shores.collide(this.x + fx * off, this.z + fz * off, r + SHIP.shorePadding);
       if (!hit) continue;
@@ -127,8 +145,8 @@ export class ShipPhysics {
         this.vz -= (1 + SHIP.restitution) * vn * hit.nz;
         this.impact = Math.max(this.impact, -vn);
         // grounding scrapes speed off and kicks the bow round a little
-        this.vx *= 0.92;
-        this.vz *= 0.92;
+        this.vx *= scrape;
+        this.vz *= scrape;
         this.yawRate += (fx * hit.nz - fz * hit.nx) * -vn * 0.4 * Math.sign(off);
         this.rollV += -vn * 0.25;
       }

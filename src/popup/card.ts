@@ -4,7 +4,7 @@
  *     on both faces (like papertrails' cards: folded either way, a card never shows a blank back) with a cut edge of
  *     dark card core (a darker cut of the print's own tone), its face darkening just above the foot (papertrails'
  *     contact shading, baked per vertex), or
- *   - a plain plane (drawn cards whose geometry is bent afterwards: transom, bulkhead...).
+ *   - a plain plane, shaded at its foot the same way (a print with no traced outline, or a card asked to stay thin).
  * Both stand upright on their hinge line (bottom edge at y = 0 in card units).
  */
 import * as THREE from 'three';
@@ -94,28 +94,22 @@ function paintVertices(g: THREE.BufferGeometry, ramp: number, edge: THREE.Color,
       c[i * 3 + 2] = edge.b;
       continue;
     }
-    const t = ramp > 0 ? clamp(P.getY(i) / ramp, 0, 1) : 1;
+    const t = clamp(P.getY(i) / ramp, 0, 1);
     c[i * 3] = c[i * 3 + 1] = c[i * 3 + 2] = FOOT_SHADE + (1 - FOOT_SHADE) * t * t * (3 - 2 * t);
   }
   g.setAttribute('color', new THREE.Float32BufferAttribute(c, 3));
 }
 
-export interface CardGeometryOptions {
-  segmentsX?: number;
-  segmentsY?: number;
-  /** The world height a unit-tall card is usually drawn at (its contact shading is measured in world units). */
-  height?: number;
-  /** Shade the face toward its foot (default true: a card standing on the ground; a puppet's cards stand on nothing). */
-  contact?: boolean;
-}
-
-/** Upright plane card geometry: x across, y up, z = 0 (bottom edge on the hinge line). */
-export function cardGeometry(art: CardArt, o: CardGeometryOptions = {}): THREE.PlaneGeometry {
+/**
+ * Upright plane card geometry: x across, y up, z = 0 (bottom edge on the hinge line). height: the world height a
+ * unit-tall card is usually drawn at (its contact shading is measured in world units).
+ */
+export function cardGeometry(art: CardArt, o: { height?: number } = {}): THREE.PlaneGeometry {
   const w = art.right - art.left;
   const h = art.top - art.bottom;
-  const ramp = o.contact === false ? 0 : FOOT_RAMP / (o.height ?? 1);
+  const ramp = FOOT_RAMP / (o.height ?? 1);
   // rows no further apart than the contact ramp, so the shading rises over it and not over the whole card
-  const g = new THREE.PlaneGeometry(w, h, o.segmentsX ?? 1, Math.max(o.segmentsY ?? 1, ramp ? Math.min(8, Math.ceil(h / ramp)) : 1));
+  const g = new THREE.PlaneGeometry(w, h, 1, Math.min(8, Math.ceil(h / ramp)));
   g.translate((art.left + art.right) / 2, (art.bottom + art.top) / 2, 0);
   paintVertices(g, ramp, edgeColour(art.texture));
   return g;
@@ -197,14 +191,14 @@ export function prewarmSilhouettes(arts: CardArt[]): void {
  * then the thickness). half cuts the card down its middle and keeps one side (+1: x >= 0, -1: x <= 0), its cut edge
  * a wall like the rest: papertrails' half cards, the second plane of a slotted cross (world/card-field.ts).
  */
-export function thickCardGeometry(art: CardArt, o: { flipX?: boolean; unit?: boolean; height?: number; contact?: boolean; half?: 1 | -1 } = {}): THREE.BufferGeometry | null {
+export function thickCardGeometry(art: CardArt, o: { flipX?: boolean; unit?: boolean; height?: number; half?: 1 | -1 } = {}): THREE.BufferGeometry | null {
   const loops = silhouette(art.texture);
   if (!loops) return null;
   const w = art.right - art.left;
   const hgt = art.top - art.bottom;
   const scale = o.unit ? 1 / hgt : 1;
   const depth = o.unit ? 1 : CARD_THICKNESS;
-  const key = `${(art.texture as THREE.Texture).uuid}|${art.left.toFixed(4)}|${art.right.toFixed(4)}|${art.bottom.toFixed(4)}|${art.top.toFixed(4)}|${o.flipX ? 1 : 0}|${o.unit ? 1 : 0}|${o.height ?? 1}|${o.contact === false ? 0 : 1}|${o.half ?? 0}`;
+  const key = `${(art.texture as THREE.Texture).uuid}|${art.left.toFixed(4)}|${art.right.toFixed(4)}|${art.bottom.toFixed(4)}|${art.top.toFixed(4)}|${o.flipX ? 1 : 0}|${o.unit ? 1 : 0}|${o.height ?? 1}|${o.half ?? 0}`;
   const cached = thickCache.get(key);
   if (cached) return cached;
   const toCard = (u: number, v: number) => new THREE.Vector2((art.left + (o.flipX ? 1 - u : u) * w) * scale, (art.bottom + v * hgt) * scale);
@@ -219,8 +213,8 @@ export function thickCardGeometry(art: CardArt, o: { flipX?: boolean; unit?: boo
   const y0 = art.bottom * scale;
   const y1 = art.top * scale;
   const zf = depth / 2;
-  const ramp = o.contact === false ? 0 : FOOT_RAMP / (o.height ?? 1);
-  const ym = ramp ? Math.min(y1, y0 + ramp) : y0;
+  const ramp = FOOT_RAMP / (o.height ?? 1);
+  const ym = Math.min(y1, y0 + ramp);
   const pos: number[] = [x0, y0, zf, x1, y0, zf, x1, ym, zf, x0, y0, zf, x1, ym, zf, x0, ym, zf, x0, ym, zf, x1, ym, zf, x1, y1, zf, x0, ym, zf, x1, y1, zf, x0, y1, zf];
   const faceVerts = pos.length / 3;
   const nrm: number[] = [];
@@ -316,17 +310,17 @@ export function thickMaterial<M extends THREE.Material>(print: M): M {
 }
 
 /** An upright card mesh standing on its hinge line. flipX mirrors the print (a creature heading the other way). */
-export function createCard(art: CardArt, o: CardGeometryOptions & { material?: THREE.Material; flipX?: boolean; thin?: boolean } = {}): THREE.Mesh {
+export function createCard(art: CardArt, o: { material?: THREE.Material; flipX?: boolean; thin?: boolean } = {}): THREE.Mesh {
   const print = o.material ?? materialFor(art);
   const image = art.texture.image;
-  const thick = !o.thin && o.segmentsX === undefined && o.segmentsY === undefined && (image instanceof HTMLImageElement || image instanceof HTMLCanvasElement)
-    ? thickCardGeometry(art, { flipX: o.flipX, contact: o.contact })
+  const thick = !o.thin && (image instanceof HTMLImageElement || image instanceof HTMLCanvasElement)
+    ? thickCardGeometry(art, { flipX: o.flipX })
     : null;
   let mesh: THREE.Mesh;
   if (thick) {
     mesh = new THREE.Mesh(thick, thickMaterial(print));
   } else {
-    const g = cardGeometry(art, o);
+    const g = cardGeometry(art);
     if (o.flipX) {
       const uv = g.getAttribute('uv') as THREE.BufferAttribute;
       for (let i = 0; i < uv.count; i++) uv.setX(i, 1 - uv.getX(i));

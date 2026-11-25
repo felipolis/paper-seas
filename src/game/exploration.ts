@@ -71,9 +71,13 @@ export class Exploration {
   private readonly tiles = new Map<number, HTMLCanvasElement>();
   readonly info = new Map<number, CellInfo>();
   readonly track: Array<[number, number]> = [];
+  /** Tiles waiting to be painted (the last queued first); extra: those the chart asked for beyond the explored. */
   private readonly queue: number[] = [];
+  private readonly extra = new Set<number>();
   private dirty = false;
   private saveTimer = 0;
+  /** The stored chart was forgotten (a new voyage): nothing is saved again before the page reloads. */
+  private forgotten = false;
   private lastCi = Number.NaN;
   private lastCj = Number.NaN;
 
@@ -87,6 +91,7 @@ export class Exploration {
 
   /** Forgets the stored chart (a new voyage: the page reloads after). */
   forgetVoyage(): void {
+    this.forgotten = true;
     forget(STORAGE_KEY);
   }
 
@@ -103,7 +108,6 @@ export class Exploration {
     return t;
   }
 
-  private readonly extra = new Set<number>();
   /** Called whenever a tile has been painted (the chart re-bakes the region it falls in). */
   onTile: ((k: number) => void) | null = null;
 
@@ -153,6 +157,7 @@ export class Exploration {
   }
 
   private save(): void {
+    if (this.forgotten) return;
     this.dirty = false;
     this.saveTimer = SAVE_EVERY;
     const track: number[] = [];

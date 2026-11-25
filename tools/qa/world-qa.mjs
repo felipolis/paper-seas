@@ -14,20 +14,16 @@
 //   roads      the captain unable to walk along a road
 //   sea        more than MAX_LAND of the world is land (the open sea matters: there is more water than land)
 // Prints every issue with its position and exits 1 if there are any.
-import { GAME_URL, launch } from '../browser.mjs';
+import { launch, openGame } from '../browser.mjs';
 
 const seeds = (process.argv[2] ?? '1234,7,42').split(',').map(Number);
 const browser = await launch({ gpu: true });
 
 let total = 0;
 for (const seed of seeds) {
-  const page = await browser.newPage({ viewport: { width: 960, height: 600 } });
   const errors = [];
-  page.on('pageerror', (e) => errors.push(e.message));
-  page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
-  await page.addInitScript((s) => localStorage.setItem('paper-seas:seed', String(s)), seed);
-  await page.goto(GAME_URL, { waitUntil: 'networkidle' });
-  await page.waitForFunction(() => window.game && window.game.frames > 2, null, { timeout: 60000 });
+  const keep = (m) => errors.push(m);
+  const page = await openGame(browser, { viewport: { width: 960, height: 600 }, seed, onPageError: keep, onConsoleError: keep });
   const report = await page.evaluate(checkWorld);
   const issues = [...errors.map((e) => ({ kind: 'error', note: e })), ...report.issues];
   total += issues.length;

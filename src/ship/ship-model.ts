@@ -127,14 +127,15 @@ export class ShipModel {
   /** The far end of an `along` rigging end (they are never nested: see endPoint). */
   private readonly _c = new THREE.Vector3();
   /** The captain at the wheel (a layered paper puppet). */
-  private puppet: Puppet | null = null;
+  private readonly puppet: Puppet;
   /** The ship's wheel (turned with the rudder). */
-  private helm: THREE.Group | null = null;
+  private readonly helm: THREE.Group;
 
   constructor() {
     this.root.name = 'pirate-ship';
     this.root.add(this.body);
-    this.buildHull();
+    this.helm = this.buildHull();
+    this.puppet = this.buildCaptain(this.helm.position);
     this.bowspritTip = this.buildBowsprit();
     this.buildMasts();
     this.flag = this.buildFlag();
@@ -146,12 +147,11 @@ export class ShipModel {
   // construction
   // ---------------------------------------------------------------------------------------------
 
-  private buildHull(): void {
+  /** The hull, its stern lanterns and light; returns the wheel. */
+  private buildHull(): THREE.Group {
     const { meshes, helm } = buildShipMesh();
     for (const m of meshes) this.body.add(m);
     this.body.add(helm);
-    this.helm = helm;
-    this.buildCaptain(helm.position);
 
     // stern lanterns (glow at night later), on the posts Blender stands over the taffrail
     const lantern = lanternArt();
@@ -166,15 +166,16 @@ export class ShipModel {
       l.position.set(spot.x, sheer(0.01) + spot.lift, zOf(0) + 0.04);
       this.body.add(l);
     }
+    return helm;
   }
 
   /** The captain leaves the wheel (going ashore) or takes it again. */
   showCaptain(on: boolean): void {
-    if (this.puppet) this.puppet.root.visible = on;
+    this.puppet.root.visible = on;
   }
 
   /** The chosen captain stands just aft of the wheel, facing the bow, hands on its spokes. */
-  private buildCaptain(wheel: THREE.Vector3): void {
+  private buildCaptain(wheel: THREE.Vector3): Puppet {
     const puppet = new Puppet(activeCaptain().id);
     // papertrails' traveller is 0.6 tall: at the wheel he is cut smaller to the ship's scale, and leaves the lantern
     puppet.root.scale.setScalar(SHIP_CAPTAIN_SCALE);
@@ -182,7 +183,7 @@ export class ShipModel {
     puppet.root.position.set(wheel.x, wheel.y - 0.24, wheel.z + 0.13);
     puppet.root.rotation.y = Math.PI; // the figure faces +z: turn it to the bow
     this.body.add(puppet.root);
-    this.puppet = puppet;
+    return puppet;
   }
 
   private buildBowsprit(): THREE.Vector3 | null {
@@ -382,9 +383,9 @@ export class ShipModel {
   // control and animation
   // ---------------------------------------------------------------------------------------------
 
-  /** Masts pop up (true) or fold flat (false). */
-  raiseMasts(up: boolean, delay = 0): void {
-    this.mastFold.setTarget(up ? 1 : 0, delay);
+  /** The masts pop up after delay seconds (the launch). */
+  raiseMasts(delay: number): void {
+    this.mastFold.setTarget(1, delay);
   }
 
   /** Sail plan for a sail setting 0..1: the lowest sail of every mast and the head sails from 0.5, the rest at full. */
@@ -418,8 +419,8 @@ export class ShipModel {
     this.body.position.y = pose.bob;
     this.body.rotation.set(pose.pitch, 0, pose.roll, 'YXZ');
     this.mastFold.update(dt);
-    if (this.helm) this.helm.rotation.z = -pose.rudder * 2.4;
-    this.puppet?.helm(dt, pose.rudder);
+    this.helm.rotation.z = -pose.rudder * 2.4;
+    this.puppet.helm(dt, pose.rudder);
 
     const steps = this.stepper.advance(dt);
     const alpha = this.stepper.alpha;

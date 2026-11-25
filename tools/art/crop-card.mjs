@@ -1,6 +1,9 @@
 // Crops one card out of a generated sheet by hand (for a card the sprite cutter cannot separate from the white
-// sheet, like a snow swatch), inside its ink frame, and adds it to the target folder's manifest.
+// sheet, like the snow swatch), inside its ink frame.
 //   node tools/art/crop-card.mjs <sheet.png> <out.png> <x0> <y0> <x1> <y1>   (fractions of the sheet)
+// If the target folder has a manifest.json (public/art), the card is added to it; a folder without one
+// (assets-src/models/swatches) gets none. cut-sprites rewrites public/art/manifest.json from its own sheets, so the
+// next `npm run art:cut` drops a card cropped there: crop it again after.
 import { launch } from '../browser.mjs';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join, basename } from 'node:path';
@@ -22,7 +25,9 @@ const url = await p.evaluate(async ({ data, r }) => {
 await b.close();
 writeFileSync(out, Buffer.from(url.png.split(',')[1], 'base64'));
 const mf = join(dirname(out), 'manifest.json');
-const m = existsSync(mf) ? JSON.parse(readFileSync(mf, 'utf8')) : {};
-m[basename(out, '.png')] = { w: url.w, h: url.h };
-writeFileSync(mf, JSON.stringify(m, null, 1));
+if (existsSync(mf)) {
+  const m = JSON.parse(readFileSync(mf, 'utf8'));
+  m[basename(out, '.png')] = { w: url.w, h: url.h };
+  writeFileSync(mf, JSON.stringify(m, null, 1));
+}
 console.log(out, url.w, url.h);

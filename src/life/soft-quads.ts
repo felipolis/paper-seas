@@ -5,6 +5,7 @@
  * with a wavy outline, its phase per piece).
  */
 import * as THREE from 'three';
+import { SOFT_PATCH_GLSL } from '../render/soft-patch';
 import { hideMatrix, putMatrix } from './paper-bits';
 
 const VERT = /* glsl */ `
@@ -25,16 +26,10 @@ const FRAG = /* glsl */ `
 varying vec4 vCol;
 varying vec4 vPar;
 varying vec2 vUv;
+${SOFT_PATCH_GLSL}
 void main() {
   vec2 p = vUv * 2.0 - 1.0;
-  float r = length(p);
-  float a;
-  if (vPar.w < 0.5) a = pow(max(0.0, 1.0 - r), 2.2);
-  else {
-    float ang = atan(p.y, p.x);
-    r *= 1.0 + 0.13 * sin(ang * 3.0 + vPar.z * 6.283) + 0.07 * sin(ang * 5.0 + vPar.z * 17.0);
-    a = 1.0 - smoothstep(0.2, 1.0, r);
-  }
+  float a = vPar.w < 0.5 ? pow(max(0.0, 1.0 - length(p)), 2.2) : softPatch(p, vPar.z);
   a *= vCol.a;
   gl_FragColor = vec4(vCol.rgb * a, a * vPar.x);
 }`;

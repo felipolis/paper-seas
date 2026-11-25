@@ -5,6 +5,9 @@
   "type": "module",
   "description": "Paper Seas - sail a paper pirate ship across an endless pop-up ocean (Three.js)",
   "license": "MIT",
+  "engines": {
+    "node": ">=22.18"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

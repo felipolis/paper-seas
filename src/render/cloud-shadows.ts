@@ -7,7 +7,9 @@
  */
 import * as THREE from 'three';
 import { mulberry32 } from '../core/rng';
-import { smoothstep } from '../core/math';
+import { rankGate, smoothstep } from '../core/math';
+import { GROUND_SHADOW } from '../config/life';
+import { SOFT_PATCH_GLSL } from './soft-patch';
 
 /** papertrails' numbers. */
 const CLOUDS = {
@@ -16,7 +18,7 @@ const CLOUDS = {
   alpha: 0.15,
   speed: 0.34,
   span: 30,
-  color: '#0b0a1c',
+  color: GROUND_SHADOW,
   /** Its heartland density: the share of the five that are out (by rank, as its life gates them). */
   density: 0.8,
 } as const;
@@ -52,7 +54,7 @@ export class CloudShadows {
       let dz = Q[1] * W + (windZ / wl) * C.speed * this.time - fz;
       dz -= W * Math.round(dz / W);
       // papertrails' gate: by rank as the density allows, faded at the edge of the wrapping square
-      const rank = smoothstep(0, 1, (amount - ((j + 0.5) / C.count) * 0.88) / 0.12);
+      const rank = rankGate(amount, (j + 0.5) / C.count);
       const edge = 1 - smoothstep(0.8, 1, Math.max(Math.abs(dx), Math.abs(dz)) / (W * 0.5));
       const s = C.size[0] + (C.size[1] - C.size[0]) * Q[2];
       const yaw = Q[3] * Math.PI * 2;
@@ -67,6 +69,7 @@ export const CLOUD_GLSL = /* glsl */ `
 uniform vec4 uCloudA[${CLOUDS.count}];
 uniform vec4 uCloudB[${CLOUDS.count}];
 uniform vec3 uCloudColor;
+${SOFT_PATCH_GLSL}
 vec3 cloudShadows(vec3 col, vec3 pw, vec3 cam) {
   float k = (cam.y - ${CLOUD_Y.toFixed(3)}) / max(cam.y - pw.y, 1e-4);
   vec2 g = cam.xz + (pw.xz - cam.xz) * k;
@@ -76,12 +79,8 @@ vec3 cloudShadows(vec3 col, vec3 pw, vec3 cam) {
     if (B.w <= 0.0) continue;
     vec2 d = g - A.xy;
     vec2 p = vec2(d.x * A.z + d.y * A.w, -d.x * A.w + d.y * A.z) / B.xy;
-    float r = length(p);
-    if (r > 1.3) continue;
-    // papertrails' soft patch: a wavy outline, a smooth fall from the middle
-    float ang = atan(p.y, p.x);
-    r *= 1.0 + 0.13 * sin(ang * 3.0 + B.z * 6.283) + 0.07 * sin(ang * 5.0 + B.z * 17.0);
-    float a = (1.0 - smoothstep(0.2, 1.0, r)) * B.w;
+    if (length(p) > 1.3) continue;
+    float a = softPatch(p, B.z) * B.w;
     // (its premultiplied quad over the scene: colour * a * a + dst * (1 - a))
     col = col * (1.0 - a) + uCloudColor * a * a;
   }

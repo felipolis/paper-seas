@@ -8,6 +8,7 @@ import { WORLD } from '../config/world';
 import { Rng, hash01, hash2, pickWeighted } from '../core/rng';
 import { shapeDistance, type Blob, type Cut, type IslandShape, type Lump } from './island-shape';
 import { cellKey } from '../core/grid';
+import { BoundedCache } from '../core/bounded-cache';
 
 export type IslandKind = 'tropical' | 'jungle' | 'rocky' | 'skull' | 'village' | 'sandbar' | 'volcano' | 'ruins';
 export type IslandForm = 'round' | 'long' | 'crescent' | 'atoll' | 'twin' | 'archipelago' | 'big' | 'stack';
@@ -156,17 +157,14 @@ export function shoreDistance(spec: IslandSpec, x: number, z: number): number {
 }
 
 export class IslandLayout {
-  private readonly cache = new Map<number, IslandSpec | null>();
+  private readonly cache = new BoundedCache<number, IslandSpec | null>();
 
   constructor(private readonly seed: number = WORLD.seed) {}
 
   /** The island of region (i, j), or null. */
   region(i: number, j: number): IslandSpec | null {
     const key = cellKey(i, j);
-    if (this.cache.has(key)) return this.cache.get(key)!;
-    const spec = this.generate(i, j, key);
-    this.cache.set(key, spec);
-    return spec;
+    return this.cache.get(key, () => this.generate(i, j, key));
   }
 
   /** Islands whose land may lie within `r` of (x, z) (callers test the actual distance). */

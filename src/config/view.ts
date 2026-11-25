@@ -1,4 +1,4 @@
-/** Camera, lights and post. The camera yaw is fixed (north is up): the world is a diorama seen from one side. */
+/** Camera, lights and post. In the plain view north is up: the world is a diorama seen from one side. */
 export const CAMERA = {
   fov: 26,
   pitchDeg: 40,

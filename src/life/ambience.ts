@@ -17,15 +17,16 @@
  */
 import * as THREE from 'three';
 import { AMBIENT } from '../config/life';
-import { hash01, stream } from '../core/rng';
+import { stream } from '../core/rng';
 import { createPaperMaterial } from '../render/paper-material';
 import { LAND_TOP, type Biome } from '../world/land';
 import type { ClearLine } from './clear-line';
+import { fallerCycle, LandingCache, type FallerCycle } from './fallers';
 import { Flocks } from './flocks';
 import { LifeFrame, randomTable } from './life-frame';
 import { Bits } from './paper-bits';
 import { Weather } from './weather';
-import { smoothstep, TAU, mixRange } from '../core/math';
+import { HALF_PI, rankGate, smoothstep, TAU, mixRange } from '../core/math';
 
 /** This module's seeded randomness (core/rng.ts stream). */
 const random = stream('ambience');
@@ -54,21 +55,13 @@ interface Roamer {
   r: number[];
 }
 
-/** A faller kind (leaves, petals): its pool, its six random numbers per piece and where each piece lands. */
+/** A faller kind (leaves, petals): its pool, its six random numbers per piece and what lies where each piece lands. */
 interface Fallers {
   kind: 'leaves' | 'petals';
   bits: Bits;
   r: Float32Array;
   salt: number;
-  land: Landing;
-}
-
-/** Where each piece of a kind lands this cycle (looked up once per cycle): ground type and height. */
-interface Landing {
-  x: Float32Array;
-  z: Float32Array;
-  type: Uint8Array;
-  h: Float32Array;
+  land: LandingCache;
 }
 
 /** What lies where a piece lands. */
@@ -76,7 +69,8 @@ const GROUND = 0;
 const WATER = 1;
 const SEA = 2;
 
-const HALF_PI = Math.PI / 2;
+/** A falling piece's cycle, this frame (fallers.ts). */
+const _piece: FallerCycle = { u: 0, tFall: 0, dx: 0, dz: 0 };
 const RADIUS = 9;
 const _m = new THREE.Matrix4();
 const _q = new THREE.Quaternion();
@@ -94,11 +88,6 @@ const Z_AXIS = new THREE.Vector3(0, 0, 1);
  * bokeh spreads into a white disc.
  */
 const MIN_SIZE = 0.0005;
-
-/** papertrails' gate: the piece of this rank (0..1) shows once the kind's amount reaches it, fading in. */
-function rankGate(amount: number, rank: number): number {
-  return smoothstep(0, 1, (amount - rank * 0.88) / 0.12);
-}
 
 /** A small canvas texture with one piece drawn on it. */
 function pieceTexture(draw: (c: CanvasRenderingContext2D, s: number) => void, size = 64): THREE.CanvasTexture {
@@ -152,10 +141,6 @@ function roamers(n: number): Roamer[] {
   return Array.from({ length: n }, () => ({ home: false, hx: 0, hz: 0, drawn: false, sought: false, r: Array.from({ length: 6 }, random) }));
 }
 
-function landing(n: number): Landing {
-  return { x: new Float32Array(n).fill(1e9), z: new Float32Array(n).fill(1e9), type: new Uint8Array(n), h: new Float32Array(n) };
-}
-
 export class Ambience {
   readonly group = new THREE.Group();
   private readonly frame: LifeFrame;
@@ -181,9 +166,11 @@ export class Ambience {
     const ground = (x: number, z: number) => (world.distance(x, z) < 0 ? LAND_TOP : 0);
     const L = AMBIENT.leaves;
     const P = AMBIENT.petals;
+    // (the sea: a piece does not fall at all)
+    const lies = (x: number, z: number) => (world.distance(x, z) > 0 ? SEA : this.wet(x, z) ? WATER : GROUND);
     this.fallers = [
-      { kind: 'leaves', bits: new Bits(L.count, ['leaf', 'leaf2', 'leaf'], L.colors, 0x1ea), r: randomTable(L.count * 6, 0x1ea), salt: 0x1ea, land: landing(L.count) },
-      { kind: 'petals', bits: new Bits(P.count, ['petal'], P.colors, 0x9e7), r: randomTable(P.count * 6, 0x9e7), salt: 0x9e7, land: landing(P.count) },
+      { kind: 'leaves', bits: new Bits(L.count, ['leaf', 'leaf2', 'leaf'], L.colors, 0x1ea), r: randomTable(L.count * 6, 0x1ea), salt: 0x1ea, land: new LandingCache(L.count, lies) },
+      { kind: 'petals', bits: new Bits(P.count, ['petal'], P.colors, 0x9e7), r: randomTable(P.count * 6, 0x9e7), salt: 0x9e7, land: new LandingCache(P.count, lies) },
     ];
     this.dust = new Bits(AMBIENT.dust.count, ['dot', 'flake'], AMBIENT.dust.colors, 0xd057);
     this.weather = new Weather(ground, clearLine);
@@ -255,59 +242,39 @@ export class Ambience {
    */
   private fall(k: Fallers): void {
     const cfg = AMBIENT[k.kind];
-    const { w: W, d: D, h: H } = AMBIENT.box;
+    const { w: W, d: D } = AMBIENT.box;
     const f = this.frame;
     const { t, fx, fz, windX, windZ } = f;
     const R = k.r;
     for (let i = 0; i < cfg.count; i++) {
       const r = i * 6;
       const fall = mixRange(cfg.fall, R[r]);
-      const tFall = H / fall;
-      const period = tFall + cfg.land;
-      const ph = t / period + R[r + 1] * 7;
-      const cyc = Math.floor(ph);
-      const u = (ph - cyc) * period;
-      let dx = hash01(k.salt + 11, i, cyc) * W - fx;
-      dx -= W * Math.round(dx / W);
-      let dz = hash01(k.salt + 23, i, cyc) * D - fz;
-      dz -= D * Math.round(dz / D);
+      const { u, tFall, dx, dz } = fallerCycle(_piece, f, i, fall, cfg.land, R[r + 1], k.salt);
       const g = f.gate(k.kind, dx, dz, (i + 0.5) / cfg.count, W, D);
-      if (g <= 0 || this.landing(k.land, i, fx + dx, fz + dz) === SEA) {
+      // (a piece gated out is not drawn, nor one that would land on the sea: so every piece drawn lands on the land's top)
+      const lt = g > 0 ? k.land.at(i, fx + dx, fz + dz) : SEA;
+      if (lt === SEA) {
         k.bits.hide(i);
         continue;
       }
-      const lt = k.land.type[i];
       const size = mixRange(cfg.size, R[r + 2]) * g;
-      const lh = k.land.h[i];
       if (u < tFall) {
         const rem = tFall - u;
         const y = rem * fall;
         const sw = Math.sin(t * (0.8 + R[r + 3]) + R[r + 4] * TAU) * cfg.sway * (y < 1 ? y : 1);
         const px = fx + dx - windX * cfg.wind * rem - windZ * sw;
         const pz = fz + dz - windZ * cfg.wind * rem + windX * sw;
-        const py = y + 0.03 + lh;
+        const py = y + 0.03 + LAND_TOP;
         const s = size * smoothstep(0, 0.6, u) * this.clearLine.k(px, py, pz);
         if (s <= MIN_SIZE) k.bits.hide(i);
         else k.bits.put(i, px, py, pz, R[r + 4] * TAU + t * cfg.tumble * (0.5 + R[r + 5]), -HALF_PI + 0.8 * Math.sin(t * cfg.tumble * 0.9 + R[r + 3] * TAU), sw * 1.4, s, s * 1.15);
       } else {
         const s = lt === GROUND ? size * (1 - smoothstep(0.55, 1, (u - tFall) / cfg.land)) : 0;
         if (s <= MIN_SIZE) k.bits.hide(i);
-        else k.bits.put(i, fx + dx, 0.028 + R[r + 5] * 0.012 + lh, fz + dz, R[r + 4] * TAU, -HALF_PI + (R[r + 3] - 0.5) * 0.3, 0, s, s * 1.15);
+        else k.bits.put(i, fx + dx, 0.028 + R[r + 5] * 0.012 + LAND_TOP, fz + dz, R[r + 4] * TAU, -HALF_PI + (R[r + 3] - 0.5) * 0.3, 0, s, s * 1.15);
       }
     }
     k.bits.commit();
-  }
-
-  /** What lies where piece i of a kind lands this cycle (the sea: it does not fall at all). */
-  private landing(l: Landing, i: number, x: number, z: number): number {
-    if (Math.abs(l.x[i] - x) >= 0.01 || Math.abs(l.z[i] - z) >= 0.01) {
-      l.x[i] = x;
-      l.z[i] = z;
-      const sea = this.world.distance(x, z) > 0;
-      l.type[i] = sea ? SEA : this.wet(x, z) ? WATER : GROUND;
-      l.h[i] = sea ? 0 : LAND_TOP;
-    }
-    return l.type[i];
   }
 
   /** papertrails' dust: specks drifting along the wind at their own speed and height, bobbing, turned to the camera. */

@@ -83,6 +83,14 @@ export class Puppet {
     this.legLength = Math.max(0.05, this.parts.leg_l.getWorldPosition(new THREE.Vector3()).y - this.root.position.y);
   }
 
+  /** Standing still, every spring at rest (a landing: nothing carries over from the last walk). */
+  settle(): void {
+    this.phase = Math.round(this.phase / Math.PI) * Math.PI;
+    this.gait = this.lean = this.leanV = this.roll = this.rollV = 0;
+    this.lanX = this.lanVX = this.lanZ = this.lanVZ = 0;
+    this.prevForward = 0;
+  }
+
   /** The lantern is carried ashore only. */
   set lanternShown(on: boolean) {
     this.parts.lantern.visible = on;

@@ -38,18 +38,21 @@ interface Encounter {
 export interface ShipState {
   x: number;
   z: number;
-  vx: number;
-  vz: number;
   fx: number;
   fz: number;
 }
 
 /** A hinged card that pops up out of the sea page. */
 function popCard(name: string, height: number, flip: boolean, fold: FoldGroup, delay = 0): THREE.Group {
+  return popHinge(createCard(spriteArt(name, { height }), { flipX: flip }), height, fold, delay);
+}
+
+/** A hinge holding `content` (a card, or a node a card moves on), `size` tall, that pops up out of the sea page. */
+function popHinge(content: THREE.Object3D, size: number, fold: FoldGroup, delay = 0): THREE.Group {
   const hinge = new THREE.Group();
-  hinge.add(createCard(spriteArt(name, { height }), { flipX: flip }));
+  hinge.add(content);
   hinge.rotation.y = (random() - 0.5) * 10 * DEG;
-  fold.add(hinge, { size: height, seed: random(), delay, wobble: 1.4 });
+  fold.add(hinge, { size, seed: random(), delay, wobble: 1.4 });
   return hinge;
 }
 
@@ -112,14 +115,15 @@ class Whale implements Encounter {
       bus.emit('creature', { kind: 'splash', x: this.group.position.x, z: this.group.position.z });
     }
     if (this.tailShown) this.tailSway.rotation.z = 0.12 * Math.sin((t - 6) * 3.1) * this.dir;
-    if (crossed(t0, t, 10.2)) this.tailFold.setTarget(0);
+    // (flukes that came up only after this slip under again at once: they never keep the whale)
+    if (this.tailShown && t >= 10.2) this.tailFold.setTarget(0);
     this.bodyFold.update(dt);
     this.spoutFold.update(dt);
     this.tailFold.update(dt);
     showWhileUp(this.bodyFold, this.body);
     showWhileUp(this.spoutFold, this.spout);
     showWhileUp(this.tailFold, this.tail);
-    return t < 12;
+    return !(t > 12 && this.bodyFold.isDown && this.spoutFold.isDown && this.tailFold.isDown);
   }
 }
 
@@ -401,14 +405,17 @@ class Serpent implements Encounter {
 class PassingShip implements Encounter {
   readonly group = new THREE.Group();
   private readonly fold = new FoldGroup();
-  private readonly card: THREE.Group;
+  private readonly hinge: THREE.Group;
+  /** Her rocking, inside the hinge (the fold drives the hinge's pose), as the whale's flukes. */
+  private readonly rock = new THREE.Group();
   private t = 0;
 
   constructor(x: number, z: number, private readonly dir: number, ghost: boolean) {
     this.group.position.set(x, 0.006, z);
     const sprite = ghost ? 'ghost-ship' : 'merchant-ship';
-    this.card = popCard(sprite, 1.75, mirrorFor(sprite, dir), this.fold);
-    this.group.add(this.card);
+    this.rock.add(createCard(spriteArt(sprite, { height: 1.75 }), { flipX: mirrorFor(sprite, dir) }));
+    this.hinge = popHinge(this.rock, 1.75, this.fold);
+    this.group.add(this.hinge);
     this.fold.setTarget(1);
   }
 
@@ -417,10 +424,10 @@ class PassingShip implements Encounter {
     // never through an island: land ahead and it folds away where it is
     if (this.t < 14 && blocked(this.group, this.dir * 1.6, 0, 0.9)) this.t = 14;
     if (this.t < 14) this.group.position.x += this.dir * 1.1 * dt;
-    this.card.rotation.z = 0.025 * Math.sin(this.t * 1.3);
+    this.rock.rotation.z = 0.025 * Math.sin(this.t * 1.3);
     if (this.t >= 14) this.fold.setTarget(0);
     this.fold.update(dt);
-    showWhileUp(this.fold, this.card);
+    showWhileUp(this.fold, this.hinge);
     return !(this.t > 14 && this.fold.isSettled);
   }
 }
@@ -499,7 +506,7 @@ export class SeaLife {
   private readonly encounters: Encounter[] = [];
   private readonly gulls: Gull[] = [];
   private timer = 4;
-  private readonly ship: ShipState = { x: 0, z: 0, vx: 0, vz: 0, fx: 0, fz: -1 };
+  private readonly ship: ShipState = { x: 0, z: 0, fx: 0, fz: -1 };
   /** The share of the gulls out (1 by day, NIGHT_GULLS by night, none out in the deep), eased. */
   private flock = 1;
 
