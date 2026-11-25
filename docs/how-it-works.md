@@ -57,8 +57,10 @@ What papertrails does, Paper Seas does the same way (its traveller is as tall as
   the rows behind fold from the track outward; a cell flips at most once per 2 s; the anchor trails on a 1-unit rope.
   A cell's cards start over 0.34 s in flat-stack order (they fold back, so the nearest lies on top and rises first)
   and fold in the reverse order; each leans up to 2.5 degrees once it stands, and lies exactly flat when folded.
-  A piece of a building that rides on another (a roof on its wall) follows it as it opens
-  (popup/spring.ts NESTED), so the planes of one construction never scissor. Folded flat, no two pieces lie over each
+  A building opens as one, as papertrails' do (every piece of one construction shares its start): only a piece
+  standing on the page starts on its own, and a piece that rides on another (a wall on the front, a roof on its wall)
+  is pulled up by it as it opens, 0.02 s behind it (popup/spring.ts NESTED), so the planes of one construction never
+  scissor. Folded flat, no two pieces lie over each
   other closer than 0.001 (config/popup.ts flatStep), so no face flickers between two: the cards step up from those
   they cover (world/card-field.ts), and the pieces of a building that would meet (its two walls, its two roof slopes)
   are moved apart once per model, measured on its faces folded flat (world/models.ts separateFlat).

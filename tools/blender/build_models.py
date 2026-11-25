@@ -11,7 +11,9 @@ side walls, the chimney pops up from the roof... Each piece is a node whose orig
 local X axis is the hinge axis; its rest pose is the assembled model, and the game draws it at
     quaternion = rest * RotX(foldAngle * (1 - p))
 so at p = 0 every piece lies folded flat onto its parent (or onto the page). Node extras (glTF): hinge, foldAngle,
-delay (0..1 start order), and where set layer (flat stacking) and liftSign. The model root carries extras { model }.
+delay (0..1 start order: papertrails' rule, a construction opens as one, so only a piece standing on the page has a start
+of its own and every piece hinged on it starts with it, pulled up as its parent rises), and where set layer (flat
+stacking) and liftSign. The model root carries extras { model }.
 
 The printed faces come from the atlas (tools/art/pack-atlas.mjs -> assets-src/models/atlas.json +
 public/models/atlas.png); their gable measurements size the walls and roofs, so a roof sits exactly on its gable.
@@ -79,7 +81,8 @@ class Piece:
         self.parent = parent
         self.frame = frame  # 4x4, game frame, world (model) space at rest
         self.fold = fold
-        self.delay = delay
+        # (a piece hinged on another starts with it)
+        self.delay = parent.delay if parent else delay
         self.verts = verts  # world positions
         self.uvs = uvs  # per face-corner lists, parallel to faces
         self.faces = faces
@@ -93,7 +96,7 @@ class Model:
         self.name = name
         self.pieces = []
 
-    def card(self, name, parent, art, corners, poly, hinge, flat, delay, depth=THICK, open_edges=(), back="print"):
+    def card(self, name, parent, art, corners, poly, hinge, flat, delay=0.0, depth=THICK, open_edges=(), back="print"):
         """
         A planar card, depth thick behind its printed face.
           art       atlas face printed on it
@@ -103,6 +106,7 @@ class Model:
                     holes clockwise)
           hinge     (point, axis): its fold line, in world space
           flat      world direction the card lies along when folded flat (perpendicular to the hinge)
+          delay     its start (0..1), for a card standing on the page (one hinged on another starts with it)
         The card gets a back and a cut edge (a convex loop's except along open_edges, given as outline indices: edge i
         runs from poly[i] to poly[i + 1]). The back carries the same print (as papertrails' cards: whichever way a
         piece folds flat, no blank kraft ever lies face up); back="kraft" gives a plain back instead.
@@ -341,9 +345,9 @@ def gable_house(name, W, front, side, roof, depth_scale=1.0, chimney=None, sign=
     # (the side walls stop just inside the gables' card thickness: no two faces share a plane at the corners)
     gap = THICK + 0.003
     wl = m.card("wall_l", fr, side, rect_corners(V(-W / 2, 0, -D / 2 + gap), V(0, 0, D - 2 * gap), V(0, H, 0)), FULL,
-                (V(-W / 2, 0, D / 2), V(0, 1, 0)), V(1, 0, 0), 0.25)
+                (V(-W / 2, 0, D / 2), V(0, 1, 0)), V(1, 0, 0))
     wr = m.card("wall_r", fr, side, rect_corners(V(W / 2, 0, D / 2 - gap), V(0, 0, -D + 2 * gap), V(0, H, 0)), FULL,
-                (V(W / 2, 0, D / 2), V(0, 1, 0)), V(-1, 0, 0), 0.25)
+                (V(W / 2, 0, D / 2), V(0, 1, 0)), V(-1, 0, 0))
     # roof planes: hinged at the eaves (top of each side wall), folded up flat as the wall's continuation
     half = W / 2
     rise = A - H
@@ -359,9 +363,9 @@ def gable_house(name, W, front, side, roof, depth_scale=1.0, chimney=None, sign=
     el = V(-half, H, 0) - dl * over + nl
     er = V(half, H, 0) - dr * over + nr
     rl = m.card("roof_l", wl, roof, (el + V(0, 0, zb), el + V(0, 0, zf), el + V(0, 0, zf) + dl * (ext + over), el + V(0, 0, zb) + dl * (ext + over)), FULL,
-                (V(-half, H, 0), V(0, 0, 1)), V(0, 1, 0), 0.55)
+                (V(-half, H, 0), V(0, 0, 1)), V(0, 1, 0))
     rr = m.card("roof_r", wr, roof, (er + V(0, 0, zf), er + V(0, 0, zb), er + V(0, 0, zb) + dr * (ext + over), er + V(0, 0, zf) + dr * (ext + over)), FULL,
-                (V(half, H, 0), V(0, 0, 1)), V(0, 1, 0), 0.62)
+                (V(half, H, 0), V(0, 0, 1)), V(0, 1, 0))
     if chimney:
         cw, chh = face(chimney)["rect"][2:]
         width = 0.13
@@ -373,8 +377,8 @@ def gable_house(name, W, front, side, roof, depth_scale=1.0, chimney=None, sign=
         # a slotted cross: a card across the roof (hinged on the slope), the two halves of one along it on its faces
         outline = face(chimney)["outline"]
         ca = m.card("chimney", rr, chimney, rect_corners(V(cx - width / 2, base_y, cz), V(width, 0, 0), V(0, height, 0)), outline,
-                    (V(cx, top_y, cz), V(1, 0, 0)), V(0, 0, -1), 0.85)
-        cross_halves(m, "chimney", ca, chimney, outline, V(cx, base_y, cz), V(0, 1, 0), V(1, 0, 0), V(0, 0, 1), width, height, 0.9)
+                    (V(cx, top_y, cz), V(1, 0, 0)), V(0, 0, -1))
+        cross_halves(m, "chimney", ca, chimney, outline, V(cx, base_y, cz), V(0, 1, 0), V(1, 0, 0), V(0, 0, 1), width, height)
     if sign:
         sw2, sh2 = face(sign)["rect"][2:]
         width = 0.36
@@ -383,11 +387,11 @@ def gable_house(name, W, front, side, roof, depth_scale=1.0, chimney=None, sign=
         # the bracket juts out from the left wall near the front corner, the board faces the street
         zc = D / 2 - 0.12
         m.card("sign", wl, sign, rect_corners(V(-W / 2 - width, y0, zc), V(width, 0, 0), V(0, height, 0)), face(sign)["outline"],
-               (V(-W / 2, y0, zc), V(0, 1, 0)), V(0, 0, -1), 0.8)
+               (V(-W / 2, y0, zc), V(0, 1, 0)), V(0, 0, -1))
     return m, {"W": W, "D": D, "H": A}
 
 
-def cross_halves(m, name, card, art, poly, foot, up, along, normal, width, height, delay):
+def cross_halves(m, name, card, art, poly, foot, up, along, normal, width, height):
     """
     papertrails' slotted cross (its tiles.glb: tree + tree_xf + tree_xb): the second plane of a crossed card (printed
     art, cut to poly) as two half cards, HALF thick, one on each of the card's faces, hinged on the vertical line down
@@ -406,14 +410,14 @@ def cross_halves(m, name, card, art, poly, foot, up, along, normal, width, heigh
     corners = rect_corners(mid + normal * (width / 2), normal * -width, up * height)
     for tag, k in (("xf", 1), ("xb", -1)):
         o = mid + normal * (k * (card.depth / 2 + off))
-        half = m.card(f"{name}_{tag}", card, art, corners, half_of(poly, k, 0.5 - k * slot), (o, up), along * k, delay, depth=HALF)
+        half = m.card(f"{name}_{tag}", card, art, corners, half_of(poly, k, 0.5 - k * slot), (o, up), along * k, depth=HALF)
         half.lift_sign = -k
 
 
 # ------------------------------------------------------------------------------------------------------------------
 # a square tower: four walls (front, then sides hinged on it, then the back on the left side) and a top
 
-def box_walls(m, prefix, cx, cz, base_y, w_bot, w_top, height, arts, delay0, parent=None, back="print", open_top=False):
+def box_walls(m, prefix, cx, cz, base_y, w_bot, w_top, height, arts, parent=None, back="print", open_top=False):
     """Four (optionally tapered) walls around (cx, cz). arts = (front, side, back). Returns (front, left, right, back)."""
     hb, ht = w_bot / 2, w_top / 2
     y0, y1 = base_y, base_y + height
@@ -432,7 +436,7 @@ def box_walls(m, prefix, cx, cz, base_y, w_bot, w_top, height, arts, delay0, par
         c11 = c01 + acr_t
         return (c00, c10, c11, c01)
 
-    def wall(name, art, a, b, par, hinge, flat, delay, inset=0.0):
+    def wall(name, art, a, b, par, hinge, flat, inset=0.0):
         # a: bottom-left -> bottom-right direction corners (world, at y0), b: the same at the top; inset pulls both
         # ends in (the side walls stop inside the front and back walls' thickness: no shared planes at the corners)
         if inset:
@@ -444,7 +448,7 @@ def box_walls(m, prefix, cx, cz, base_y, w_bot, w_top, height, arts, delay0, par
         # the card follows the print's outline (a tapered print leaves no kraft beside it)
         sp = face(art)["spans"]
         poly = [(sp["bottom"][0], 0), (sp["bottom"][1], 0), (sp["top"][1], 1), (sp["top"][0], 1)]
-        return m.card(name, par, art, cs, poly, hinge, flat, delay, back=back, open_edges=(2,) if open_top else ())
+        return m.card(name, par, art, cs, poly, hinge, flat, back=back, open_edges=(2,) if open_top else ())
 
     def pt(x, y, z):
         return V(cx + x, y, cz + z)
@@ -453,14 +457,14 @@ def box_walls(m, prefix, cx, cz, base_y, w_bot, w_top, height, arts, delay0, par
     FLb, FRb, BRb, BLb = pt(-hb, y0, hb), pt(hb, y0, hb), pt(hb, y0, -hb), pt(-hb, y0, -hb)
     FLt, FRt, BRt, BLt = pt(-ht, y1, ht), pt(ht, y1, ht), pt(ht, y1, -ht), pt(-ht, y1, -ht)
     art_front, art_side, art_back = arts
-    fr = wall(prefix + "front", art_front, (FLb, FRb), (FLt, FRt), parent, (pt(0, y0, hb), V(1, 0, 0)), V(0, 0, -1), delay0)
-    lf = wall(prefix + "left", art_side, (BLb, FLb), (BLt, FLt), fr, (FLb, FLt - FLb), (FRb - FLb), delay0 + 0.12, inset=THICK + 0.003)
-    rt = wall(prefix + "right", art_side, (FRb, BRb), (FRt, BRt), fr, (FRb, FRt - FRb), (FLb - FRb), delay0 + 0.12, inset=THICK + 0.003)
-    bk = wall(prefix + "back", art_back, (BRb, BLb), (BRt, BLt), lf, (BLb, BLt - BLb), FLb - BLb, delay0 + 0.22)
+    fr = wall(prefix + "front", art_front, (FLb, FRb), (FLt, FRt), parent, (pt(0, y0, hb), V(1, 0, 0)), V(0, 0, -1))
+    lf = wall(prefix + "left", art_side, (BLb, FLb), (BLt, FLt), fr, (FLb, FLt - FLb), (FRb - FLb), inset=THICK + 0.003)
+    rt = wall(prefix + "right", art_side, (FRb, BRb), (FRt, BRt), fr, (FRb, FRt - FRb), (FLb - FRb), inset=THICK + 0.003)
+    bk = wall(prefix + "back", art_back, (BRb, BLb), (BRt, BLt), lf, (BLb, BLt - BLb), FLb - BLb)
     return fr, lf, rt, bk, (FLt, FRt, BRt, BLt)
 
 
-def pyramid(m, prefix, top_corners, apex_h, art, walls, delay):
+def pyramid(m, prefix, top_corners, apex_h, art, walls):
     """Four triangles on a square top, each hinged on the top edge of its wall, folded up as the wall's continuation."""
     FLt, FRt, BRt, BLt = top_corners
     centre = (FLt + FRt + BRt + BLt) / 4
@@ -477,7 +481,7 @@ def pyramid(m, prefix, top_corners, apex_h, art, walls, delay):
         c01 = c00 + upv
         c11 = c10 + upv
         poly = [(sp[0], 0), (sp[1], 0), ((sp[0] + sp[1]) / 2, 1)]
-        m.card(f"{prefix}{k}", wall, art, (c00, c10, c11, c01), poly, (a, b - a), V(0, 1, 0), delay + k * 0.04)
+        m.card(f"{prefix}{k}", wall, art, (c00, c10, c11, c01), poly, (a, b - a), V(0, 1, 0))
 
 
 def fort_tower(name):
@@ -487,12 +491,12 @@ def fort_tower(name):
     sp = face("fort-wall")["spans"]["bottom"]
     height = w / (sp[1] - sp[0]) * fh / fw
     # (printed inside too, so the crenellations are cut on both faces; open along their top)
-    fr, lf, rt, bk, top = box_walls(m, "", 0, 0, 0, w, w, height, ("fort-door", "fort-wall", "fort-wall"), 0.0, back="print", open_top=True)
+    fr, lf, rt, bk, top = box_walls(m, "", 0, 0, 0, w, w, height, ("fort-door", "fort-wall", "fort-wall"), back="print", open_top=True)
     # the stone floor of the battlement, hinged on the back wall just under the crenellations
     yb = height * 0.86
     hb = w / 2 - 0.01
     m.card("deck", bk, "stone", rect_corners(V(-hb, yb, hb), V(2 * hb, 0, 0), V(0, 0, -2 * hb)), FULL,
-           (V(0, yb, -hb), V(1, 0, 0)), V(0, -1, 0), 0.5)
+           (V(0, yb, -hb), V(1, 0, 0)), V(0, -1, 0))
     return m, {"W": w, "D": w, "H": height}
 
 
@@ -504,13 +508,13 @@ def lighthouse(name):
     face_w = wb / (sp["bottom"][1] - sp["bottom"][0])
     height = face_w * fh / fw
     wt = face_w * (sp["top"][1] - sp["top"][0])
-    fr, lf, rt, bk, top = box_walls(m, "", 0, 0, 0, wb, wt, height, ("lighthouse-wall",) * 3, 0.0)
+    fr, lf, rt, bk, top = box_walls(m, "", 0, 0, 0, wb, wt, height, ("lighthouse-wall",) * 3)
     # the lantern room on top, then its cap
     lw = wt * 0.82
     gw, gh = face("lighthouse-glass")["rect"][2:]
     gsp = face("lighthouse-glass")["spans"]["bottom"]
     lh = lw / (gsp[1] - gsp[0]) * gh / gw
-    lfr, llf, lrt, lbk, ltop = box_walls(m, "lantern_", 0, 0, height, lw, lw, lh, ("lighthouse-glass",) * 3, 0.55, parent=fr)
+    lfr, llf, lrt, lbk, ltop = box_walls(m, "lantern_", 0, 0, height, lw, lw, lh, ("lighthouse-glass",) * 3, parent=fr)
     cw, ch = face("lighthouse-cap")["rect"][2:]
     csp = face("lighthouse-cap")["spans"]["bottom"]
     cap_w = lw * 1.25
@@ -519,7 +523,7 @@ def lighthouse(name):
     c = V(0, height + lh, 0)
     hb = cap_w / 2
     cap_corners = (c + V(-hb, 0, hb), c + V(hb, 0, hb), c + V(hb, 0, -hb), c + V(-hb, 0, -hb))
-    pyramid(m, "cap_", cap_corners, cap_h, "lighthouse-cap", (lfr, llf, lrt, lbk), 0.8)
+    pyramid(m, "cap_", cap_corners, cap_h, "lighthouse-cap", (lfr, llf, lrt, lbk))
     return m, {"W": wb, "D": wb, "H": height + lh + cap_h}
 
 
@@ -536,11 +540,11 @@ def chapel(name):
     zc = dims["D"] / 2 - tw / 2 - 0.06
     base_y = A - 0.22
     roof_l = next(p for p in m.pieces if p.name == "roof_l")
-    fr, lf, rt, bk, top = box_walls(m, "belfry_", 0, zc, base_y, tw, tw, th, ("chapel-tower",) * 3, 0.7, parent=roof_l)
+    fr, lf, rt, bk, top = box_walls(m, "belfry_", 0, zc, base_y, tw, tw, th, ("chapel-tower",) * 3, parent=roof_l)
     sw, sh = face("chapel-spire")["rect"][2:]
     ssp = face("chapel-spire")["spans"]["bottom"]
     spire_h = tw / (ssp[1] - ssp[0]) * sh / sw * 0.85
-    pyramid(m, "spire_", top, spire_h, "chapel-spire", (fr, lf, rt, bk), 0.85)
+    pyramid(m, "spire_", top, spire_h, "chapel-spire", (fr, lf, rt, bk))
     dims["H"] = base_y + th + spire_h
     return m, dims
 
@@ -562,15 +566,15 @@ def stilt_hut(name):
         posts.append(m.card(f"post{k}", None, "wood", rect_corners(V(x - 0.035, 0, z), V(0.07, 0, 0), V(0, stilt + 0.02, 0)), FULL,
                             (V(x, 0, z), V(1, 0, 0)), V(0, 0, -1), 0.04 * k))
     floor = m.card("floor", posts[0], "wood", rect_corners(V(-hb - 0.04, stilt, hb + 0.04), V(w + 0.08, 0, 0), V(0, 0, -w - 0.08)), FULL,
-                   (V(0, stilt, hb + 0.04), V(1, 0, 0)), V(0, 1, 0), 0.2)
-    fr, lf, rt, bk, top = box_walls(m, "", 0, 0, stilt, w, w, height, ("hut-front", "hut-side", "hut-side"), 0.3, parent=floor)
+                   (V(0, stilt, hb + 0.04), V(1, 0, 0)), V(0, 1, 0))
+    fr, lf, rt, bk, top = box_walls(m, "", 0, 0, stilt, w, w, height, ("hut-front", "hut-side", "hut-side"), parent=floor)
     rw, rh = face("hut-roof")["rect"][2:]
     # a thatched pyramid, overhanging the walls
     over = 0.12
     yt = stilt + height
     c = V(0, yt - 0.04, 0)
     h2 = hb + over
-    pyramid(m, "roof_", (c + V(-h2, 0, h2), c + V(h2, 0, h2), c + V(h2, 0, -h2), c + V(-h2, 0, -h2)), 0.5, "hut-roof", (fr, lf, rt, bk), 0.6)
+    pyramid(m, "roof_", (c + V(-h2, 0, h2), c + V(h2, 0, h2), c + V(h2, 0, -h2), c + V(-h2, 0, -h2)), 0.5, "hut-roof", (fr, lf, rt, bk))
     return m, {"W": w, "D": w, "H": yt + 0.5}
 
 
@@ -652,7 +656,7 @@ def pier(name, L=3.0, W=0.62, H=0.16):
         z1 = -L / 2 + L * (k + 1) / n
         # planks across the deck: the swatch's planks run along its width (a), so a runs across the pier
         m.card(f"deck{k}", left, art, (V(-W / 2 - ov, H, z1), V(W / 2 + ov, H, z1), V(W / 2 + ov, H, z0), V(-W / 2 - ov, H, z0)), FULL,
-               (V(-W / 2, H, -L / 2), V(0, 0, 1)), V(0, -1, 0), 0.2 + 0.3 * k / max(1, n - 1))
+               (V(-W / 2, H, -L / 2), V(0, 0, 1)), V(0, -1, 0))
     # posts: a slotted cross of narrow cards each (a card on the page, the halves of the other on its faces), from
     # below the waterline to a hand above the deck
     pw, top, foot = 0.07, H + 0.13, -0.3
@@ -665,7 +669,7 @@ def pier(name, L=3.0, W=0.62, H=0.16):
             c = V(x, foot, z)
             post = m.card(f"post{k}{side}", None, art, (c - u, c + u, c + u + V(0, top - foot, 0), c - u + V(0, top - foot, 0)), FULL,
                           (c, u), normal, 0.6 + 0.1 * k)
-            cross_halves(m, f"post{k}{side}", post, art, FULL, c, V(0, 1, 0), along, normal, pw, top - foot, 0.65 + 0.1 * k)
+            cross_halves(m, f"post{k}{side}", post, art, FULL, c, V(0, 1, 0), along, normal, pw, top - foot)
     return m, {"W": W, "D": L, "H": H, "deck": H + THICK}
 
 
@@ -707,7 +711,7 @@ def bridge(name, L=1.7, W=0.75, rail=0.18, base=0.002):
         up_ramp = V(0, h1, -s * (half - z1)).normalized()
         m.card(f"crown{'n' if s > 0 else 's'}", ramp, "pier-plank",
                (V(-s * W / 2, edge, s * z1), V(s * W / 2, edge, s * z1), V(s * W / 2, apex, 0), V(-s * W / 2, apex, 0)),
-               FULL, (V(-s * W / 2, edge, s * z1), V(1, 0, 0)), up_ramp, 0.15)
+               FULL, (V(-s * W / 2, edge, s * z1), V(1, 0, 0)), up_ramp)
     # the sides: the outline along the span (a: 0..1 over -ext..ext, b: up the card), the arch under the deck
     ext = half * 1.06
     aw, ah = half * 0.6, max(0.016, top * 0.72)
@@ -748,7 +752,7 @@ def bridge(name, L=1.7, W=0.75, rail=0.18, base=0.002):
                 # (its face looks out along the span, away from the bridge)
                 a0, a1 = (o + V(-zs * pw / 2, 0, 0), o + V(zs * pw / 2, 0, 0))
                 m.card(f"post{'l' if sg < 0 else 'r'}{'n' if ze > 0 else 's'}", side, "pier-plank",
-                       (a0, a1, a1 + lean_up, a0 + lean_up), FULL, (a0, V(1, 0, 0)), V(0, 0, zs), 0.6)
+                       (a0, a1, a1 + lean_up, a0 + lean_up), FULL, (a0, V(1, 0, 0)), V(0, 0, zs))
     dims = {"W": W, "D": L, "H": base + top + rail, "deck": base + THICK, "rise": top,
             "rampShare": BRIDGE["ramp_share"], "rampDeg": BRIDGE["ramp_deg"], "crownDeg": BRIDGE["crown_deg"]}
     return m, dims

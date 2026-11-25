@@ -46,7 +46,8 @@ node tools/art/pack-atlas.mjs                                # pack them into pu
 The script (`tools/blender/build_models.py`) assembles each model from hinged card pieces (front wall, side walls
 swinging out of it, roof planes folding over from the walls, chimney, sign, belfry and spire, battlements, lantern
 room...) and writes `public/models/models.glb`: every piece is a node on its fold line with glTF extras `{ hinge,
-foldAngle, delay }`. Every piece is card 0.016 thick, as papertrails' (its `cardThickness`), the half cards of a slotted
+foldAngle, delay }` (a start of its own only for a piece standing on the page: one hinged on another starts with it,
+papertrails' one construction, one start). Every piece is card 0.016 thick, as papertrails' (its `cardThickness`), the half cards of a slotted
 cross 40 % of that; a piece printed with a cut-out shape (the chimney, the tavern sign) is cut to its print's outline,
 traced from its alpha by `pack-atlas.mjs` (`tools/art/outline.mjs`), so its cut edge follows the drawing. In the game
 (`src/world/models.ts`) each building becomes one skinned mesh (one draw call) whose bones unfold through the same paper
