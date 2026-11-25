@@ -42,17 +42,34 @@ export interface ShipState {
   fz: number;
 }
 
+/** How far a sea card turns off square to the view, either way (rad). */
+const POP_YAW = 5 * DEG;
+
+/** A fresh turn off square to the view for a sea card (within POP_YAW). */
+function popYaw(): number {
+  return (random() - 0.5) * 2 * POP_YAW;
+}
+
+/**
+ * How a sea card pops up: its turn about the vertical (a fresh popYaw if not given) and the way it lies folded
+ * (FoldGroup's: back, away from the camera, if not given).
+ */
+interface Pop {
+  yaw?: number;
+  foldAngle?: number;
+}
+
 /** A hinged card that pops up out of the sea page. */
-function popCard(name: string, height: number, flip: boolean, fold: FoldGroup, delay = 0): THREE.Group {
-  return popHinge(createCard(spriteArt(name, { height }), { flipX: flip }), height, fold, delay);
+function popCard(name: string, height: number, flip: boolean, fold: FoldGroup, pop: Pop = {}): THREE.Group {
+  return popHinge(createCard(spriteArt(name, { height }), { flipX: flip }), height, fold, pop);
 }
 
 /** A hinge holding `content` (a card, or a node a card moves on), `size` tall, that pops up out of the sea page. */
-function popHinge(content: THREE.Object3D, size: number, fold: FoldGroup, delay = 0): THREE.Group {
+function popHinge(content: THREE.Object3D, size: number, fold: FoldGroup, { yaw = popYaw(), foldAngle }: Pop = {}): THREE.Group {
   const hinge = new THREE.Group();
   hinge.add(content);
-  hinge.rotation.y = (random() - 0.5) * 10 * DEG;
-  fold.add(hinge, { size, seed: random(), delay, wobble: 1.4 });
+  hinge.rotation.y = yaw;
+  fold.add(hinge, { size, seed: random(), wobble: 1.4, foldAngle });
   return hinge;
 }
 
@@ -65,6 +82,10 @@ function showWhileUp(fold: FoldGroup, node: THREE.Object3D): void {
 function crossed(t0: number, t1: number, at: number): boolean {
   return t0 < at && t1 >= at;
 }
+
+/** Where the whale's spout stands from its body's foot, in the body's own frame, for a whale heading right. */
+const SPOUT_AT = new THREE.Vector3(0.8, 0.4, 0.1);
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
 
 /**
  * Whale: surfaces (pop-up), swims, blows; then dives (the body folds away and is gone) and only then, a little
@@ -85,21 +106,24 @@ class Whale implements Encounter {
   constructor(x: number, z: number, private readonly dir: number) {
     this.group.position.set(x, 0.006, z);
     const flip = mirrorFor('whale', dir);
-    this.body = popCard('whale', 1.1, flip, this.bodyFold);
-    this.spout = popCard('spout', 0.9, false, this.spoutFold);
-    this.spout.position.set(0.8 * dir, 0.4, 0.03);
+    const yaw = popYaw();
+    this.body = popCard('whale', 1.1, flip, this.bodyFold, { yaw });
+    // the spout stands square with the body, clear in front of its head, and folds forward: rising and folding it
+    // never cuts through the body
+    this.spout = popCard('spout', 0.9, false, this.spoutFold, { yaw, foldAngle: Math.PI / 2 });
+    this.spout.position.copy(SPOUT_AT).setX(SPOUT_AT.x * dir).applyAxisAngle(Y_AXIS, yaw);
     this.tail = new THREE.Group();
     this.tailSway.add(createCard(spriteArt('whale-tail', { height: 1.2 }), { flipX: flip }));
     this.tail.add(this.tailSway);
     this.tailFold.add(this.tail, { size: 1.2, seed: random(), wobble: 1.6 });
     this.group.add(this.body, this.spout, this.tail);
+    this.bodyFold.setTarget(1);
   }
 
   update(dt: number): boolean {
     const t0 = this.t;
     this.t += dt;
     const t = this.t;
-    if (crossed(t0, t, 0)) this.bodyFold.setTarget(1);
     if (t < 6.8 && !blocked(this.group, this.dir * 1.6, 0, 0.6)) this.group.position.x += this.dir * 0.45 * dt;
     if (crossed(t0, t, 2.2)) {
       this.spoutFold.setTarget(1);
@@ -591,6 +615,8 @@ export class SeaLife {
   }
 
   private add(e: Encounter): void {
+    // (posed once before it is first drawn: what lies folded is hidden from the start, never shown flat for a frame)
+    e.update(0, this.ship);
     this.encounters.push(e);
     this.group.add(e.group);
   }

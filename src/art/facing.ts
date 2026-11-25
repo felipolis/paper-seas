@@ -4,7 +4,8 @@
  * the other way shows its print mirrored. (The land's animals keep theirs with their behaviour, world/critters.ts.)
  */
 const FACES: Record<string, 1 | -1> = {
-  whale: 1,
+  // breaching, the pleated throat rising ahead: it heads left
+  whale: -1,
   // (seen from behind: either way)
   'whale-tail': 1,
   // a leap: the head up ahead, the tail down behind
@@ -12,7 +13,8 @@ const FACES: Record<string, 1 | -1> = {
   'dolphin-1': -1,
   'flying-fish': -1,
   'fish-school': -1,
-  turtle: -1,
+  // the head up at the right
+  turtle: 1,
   // the tail trails behind, at the lower right
   manta: -1,
   // (seen from the front: either way)
