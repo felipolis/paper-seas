@@ -18,14 +18,14 @@ import { PAPER } from '../config/view';
 import { cardFibre } from '../art/paper-maps';
 import { SHADOW, SHADOW_GLOBALS } from './shadows';
 import { glowLike } from './glow';
+import { POOL_COUNT, poolUniforms } from './lamp-pools';
 
 /** papertrails' cardstock with its card maps (config/render.js `lights.paper` there, the `asset*` values). */
 const CARDSTOCK = {
   /** World units per tile of the card maps. */
   tile: 2.0,
-  /** Albedo swing of the tooth, of the 0.15-0.3 unit mottling, and of the broad mottle relative to the mottling. */
+  /** Albedo swing of the tooth, and of the broad mottle relative to the 0.15-0.3 unit mottling (PAPER.cloud). */
   tooth: 0.36,
-  cloud: 0.085,
   broad: 1.2,
   /** Weight and frequency of the fine octave. */
   fine: 0.45,
@@ -126,7 +126,7 @@ export interface PaperOptions {
   side?: THREE.Side;
 }
 
-type PaperLighting = Record<'uPaperWrap' | 'uPaperPointWrap' | 'uPaperTrans', THREE.IUniform<number>> &
+type PaperLighting = Record<'uPaperWrap' | 'uPaperPointWrap' | 'uPaperTrans' | 'uPaperCloud', THREE.IUniform<number>> &
   Record<'uPaperTransTint' | 'uPaperShadowLeak', THREE.IUniform<THREE.Color>>;
 
 /** Shared paper lighting uniforms (one object: tweak once, every card follows; the day / night look writes them). */
@@ -137,6 +137,8 @@ export const paperLighting: PaperLighting = {
   uPaperTransTint: { value: new THREE.Color(PAPER.translucencyTint) },
   /** The warm light leaking into the key's shadow (bounced off the cream page). */
   uPaperShadowLeak: { value: new THREE.Color(PAPER.shadowLeak) },
+  /** The mottling's swing (calmer at night). */
+  uPaperCloud: { value: PAPER.cloud },
 };
 
 /**
@@ -195,6 +197,7 @@ export function createPaperMaterial(o: PaperOptions = {}): THREE.MeshLambertMate
   const back = o.back === undefined ? PALETTE.kraft : o.back;
   const uniforms = {
     ...paperLighting,
+    ...poolUniforms,
     uPaperBack: { value: new THREE.Color(back ?? '#ffffff') },
     uPaperBackOn: { value: back === null ? 0 : 1 },
     uPaperFibreTex: { value: cardFibre() },
@@ -216,9 +219,10 @@ export function createPaperMaterial(o: PaperOptions = {}): THREE.MeshLambertMate
       .replace('#include <color_fragment>', FRAG_FIBRE)
       .replace('#include <alphatest_fragment>', FRAG_CUT)
       .replace('#include <normal_fragment_maps>', FRAG_NORMAL)
-      .replace('#include <lights_fragment_begin>', PAPER_LIGHTS_BEGIN);
+      .replace('#include <lights_fragment_begin>', PAPER_LIGHTS_BEGIN)
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${FRAG_POOL}`);
   };
-  mat.customProgramCacheKey = () => 'paper-v8';
+  mat.customProgramCacheKey = () => 'paper-v9';
   return mat;
 }
 
@@ -226,6 +230,7 @@ const f = (v: number) => v.toFixed(4);
 
 const VERT_COMMON = /* glsl */ `#include <common>
 varying vec3 vPaperPos;
+varying vec3 vPaperWorld;
 varying vec3 vPaperNrm;
 varying float vPaperTone;
 // 1 on a card's cut edge (its walls, popup/card.ts): coloured by its vertex colour alone, not the print
@@ -258,6 +263,7 @@ const VERT_PROJECT = /* glsl */ `#include <project_vertex>
   // world-scaled object coordinates (so the grain has the same size on every card, instanced or not)
   vPaperPos = transformed * vec3( length( paperM[0].xyz ), length( paperM[1].xyz ), length( paperM[2].xyz ) );
   vPaperNrm = objectNormal;
+  vPaperWorld = ( paperM * vec4( transformed, 1.0 ) ).xyz;
   // per-sheet tone: smooth in the sheet's origin (so a moving sheet never flickers) + a hash of the instance id
   vec3 paperO = paperM[3].xyz;
   float paperTn = paperVNoise( paperO.xz * 1.13 + paperO.y * 2.71 );
@@ -274,9 +280,24 @@ const VERT_PROJECT = /* glsl */ `#include <project_vertex>
   #endif
 }`;
 
+/** papertrails' lamp pools (render/lamp-pools.ts): warm light on the paper round each lit lamp, night only. */
+const FRAG_POOL = /* glsl */ `
+if ( uPaperPoolCol.w > 0.0 ) {
+  float pL = 0.0;
+  for ( int i = 0; i < ${POOL_COUNT}; i ++ ) {
+    vec4 pp = uPaperPool[ i ];
+    float pf = max( 0.0, 1.0 - distance( vPaperWorld, pp.xyz ) / uPaperPoolCol.w );
+    pL += pp.w * pf * pf;
+  }
+  totalEmissiveRadiance += diffuseColor.rgb * uPaperPoolCol.rgb * pL;
+}`;
+
 const FRAG_COMMON = /* glsl */ `#include <common>
 ${SHADOW_GLOBALS}
 varying vec3 vPaperPos;
+varying vec3 vPaperWorld;
+uniform vec4 uPaperPool[ ${POOL_COUNT} ];
+uniform vec4 uPaperPoolCol;
 varying vec3 vPaperNrm;
 varying float vPaperTone;
 varying float vPaperWall;
@@ -289,6 +310,7 @@ uniform float uPaperRelief;
 uniform float uPaperWrap;
 uniform float uPaperPointWrap;
 uniform float uPaperTrans;
+uniform float uPaperCloud;
 uniform vec3 uPaperTransTint;
 uniform vec3 uPaperShadowLeak;
 uniform vec2 uPageFocus;
@@ -357,7 +379,7 @@ const FRAG_FIBRE = /* glsl */ `#include <color_fragment>
   float tooth = ( paperF1.b - 0.5 ) + ( paperF2.b - 0.5 ) * ${f(CARDSTOCK.fine)};
   float cloud = ( paperF1.a - 0.5 ) + ( paperF3.a - 0.5 ) * ${f(CARDSTOCK.broad)};
   // (6.25 undoes the packing: the detail and the cloud are stored at 0.16 of their swing)
-  diffuseColor.rgb *= max( 0.0, 1.0 + ( tooth * ${f(CARDSTOCK.tooth)} + cloud * ${f(CARDSTOCK.cloud)} ) * 6.25 * uPaperFibreAmt );
+  diffuseColor.rgb *= max( 0.0, 1.0 + ( tooth * ${f(CARDSTOCK.tooth)} + cloud * uPaperCloud ) * 6.25 * uPaperFibreAmt );
 }
 #endif
 #ifndef PAPER_NO_VARY

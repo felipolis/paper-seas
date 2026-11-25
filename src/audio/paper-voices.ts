@@ -130,6 +130,17 @@ export class PaperVoices {
     g.waiting = c;
   }
 
+  /**
+   * The rise of gesture `key` was called off before its pieces moved: its flap, if still waiting for its slot, is
+   * dropped (papertrails voices a flap only as it starts moving, so a rise called off is never heard).
+   */
+  cancel(key: string): void {
+    const g = this.gestures.get(`${key}|1`);
+    if (!g?.waiting) return;
+    if (this.queued === g.waiting) this.queued = null;
+    g.waiting = null;
+  }
+
   /** The hull struck a shore. */
   knock(strength: number, seed: number): void {
     const now = this.ctx.currentTime;

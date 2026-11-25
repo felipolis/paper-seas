@@ -114,7 +114,9 @@ What papertrails does, Paper Seas does the same way (its traveller is as tall as
   in depth steps, with current dashes flowing down, papertrails' floating leaves (with their shadow and midrib) and
   faint current lines riding the same flow, and a sandy cut bank; each begins and ends in a round pool. They mirror
   the world as the sea does (papertrails mirrors its rivers), reading the sea's mirror image at their own height on the
-  land: no second pass, and off by less than the image's own ripple.
+  land: no second pass, and off by less than the image's own ripple. At night (papertrails' night water, both) the water
+  sinks into a deep blue, the mirrored paper into a paler blue while the mirrored lights stay bright and pull out into
+  warm broken streaks toward the viewer, and every lamp pool lays a warm streak on the water before it.
 - **Wind** (`world/wind.ts`): every standing card rocks by its height, thinness and kind, in travelling gusts, as
   strongly as papertrails' wind blows in its biome (the meadow 0.85 of the jungle's, the pine woods all but still at
   0.32).
@@ -125,12 +127,17 @@ What papertrails does, Paper Seas does the same way (its traveller is as tall as
   nook is left to wedge in), so asking how much room there is costs one read whatever stands round it. The captain
   moves on it: a step is taken if it leaves room or is no tighter than where he stands, a blocked step slides along
   the obstacle or goes round it, so he is never pinned.
-- **Light** (`render/shadows.ts`, `config/time.ts`, `config/view.ts`): the papercraft skill's light. By day a warm key from
-  screen-left 45 degrees up, a warm frontal fill at ~0.27 of it, soft paper shadows (PCSS) with a warm amber leak; by
-  night an even pale-blue moon that keeps every card coloured and readable, the warmth in the windows and lanterns, navy
-  only in the far haze and the deep shadows (never a filter over the frame), a lantern on the captain. The clock eases
-  from the day look into the night look over an hour and a half round dusk (and back round dawn): only the two looks,
-  mixed.
+- **Light** (`render/shadows.ts`, `config/time.ts`, `config/view.ts`, `render/biome-look.ts`, `render/lamp-pools.ts`):
+  the papercraft skill's light. By day a warm key from screen-left 45 degrees up, a warm frontal fill at ~0.27 of it,
+  soft paper shadows (PCSS) with a warm amber leak; by night an even pale-blue moon that keeps every card coloured and
+  readable, the warmth in the windows and lanterns, navy only in the far haze and the deep shadows (never a filter over
+  the frame), a lantern on the captain, papertrails' night blur (16 px, less toward the camera) and calmer paper mottle,
+  and its lamp pools: warm light on the page and the paper round the six lit lamps (lantern posts, campfires) nearest
+  the traveller, with no real light. The clock eases from the day look into the night look over an hour and a half round
+  dusk (and back round dawn). Each biome has its own pair of looks, papertrails' biome grade blended by the biomes round
+  the traveller: the meadow its blossom (peach and lilac), the pine woods its pinewood (a weak warm sun through the
+  canopy, teal, misty); as our plain look is the skill's, each is ported as the change papertrails' biome makes to its
+  own plain look, the haze's amount staying the skill's.
 - **Life** (`life/`, `world/critters.ts`): papertrails' densities per biome (its rows mapped to ours: the meadow its
   blossom, the pine woods its pinewood, the jungle and rocks its heartland, sand its desert): falling leaves in five
   autumn colours and blossom petals that settle and fade, drifting dust, butterflies with hinged wings, fireflies over

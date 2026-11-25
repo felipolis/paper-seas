@@ -15,7 +15,8 @@ import * as THREE from 'three';
 import { POST, NIGHT } from '../config/view';
 import { clamp } from '../core/math';
 import { CloudShadows } from './cloud-shadows';
-import { blend, pair, type Pair } from './colour-pair';
+import { blend, pair } from './colour-pair';
+import type { BiomeLook } from './biome-look';
 import { AO_FRAG, BLOOM_DOWN_FRAG, BLUR_FRAG, COMPOSITE_FRAG, FILL_FRAG, GATHER_FRAG, PRE_FRAG, TILE_FRAG, VERT } from './post-shaders';
 
 /** papertrails' reference framing: the focus 17 units from the camera (the gobo and the haze scale from it). */
@@ -79,13 +80,7 @@ function inverseTone(colour: THREE.Color, P: Tone, out: THREE.Color): THREE.Colo
 /** setNight's steps from day to night. */
 const NIGHT_STEPS = 200;
 
-const COLOURS = {
-  background: pair(POST.background, NIGHT.background),
-  fade: pair(POST.fade.color, NIGHT.fade.color),
-  vignette: pair(POST.vignetteColor, NIGHT.vignetteColor),
-  shadowTint: pair(POST.shadowTint, NIGHT.shadowTint),
-  aoTint: pair(POST.aoTint, NIGHT.aoTint),
-};
+const VIGNETTE = pair(POST.vignetteColor, NIGHT.vignetteColor);
 
 export class PostChain {
   private readonly sceneTarget: THREE.WebGLRenderTarget;
@@ -135,13 +130,15 @@ export class PostChain {
   private readonly background = new THREE.Color();
   /** The night amount the look was last blended for, and the blended values that are finished per frame. */
   private night = -1;
-  private readonly look: Record<'exposure' | 'goboKey' | 'fadeStart' | 'fadeEnd', number> = { exposure: POST.exposure, goboKey: POST.gobo.key, fadeStart: POST.fade.start, fadeEnd: POST.fade.end };
+  private readonly look: Record<'exposure' | 'goboKey' | 'fadeStart' | 'fadeEnd' | 'maxBlurPx' | 'focusBand', number> = { exposure: POST.exposure, goboKey: POST.gobo.key, fadeStart: POST.fade.start, fadeEnd: POST.fade.end, maxBlurPx: POST.maxBlurPx, focusBand: POST.focusBand };
+  /** The biome look's version the grade was last blended for. */
+  private version = -1;
   private readonly focusWorld = new THREE.Vector3();
   private readonly _v = new THREE.Vector3();
   private readonly _c = new THREE.Color();
   private height = 1;
 
-  constructor(private readonly renderer: THREE.WebGLRenderer, private readonly scene: THREE.Scene, private readonly camera: THREE.PerspectiveCamera) {
+  constructor(private readonly renderer: THREE.WebGLRenderer, private readonly scene: THREE.Scene, private readonly camera: THREE.PerspectiveCamera, look: BiomeLook) {
     scene.background = this.background;
     const depth = new THREE.DepthTexture(1, 1);
     depth.type = THREE.UnsignedIntType;
@@ -207,54 +204,62 @@ export class PostChain {
       uSpill: { value: POST.spill },
       uRimColor: { value: new THREE.Color(POST.rimColor) },
     });
-    this.setNight(0);
+    this.setLook(look, 0);
   }
 
   /**
-   * night: 0 day .. 1 night; blends every term of the look toward the night set, and pre-compensates the surround, the
+   * look: the biome's look by day and by night (render/biome-look.ts); night: 0 day .. 1 night; blends every term of
+   * the look toward the night set, and pre-compensates the surround, the
    * haze and the vignette's colour for the tone curve at the normal framing (the vignette's and the haze's come out
    * their colour on screen; the surround is then hazed like any far pixel). It works in NIGHT_STEPS steps: the colours
    * move by a fraction of a percent between two, and each step costs three tone inversions.
    */
-  setNight(amount: number): void {
+  setLook(biome: BiomeLook, amount: number): void {
     const night = Math.round(amount * NIGHT_STEPS) / NIGHT_STEPS;
-    if (night === this.night) return;
+    if (night === this.night && biome.version === this.version) return;
     this.night = night;
+    this.version = biome.version;
+    const D = biome.day;
+    const N = biome.night;
     const mix = (day: number, nightValue: number) => day + (nightValue - day) * night;
-    const tween = (out: THREE.Color, p: Pair) => blend(out, p, night);
+    const tween = (out: THREE.Color, day: THREE.Color, nightColour: THREE.Color) => out.copy(day).lerp(nightColour, night);
     const C = this.common;
     const u = this.compositeMat.uniforms;
     const L = this.look;
-    L.exposure = mix(POST.exposure, NIGHT.exposure);
-    L.goboKey = mix(POST.gobo.key, NIGHT.gobo.key);
-    L.fadeStart = mix(POST.fade.start, NIGHT.fade.start);
-    L.fadeEnd = mix(POST.fade.end, NIGHT.fade.end);
+    L.exposure = mix(D.exposure, N.exposure);
+    L.goboKey = mix(D.gobo.key, N.gobo.key);
+    L.fadeStart = mix(D.fade.start, N.fade.start);
+    L.fadeEnd = mix(D.fade.end, N.fade.end);
+    L.focusBand = mix(D.focusBand, N.focusBand);
+    C.uDofC.value.x = mix(D.farGain, N.farGain);
+    L.maxBlurPx = mix(POST.maxBlurPx, NIGHT.maxBlurPx);
+    C.uDofB.value.w = mix(POST.nearGain, NIGHT.nearGain);
 
     const tone = u.uTone.value as THREE.Vector4;
-    tone.y = mix(POST.contrast, NIGHT.contrast);
-    tone.z = mix(POST.saturation, NIGHT.saturation);
+    tone.y = mix(D.contrast, N.contrast);
+    tone.z = mix(D.saturation, N.saturation);
     tone.w = mix(POST.shadowLift, NIGHT.shadowLift);
     const tint = u.uTint.value as THREE.Vector3;
-    tint.set(mix(POST.tint[0], NIGHT.tint[0]), mix(POST.tint[1], NIGHT.tint[1]), mix(POST.tint[2], NIGHT.tint[2]));
+    tint.set(mix(D.tint[0], N.tint[0]), mix(D.tint[1], N.tint[1]), mix(D.tint[2], N.tint[2]));
     // (papertrails adds its shadow tint after the tone curve, as an sRGB colour)
-    tween(u.uShadowTint.value as THREE.Color, COLOURS.shadowTint).convertLinearToSRGB();
-    u.uLens.value.x = mix(POST.vignette, NIGHT.vignette);
+    tween(u.uShadowTint.value as THREE.Color, D.shadowTint, N.shadowTint).convertLinearToSRGB();
+    u.uLens.value.x = mix(D.vignette, N.vignette);
     u.uLens.value.y = mix(POST.grain, NIGHT.grain);
     u.uFx.value.x = mix(POST.bloom, NIGHT.bloom);
     u.uFx.value.y = mix(POST.rim, NIGHT.rim);
     u.uSpill.value = mix(POST.spill, NIGHT.spill);
     this.bloomDownMat.uniforms.uThreshold.value = mix(POST.bloomThreshold, NIGHT.bloomThreshold);
     (this.aoMat.uniforms.uAo.value as THREE.Vector3).set(mix(POST.aoRadius, NIGHT.aoRadius), mix(POST.aoIntensity, NIGHT.aoIntensity), POST.aoBias);
-    tween(C.uAoTint.value, COLOURS.aoTint);
-    C.uDofC.value.y = mix(POST.greenPull, NIGHT.greenPull);
-    C.uDofC.value.z = mix(POST.split, NIGHT.split);
-    C.uGobo2.value.x = mix(POST.gobo.tint, NIGHT.gobo.tint);
+    tween(C.uAoTint.value, D.aoTint, N.aoTint);
+    C.uDofC.value.y = mix(D.greenPull, N.greenPull);
+    C.uDofC.value.z = mix(D.split, N.split);
+    C.uGobo2.value.x = mix(D.gobo.tint, N.gobo.tint);
     C.uGobo2.value.w = mix(POST.fade.amount, NIGHT.fade.amount);
 
     const P: Tone = { exposure: L.exposure, contrast: tone.y, saturation: tone.z, tint };
-    inverseTone(tween(this._c, COLOURS.background), P, this.background);
-    inverseTone(tween(this._c, COLOURS.fade), P, C.uFade.value);
-    inverseTone(tween(this._c, COLOURS.vignette), P, u.uVignetteColor.value as THREE.Color);
+    inverseTone(tween(this._c, D.background, N.background), P, this.background);
+    inverseTone(tween(this._c, D.fade.color, N.fade.color), P, C.uFade.value);
+    inverseTone(blend(this._c, VIGNETTE, night), P, u.uVignetteColor.value as THREE.Color);
   }
 
   /** Drifts the cloud shadows on with the wind round the traveller (fx, fz); they are gone at night (0..1). */
@@ -321,8 +326,8 @@ export class PostChain {
     const cot = Math.max(0.1, Math.sqrt(1 - sinP * sinP) / sinP);
     C.uDofA.value.set(fz, Math.min(0.9, Math.max(0.1, fy)), Math.min(9, 1 / (2 * Math.atan(tanHalf) * cot)), POST.depthWeight);
     const bandScale = Math.min(POST.closeBandScale, Math.max(1, 12 / fz));
-    const blurPx = (POST.maxBlurPx * H) / 1080;
-    C.uDofB.value.x = (POST.focusBand * bandScale) / 2;
+    const blurPx = (this.look.maxBlurPx * H) / 1080;
+    C.uDofB.value.x = (this.look.focusBand * bandScale) / 2;
     C.uDofB.value.z = blurPx;
     (this.fillMat.uniforms.uFill.value as THREE.Vector2).y = blurPx;
     C.uFocusW.value.copy(this.focusWorld);

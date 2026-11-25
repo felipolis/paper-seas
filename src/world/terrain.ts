@@ -598,13 +598,16 @@ export class Terrain {
     this.clock += dt;
     for (const c of this.chunks.values()) {
       for (const h of c.houses) {
-        // the same rules as the cards of the cell it stands in (papertrails' tiles, a house and all): it waits while the
-        // traveller crosses the cell, takes one of the frame's rise slots, and a rise still waiting is called off once
-        // the cell is no longer wanted
+        // the same rules as the cards of the cell it stands in (papertrails' tiles, a house and all): it waits while
+        // the traveller crosses the cell, takes one of the frame's rise slots, and a rise still waiting is called off
+        // once the cell is no longer wanted
         const cx = cellCentre(h.x);
         const cz = cellCentre(h.z);
         const fold = h.fold;
-        if (fold.risePending && !reveal.wanted(cx, cz)) fold.cancelRise();
+        if (fold.risePending && !reveal.wanted(cx, cz)) {
+          fold.cancelRise();
+          bus.emit('paperCancel', { key: cellGesture(h.x, h.z) });
+        }
         else if (fold.target !== 1 && reveal.mayFlip(cx, cz, this.flips.get(h) ?? -99, this.clock) && reveal.wantsUp(cx, cz)) {
           const held = this.held.get(h) ?? 0;
           if (reveal.holds(cx, cz, held)) this.held.set(h, held + dt);

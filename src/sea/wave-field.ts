@@ -35,6 +35,11 @@ const FOLD_ANGLE = -Math.PI / 2;
 /** Waves rising in one patch this wide (world units) are one gesture: one flap speaks for them. */
 const WAVE_PATCH = 6;
 
+/** The sound gesture of a wave: its patch. */
+function waveGesture(w: { x: number; z: number }): string {
+  return `w${Math.floor(w.x / WAVE_PATCH)},${Math.floor(w.z / WAVE_PATCH)}`;
+}
+
 interface Wave {
   x: number;
   z: number;
@@ -130,6 +135,8 @@ export class WaveField {
         if (distanceToSegment(wave.x, wave.z, ship.sternX, ship.sternZ, ship.bowX, ship.bowZ) < wakeR + 0.45 * wave.scale) {
           // (a standing wave is knocked down; one still lying flat, waiting to rise, just stays down)
           if (flap.target === 1) flap.impulse(-2.5 - ship.speed * 0.8);
+          // (a rise still waiting is called off, its flap with it)
+          if (flap.target === 0 && flap.pendingTarget === 1) bus.emit('paperCancel', { key: waveGesture(wave) });
           if (flap.target === 1 || flap.pendingTarget === 1) flap.setTarget(0);
           wave.pressedUntil = this.time + W.waveHold;
         } else if (this.time >= wave.pressedUntil) {
@@ -140,7 +147,7 @@ export class WaveField {
             const delay = sd * W.waveRipple + wave.phase * 0.12;
             // (a patch of waves rising together is one gesture: one sound for it, not a rustle while the ship sails)
             if (flap.target === 0 && flap.pendingTarget !== 1 && sd < 7) {
-              bus.emit('paper', { x: wave.x, z: wave.z, height: this.heights[v] * wave.scale, up: true, delay, key: `w${Math.floor(wave.x / WAVE_PATCH)},${Math.floor(wave.z / WAVE_PATCH)}` });
+              bus.emit('paper', { x: wave.x, z: wave.z, height: this.heights[v] * wave.scale, up: true, delay, key: waveGesture(wave) });
             }
             flap.setTarget(1, flap.target === 1 ? 0 : delay);
           } else if (reveal.wantsDown(wave.x, wave.z)) {

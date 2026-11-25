@@ -63,6 +63,8 @@ export const PAPER = {
   translucencyTint: '#ffb070',
   /** Warm amber leaking into the key's shadow, so shadows on the warm ground come out warmer than it, never grey (the skill's day leak). */
   shadowLeak: '#a0602c',
+  /** Albedo swing of the paper's 0.15-0.3 unit mottling (papertrails' fibreCloud). */
+  cloud: 0.085,
 } as const;
 
 export const POST = {
@@ -81,7 +83,7 @@ export const POST = {
    */
   gobo: { radius: 9, key: 0.12, tint: 0.07, closeRelief: 0.7 },
 
-  // ---- depth of field: tilt-shift, papertrails' (config/render.js dof there; the same by day and by night) ----
+  // ---- depth of field: tilt-shift, papertrails' (config/render.js dof there; its night blurs more, see NIGHT) ----
   /** Fraction of the frame height around the focus that stays fully sharp. */
   focusBand: 0.36,
   /** Fraction of the frame height over which blur ramps up beyond the band. */
@@ -155,7 +157,7 @@ export const NIGHT = {
   fill: { color: '#7890d0', intensity: 0.7, elevationDeg: 24 },
   hemi: { sky: '#3a56b0', ground: '#22243a', intensity: 0.85 },
   /** Paper response: faces turned from the moon keep their colour; back-lit card glows cool; a navy shadow leak. */
-  paper: { wrap: 0.4, translucency: 0.12, translucencyTint: '#7fa0d8', shadowLeak: '#26368a' },
+  paper: { wrap: 0.4, translucency: 0.12, translucencyTint: '#7fa0d8', shadowLeak: '#26368a', cloud: 0.05 },
   /** PCSS light size (penumbra per unit of blocker distance). */
   lightSize: 0.22,
   gobo: { key: 0.2, tint: 0.05 },
@@ -164,6 +166,9 @@ export const NIGHT = {
   background: '#070a24',
 
   exposure: 1.0,
+  /** papertrails' night depth of field (render/biomegrade.js there): a wider blur, less of it toward the camera. */
+  maxBlurPx: 16,
+  nearGain: 1.2,
   bloom: 0.3,
   bloomThreshold: 1.25,
   spill: 7.5,

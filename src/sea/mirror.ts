@@ -8,9 +8,15 @@
  * from 2h lower: the ray they read instead parts from the true one by 2h x (how far past the water the mirrored
  * thing is) / (how far the camera is), about 0.03 for a tree on the bank seen on foot, below the image's own ripple.
  * papertrails' page is flat and all its water one plane, so it has the one image too.
+ *
+ * At night (papertrails' water.js WATER_GLOW_GLSL and the night part of WATER_MIRROR_GLSL) the water sinks into a deep
+ * blue, the mirrored paper sinks into the blue while the mirrored lights stay bright and pull out into warm broken
+ * streaks toward the viewer, and every lamp pool (render/lamp-pools.ts) lays a warm streak on the water before it. The
+ * night comes in with the pools.
  */
 import * as THREE from 'three';
 import type { Reflection } from '../render/reflection';
+import { POOL_COUNT, poolUniforms } from '../render/lamp-pools';
 
 /**
  * papertrails' mirror (config/world.js water.mirror there, render/water.js WATER_DEFAULTS.mirror): its sideways
@@ -22,6 +28,14 @@ const MIRROR_STRENGTH = '0.7';
 const MIRROR_TINT = '0.6';
 const MIRROR_GAIN = '0.88';
 const MIRROR_HOT = '0.62';
+/**
+ * papertrails' night water: its colour multiplied toward deep blue, its mirrored paper toward a paler blue, the strength
+ * of the lamp pools' streaks (water.streak) and of the lights' streaks in the mirror.
+ */
+const NIGHT_WATER = 'vec3(0.42, 0.52, 0.7)';
+const NIGHT_MIRROR = 'vec3(0.55, 0.66, 0.82)';
+const POOL_STREAK = '0.55';
+const LIGHT_STREAK = '0.42';
 /**
  * papertrails only ever shows its mirror on foot, the focus 10.8 from its camera; the ripple's wave trains and
  * displacement are sized for that framing. Seen from further (the ship's 18), the same world sizes would shrink to
@@ -41,6 +55,8 @@ const uniforms = {
   uReflOn: { value: 0 },
   uReflScale: { value: 1 },
   uReflAnchor: { value: new THREE.Vector4(0, 0, 0, 0) },
+  // the lamp pools (their lamps for the streaks, their colour for how far into the night it is)
+  ...poolUniforms,
 };
 
 /** The mirror's uniforms, shared by every water material (spread them into its own). */
@@ -74,7 +90,8 @@ export function frameMirrorRipple(cameraDistance: number, fx: number, fz: number
 /**
  * mirrorImage(p, h, col, clear): the mirror at the water point p (world x, z) at the height h of its water (see above),
  * over the water colour col; clear: how much of that pixel is open water (dashes and foam hide the image). It leaves
- * the image's colour in gMirror and how much of the paper it replaces in gMirrorW (0 with no mirror this frame). After
+ * the image's colour in gMirror and how much of the paper it replaces in gMirrorW (0 with no mirror this frame), marks
+ * the pixel as water (gMirrorWater, for the night's blue) and leaves the night's warm streaks in gMirrorStreak. After
  * WATER_GLSL (uTime).
  */
 export const MIRROR_GLSL = /* glsl */ `
@@ -83,13 +100,35 @@ uniform mat4 uReflMatrix;
 uniform float uReflOn;
 uniform float uReflScale;    // the ripple's size relative to papertrails' (its framing / ours, at least 1)
 uniform vec4 uReflAnchor;    // the wave laid out as (p - xy) / uReflScale + zw
+uniform vec4 uPaperPool[ ${POOL_COUNT} ];
+uniform vec4 uPaperPoolCol;
 vec3 gMirror;
 float gMirrorW;
+float gMirrorWater;
+vec3 gMirrorStreak;
+/** How far into the night the water is (papertrails: with the lamp pools' colour). */
+float waterNight() {
+  return uPaperPoolCol.w > 0.0 ? clamp(uPaperPoolCol.r * 1.2, 0.0, 1.0) : 0.0;
+}
 void mirrorImage(vec2 p, float h, vec3 col, float clear) {
   gMirror = vec3(0.0);
   gMirrorW = 0.0;
-  if (uReflOn < 0.5) return;
+  gMirrorWater = 1.0;
+  gMirrorStreak = vec3(0.0);
   float T = uTime;
+  float nk = waterNight();
+  if (nk > 0.0) {
+    // under every lamp pool a warm streak runs toward the camera (it looks north: the streak lies to the lamp's south)
+    float wg = 0.0;
+    for (int i = 0; i < ${POOL_COUNT}; i++) {
+      vec4 pp = uPaperPool[i];
+      vec2 dl = p - pp.xz;
+      float sx = dl.x + 0.035 * sin(dl.y * 38.0 - T * 2.0);
+      wg += pp.w * exp(-sx * sx / 0.007) * smoothstep(0.05, 0.3, dl.y) * (1.0 - smoothstep(0.6, 2.1, dl.y)) * (0.55 + 0.45 * sin(dl.y * 64.0 + T * 1.7));
+    }
+    gMirrorStreak += wg * ${POOL_STREAK} * uPaperPoolCol.rgb;
+  }
+  if (uReflOn < 0.5) return;
   // papertrails' real mirror: the image sways sideways on its broad wave train (period 0.15 units, its WKF(1700)),
   // MIRROR_DISTORT units at most, uReflScale larger so it is the size on screen it is in papertrails at its framing.
   // Its finer train (WKF(4100), which also dimmed the image in bands) is left out: over a dark hull on our paler sea
@@ -98,22 +137,36 @@ void mirrorImage(vec2 p, float h, vec3 col, float clear) {
   vec2 rp = (p - uReflAnchor.xy) / uReflScale + uReflAnchor.zw;
   float w1 = sin(rp.y * 41.72 + T * 1.5 + 1.8 * sin(rp.x * 6.381 + T * 0.45));
   vec4 rc4 = uReflMatrix * vec4(p.x + w1 * ${MIRROR_DISTORT} * uReflScale, h, p.y, 1.0);
-  vec4 m = texture2D(uRefl, rc4.xy / rc4.w);
+  vec2 ruv = rc4.xy / rc4.w;
+  vec4 m = texture2D(uRefl, ruv);
   float cover = clamp(m.a, 0.0, 1.0) * clamp(clear, 0.0, 1.0);
   // its colour: the image tinted MIRROR_TINT of the way to the water under it and a little darker (MIRROR_GAIN);
-  // what is brighter than paper (lit panes, lanterns) stays bright and untinted (MIRROR_HOT), and always shows
+  // what is brighter than paper (lit panes, lanterns) stays bright and untinted (MIRROR_HOT), and always shows; at
+  // night the paper sinks into the blue, the lights do not
   vec3 rcol = m.rgb / max(m.a, 0.05);
   vec3 rtint = mix(vec3(1.0), col / max(max(col.r, max(col.g, col.b)), 0.05), ${MIRROR_TINT});
   float rhot = smoothstep(0.9, 2.2, max(rcol.r, max(rcol.g, rcol.b)));
-  gMirror = rcol * mix(rtint * ${MIRROR_GAIN}, vec3(${MIRROR_HOT}), rhot);
+  gMirror = rcol * mix(rtint * ${MIRROR_GAIN} * mix(vec3(1.0), ${NIGHT_MIRROR}, nk), vec3(${MIRROR_HOT}), rhot);
   gMirrorW = max(cover * ${MIRROR_STRENGTH}, rhot * cover);
+  if (nk > 0.05) {
+    // the lit panes and lamps in the mirror pull out into warm broken streaks toward the viewer (4 taps up the image)
+    float sk = 0.0;
+    for (int i = 1; i <= 4; i++) {
+      vec2 su = ruv + vec2(0.0025 * sin(gl_FragCoord.y * 0.21 + T * 2.0 + float(i)), 0.011 * float(i));
+      vec4 s4 = texture2D(uRefl, su);
+      vec3 sc4 = s4.rgb / max(s4.a, 0.05);
+      sk += smoothstep(0.95, 2.2, max(sc4.r, max(sc4.g, sc4.b))) * clamp(s4.a, 0.0, 1.0) * (1.0 - 0.2 * float(i));
+    }
+    float brk = 0.45 + 0.55 * smoothstep(-0.3, 0.6, sin(gl_FragCoord.y * 0.75 + T * 1.7 + 3.0 * sin(gl_FragCoord.x * 0.05)));
+    gMirrorStreak += clamp(clear, 0.0, 1.0) * nk * sk * brk * ${LIGHT_STREAK} * vec3(1.0, 0.72, 0.38);
+  }
 }
 `;
 
 /** The shader lines that lay the mirror over a water material's paper (it already carries its own light). */
 export const MIRROR_APPLY = {
-  /** After the water's colour (color_fragment): the image replaces part of the diffuse paper. */
-  colour: 'diffuseColor.rgb *= 1.0 - gMirrorW;',
-  /** In emissivemap_fragment: the image itself. */
-  emissive: 'totalEmissiveRadiance += gMirror * gMirrorW;',
+  /** After the water's colour (color_fragment): the night's blue on the water, then the image replaces part of it. */
+  colour: `diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * ${NIGHT_WATER}, gMirrorWater * waterNight());\ndiffuseColor.rgb *= 1.0 - gMirrorW;`,
+  /** In emissivemap_fragment: the image itself and the night's streaks. */
+  emissive: 'totalEmissiveRadiance += gMirror * gMirrorW + gMirrorStreak;',
 };

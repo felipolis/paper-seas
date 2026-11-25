@@ -10,6 +10,8 @@ export interface GameEvents {
    * speaking).
    */
   paper: { x: number; z: number; height: number; up: boolean; delay?: number; key: string };
+  /** A rise of the gesture `key` was called off before it started: its flap, if still waiting, stays silent. */
+  paperCancel: { key: string };
   /** The sails were set or furled. */
   sails: { level: number };
   /** The voyage chart was unfolded or folded away. */

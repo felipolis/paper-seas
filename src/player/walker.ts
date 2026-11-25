@@ -53,8 +53,8 @@ const FAN = [0.6, 1.05, 1.45];
 /** Sub-steps held before trying the other side round an obstacle (doubles at every switch). */
 const FLIP_AFTER = 24;
 
-/** The lantern he carries (papertrails: #ffc45a, 1.1 by day, 2.3 at night, reach 6.5, 0.55 above him). */
-const LANTERN = { colour: '#ffc45a', day: 1.1, night: 2.3, distance: 6.5, decay: 0.62, height: 0.55 };
+/** The lantern he carries (papertrails: #ffc45a, 1.1 by day, 2.3 at night, reach 6.5, 5.6 at night, 0.55 above him). */
+const LANTERN = { colour: '#ffc45a', day: 1.1, night: 2.3, distance: 6.5, nightDistance: 5.6, decay: 0.62, height: 0.55 };
 
 export class Walker {
   readonly group = new THREE.Group();
@@ -114,6 +114,7 @@ export class Walker {
   /** night: 0..1 (the day-night cycle's lantern level). */
   updateLantern(night: number): void {
     this.lantern.intensity = this.active ? LANTERN.day + (LANTERN.night - LANTERN.day) * night : 0;
+    this.lantern.distance = LANTERN.distance + (LANTERN.nightDistance - LANTERN.distance) * night;
     this.lantern.position.set(this.x, this.y + LANTERN.height, this.z);
   }
 

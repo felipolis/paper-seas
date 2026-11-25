@@ -109,7 +109,7 @@ ${MIRROR_APPLY.colour}`)
         .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
 ${MIRROR_APPLY.emissive}`);
     };
-    material.customProgramCacheKey = () => 'sea-v6';
+    material.customProgramCacheKey = () => 'sea-v7';
     this.mesh = new THREE.Mesh(geometry, material);
     this.mesh.receiveShadow = true;
     this.mesh.renderOrder = -1;

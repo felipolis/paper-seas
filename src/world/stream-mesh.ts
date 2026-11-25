@@ -46,7 +46,7 @@ function streamMaterial(): THREE.MeshLambertMaterial {
       .replace('#include <color_fragment>', `#include <color_fragment>\ndiffuseColor.rgb *= riverColour();\ndiffuseColor.a = gRiverCover;\n${MIRROR_APPLY.colour}`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${MIRROR_APPLY.emissive}`);
   };
-  m.customProgramCacheKey = () => 'river-v4';
+  m.customProgramCacheKey = () => 'river-v5';
   // (it lies on the land's tops, which never show in the sea: render/reflection.ts)
   mirrorSkip.add(m);
   material = m;
@@ -273,6 +273,8 @@ vec3 riverColour() {
   if (edge < 0.0) {
     gMirror = vec3(0.0);
     gMirrorW = 0.0;
+    gMirrorWater = 0.0;
+    gMirrorStreak = vec3(0.0);
     return riverBank(p, -edge, aa);
   }
   vec3 col = riverWater(p, T, s, hw, across, edge, aa);

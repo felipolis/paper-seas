@@ -30,6 +30,7 @@ import { BIOMES, type Biome } from './land';
 import { clamp } from '../core/math';
 import { cellKey } from '../core/grid';
 import { overlaps, type Box } from './polyline';
+import type { Lamp } from '../render/lamp-pools';
 
 /** papertrails' in-tile stagger span: the cards of a cell start one after another over this many seconds. */
 const STAGGER = 0.34;
@@ -135,6 +136,9 @@ function flatBounds(s: CardSpec): Box {
   return [Math.min(...xs), Math.min(...zs), Math.max(...xs), Math.max(...zs)];
 }
 
+/** The cards that are lamps (papertrails' lamp nodes: they pool light on the page at night, render/lamp-pools.ts). */
+const LAMPS = new Set(['lantern-post', 'campfire']);
+
 /** Side of the squares the folded cards are filed under (world units), to find the ones a card lies over. */
 const FLAT_CELL = 1;
 
@@ -156,6 +160,8 @@ export class CardField {
   /** Every card filed under each FLAT_CELL square its folded bounds reach. */
   private readonly flats = new Map<number, Card[]>();
   private readonly critters: Critters;
+  /** The lamp cards (see LAMPS). */
+  private lampCards: Card[] = [];
   /** This frame's step and focus, for the animals. */
   private dt = 0;
   private focusX = 0;
@@ -205,6 +211,7 @@ export class CardField {
         b.dirty = true;
       }
       out.push(card);
+      if (LAMPS.has(s.sprite)) this.lampCards.push(card);
     }
     // the rise order inside each cell, the flat stack's: the nearest first (the camera looks north, so the largest z),
     // the farthest last (a chunk holds whole cells)
@@ -248,6 +255,7 @@ export class CardField {
 
   remove(cards: Card[]): void {
     const dead = new Set(cards);
+    this.lampCards = this.lampCards.filter((c) => !dead.has(c));
     for (const [key, list] of this.flats) {
       const kept = list.filter((c) => !dead.has(c));
       if (kept.length) this.flats.set(key, kept);
@@ -270,6 +278,13 @@ export class CardField {
       for (const flip of [false, true]) this.batchesOf({ sprite, flip, cross: CROSSED.has(sprite) });
     }
     for (const biome of BIOMES) this.batch(sprites[0], false, biome);
+  }
+
+  /** The lamps standing or rising (their cards' feet, heights and progress), for the night's pools. */
+  lamps(): Lamp[] {
+    return this.lampCards
+      .filter((c) => !c.hidden && c.flap.p > 0)
+      .map((c) => ({ x: c.x, y: c.y, z: c.z, height: c.height, risen: c.flap.p }));
   }
 
   /** Hides a card for good (a collected chest). */
@@ -303,10 +318,12 @@ export class CardField {
         let stirred = false;
         const d = Math.hypot(c.x - focusX, c.z - focusZ);
         const f = c.flap;
-        // (a rise still waiting for its ripple is called off once the cell is no longer wanted: papertrails' pending tile)
+        // (a rise still waiting for its ripple is called off once the cell is no longer wanted: papertrails' pending
+        // tile)
         if (f.target === 0 && f.pendingTarget === 1 && !reveal.wanted(c.cx, c.cz)) {
           f.setTarget(0);
           c.halves?.setTarget(0);
+          bus.emit('paperCancel', { key: cellGesture(c.x, c.z) });
         }
         const up = f.target === 1 || f.pendingTarget === 1;
         const may = reveal.mayFlip(c.cx, c.cz, c.flipAt, this.time);

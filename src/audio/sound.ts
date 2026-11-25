@@ -49,6 +49,7 @@ export class Sound {
     window.addEventListener('keydown', (e) => { if (e.code === 'KeyM' && !e.repeat) this.toggleMute(); });
 
     bus.on('paper', (e) => this.paper(e.x, e.z, e.height, e.up, e.delay ?? 0, e.key));
+    bus.on('paperCancel', (e) => this.graph?.voices.cancel(e.key));
     bus.on('sails', () => this.sheet(0.8, true));
     bus.on('chart', () => this.sheet(1, false));
     bus.on('bump', (e) => this.knock(e.strength));
