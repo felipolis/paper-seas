@@ -4,7 +4,7 @@
  *   -> voyage progress -> day / night -> sound -> HUD -> post
  */
 import * as THREE from 'three';
-import { CAMERA, ON_FOOT } from '../config/view';
+import { CAMERA, ON_FOOT, VIEWS } from '../config/view';
 import { WORLD } from '../config/world';
 import { Input } from '../core/input';
 import { FollowCamera } from '../camera/follow-camera';
@@ -49,8 +49,9 @@ import { BIOMES } from '../world/land';
 const KNOTS_PER_UNIT = 3.6;
 /**
  * papertrails' camera views add a reach to the ring that stands up (camera/views.js there): none in its own framing
- * (10.8 away), 0.9 tiles in its wide view (14.5 away). Our zoom is a continuum: the reach follows that line with the
- * camera's distance (world units of reach per unit of distance; world/reveal.ts caps it at papertrails' 1.5 tiles).
+ * (10.8 away), 0.9 tiles in its wide view (14.5 away). Our zoom is a continuum too: past the view's own reach, the
+ * reach follows that line with the lens's distance (world units of reach per unit of distance; world/reveal.ts caps it
+ * at papertrails' 1.5 tiles).
  */
 const REACH_FROM = ON_FOOT.distance;
 const REACH_PER_UNIT = 1.8 / (14.5 - ON_FOOT.distance);
@@ -274,12 +275,16 @@ export class Game {
       p.vx *= Math.max(0, 1 - dt * 3);
       p.vz *= Math.max(0, 1 - dt * 3);
     }
-    this.walker.update(dt, keys, this.walkWorld);
+    this.walker.update(dt, keys, this.walkWorld, this.view.yaw);
     this.shoreLeave(keys);
     const fx = walking ? this.walker.x : p.x;
     const fz = walking ? this.walker.z : p.z;
     // (with the chart open the camera lifts off the diorama and the wheel is the chart's)
     this.view.lift += ((this.chart.isOpen ? 1 : 0) - this.view.lift) * Math.min(1, dt * 4);
+    if (keys?.wasPressed('KeyV')) {
+      const i = this.view.nextView();
+      this.hud.showView(VIEWS[i].name, i, VIEWS.length);
+    }
     const wheel = this.input.takeWheel();
     this.view.update(dt, fx, fz, walking ? this.walker.vx : p.vx, walking ? this.walker.vz : p.vz, keys ? wheel : 0, walking, walking ? this.walker.group.position.y : 0);
 
@@ -292,7 +297,7 @@ export class Game {
 
     // papertrails' rules: the ring that stands up (centred ahead of the traveller, world/reveal.ts) is its own, grown by
     // the view's reach as the camera pulls back (the haze beyond it scales with the focus distance in render/post.ts)
-    const reach = (this.view.distance - REACH_FROM) * REACH_PER_UNIT;
+    const reach = Math.max(this.view.viewReach, (this.view.lensDistance - REACH_FROM) * REACH_PER_UNIT);
     this.reveal.update(dt, fx, fz, walking ? this.walker.vx : p.vx, walking ? this.walker.vz : p.vz, reach);
     this.world.update(dt, this.reveal, fx, fz, this.dayNight.lanterns);
     // (everything in view exists: what the ring has not raised lies folded flat, face up, as papertrails shows it)
@@ -312,7 +317,8 @@ export class Game {
     this.exploration.update(dt, fx, fz, this.chart.isOpen ? 0 : 0.6);
     this.chart.update(dt);
     this.biomeLook.update(dt, this.world.land, fx, fz);
-    this.dayNight.update(dt, !!keys?.isDown('KeyT'));
+    if (keys?.wasPressed('KeyT')) this.dayNight.toggle();
+    this.dayNight.update(dt);
     this.sound.update(fx, fz);
     this.time += dt;
     // (round what the camera looks at: the captain ashore, else the ship)
@@ -320,7 +326,7 @@ export class Game {
     this.sea.follow(this.view.focus.x, this.view.focus.z);
     this.sea.setDistanceMap(this.distanceMap);
     this.sea.update(this.time);
-    frameMirrorRipple(this.view.distance, this.view.focus.x, this.view.focus.z);
+    frameMirrorRipple(this.view.lensDistance, this.view.focus.x, this.view.focus.z);
     this.lights.follow(this.view.camera, this.view.focus);
     this.hud.update(dt, {
       sailSetting: ship.sailSetting,

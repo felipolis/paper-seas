@@ -89,7 +89,8 @@ lanterns come on in the windows when night falls.
 | F | Go ashore by a coast or onto a pier (walk with WASD, Shift to run); F again by the ship to go back aboard |
 | E / Tab | Voyage chart (drag to pan, wheel to zoom) |
 | Mouse wheel | Zoom |
-| T (hold) | Fast-forward the clock |
+| T | Day ↔ night (the clock runs through the evening or the morning) |
+| V | Change view (journey, close, wide, low, postcard); ashore, WASD always walks along the screen |
 | M | Mute / unmute |
 | Esc | Pause menu, shipyard and a new voyage |
 

@@ -9,8 +9,8 @@ export const TIME = {
   cycleSeconds: 360,
   /** Clock hour at launch. */
   startHour: 9.5,
-  /** Hold T to run the clock this many times faster. */
-  fastForward: 40,
+  /** Real seconds a press of T takes to carry the clock through the evening (or the morning): papertrails' N. */
+  toggleSeconds: 1.6,
   /** Clock hours the day begins and ends. */
   dawn: 6,
   dusk: 19.5,

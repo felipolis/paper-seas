@@ -123,8 +123,12 @@ export class Walker {
     this.group.visible = false;
   }
 
-  /** input: the keys walking him (null: none, the chart is open). */
-  update(dt: number, input: Input | null, world: WalkWorld): void {
+  /**
+   * input: the keys walking him (null: none, the chart is open); yaw: the camera's turn round the vertical (radians).
+   * The keys are the screen's (papertrails' controls.js): W walks up the screen, north only while the camera looks
+   * north, and turns with it in the turned views and under the sight assist.
+   */
+  update(dt: number, input: Input | null, world: WalkWorld, yaw: number): void {
     if (!this.active) return;
     this.world = world;
     let ix = 0;
@@ -133,6 +137,8 @@ export class Walker {
     if (input?.isDown('KeyS', 'ArrowDown')) iz += 1;
     if (input?.isDown('KeyA', 'ArrowLeft')) ix -= 1;
     if (input?.isDown('KeyD', 'ArrowRight')) ix += 1;
+    // (the screen's right on the page is (cos yaw, -sin yaw), its up (-sin yaw, -cos yaw))
+    [ix, iz] = [ix * Math.cos(yaw) + iz * Math.sin(yaw), -ix * Math.sin(yaw) + iz * Math.cos(yaw)];
     const il = Math.hypot(ix, iz);
     const speed = input?.isDown('ShiftLeft', 'ShiftRight') ? RUN : SPEED;
     // constant acceleration toward the wanted velocity

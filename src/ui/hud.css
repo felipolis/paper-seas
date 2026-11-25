@@ -60,6 +60,38 @@
   color: rgb(90 58 40 / 0.86);
 }
 
+/* the camera view's name, a moment after V: a slip just above the prompt (clear of it and of the hint), turned the
+   other way */
+.hud-view {
+  position: fixed;
+  left: 50%;
+  bottom: 142px;
+  padding: 6px 16px;
+  font-size: 16px;
+  opacity: 0;
+  transform: translate(-50%, 8px) rotate(0.8deg);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.hud-view.on {
+  opacity: 1;
+  transform: translate(-50%, 0) rotate(0.8deg);
+}
+
+.hud-view b {
+  font-family: var(--serif-sc);
+  text-transform: capitalize;
+  font-weight: normal;
+  color: var(--accent);
+}
+
+.hud-view span {
+  margin-left: 6px;
+  font-size: 13px;
+  font-style: italic;
+  color: rgb(90 58 40 / 0.7);
+}
+
 /* a small paper prompt over the scene */
 .hud-prompt {
   position: fixed;

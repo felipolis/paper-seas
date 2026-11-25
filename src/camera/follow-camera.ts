@@ -17,10 +17,11 @@
  * At sea the ship has the same window, its sizes scaled with the zoom, so the camera stands still while the ship idles
  * or turns about and only travels once it sails on (the skill: a calm camera that never chases); the sight assist is
  * for the captain only. A change of view (boarding, going ashore) glides over VIEW_GLIDE seconds on a smoothstep of
- * every key (distance, pitch, field of view), never an exponential ease or a cut. The wheel zooms.
+ * every key (distance, pitch, field of view), never an exponential ease or a cut. The wheel zooms. V cycles
+ * papertrails' views (config/view.ts VIEWS), each a share or offset of the pose, eased the same way.
  */
 import * as THREE from 'three';
-import { CAMERA, ON_FOOT } from '../config/view';
+import { CAMERA, ON_FOOT, VIEWS } from '../config/view';
 import { DEG, clamp, smoothstep } from '../core/math';
 
 /** papertrails' sightBlocked: does the ray from (ox, oy, oz) along the unit (dx, dy, dz) meet a large piece within len? */
@@ -32,6 +33,35 @@ const SIGHT_HEIGHTS = [0.35, 0.65, 0.95];
 
 /** How long a change of view (boarding, going ashore) takes (s; the skill's 0.9). */
 const VIEW_GLIDE = 0.9;
+
+/** papertrails' tiles, in world units (a view's reach). */
+const TILE = 2;
+
+/**
+ * A camera view against the plain pose: distance and screen-up as shares of it, pitch, field of view and yaw as
+ * offsets (degrees), and the reach (world units).
+ */
+interface ViewPose {
+  distance: number;
+  up: number;
+  pitch: number;
+  fov: number;
+  yaw: number;
+  reach: number;
+}
+
+/** A VIEWS entry as a pose against ON_FOOT's (papertrails' own pose). */
+function viewPose(v: (typeof VIEWS)[number]): ViewPose {
+  return {
+    distance: (v.distance ?? ON_FOOT.distance) / ON_FOOT.distance,
+    up: (v.screenUp ?? ON_FOOT.screenUp) / ON_FOOT.screenUp,
+    pitch: (v.pitchDeg ?? ON_FOOT.pitchDeg) - ON_FOOT.pitchDeg,
+    fov: (v.fov ?? ON_FOOT.fov) - ON_FOOT.fov,
+    yaw: v.yawDeg ?? 0,
+    reach: (v.reach ?? 0) * TILE,
+  };
+}
+const POSES = VIEWS.map(viewPose);
 
 const _v = new THREE.Vector3();
 const _goal = new THREE.Vector3();
@@ -75,6 +105,11 @@ export class FollowCamera {
   private glide: { t: number; distance: number; foot: number } | null = null;
   private onFoot = false;
   private clock = 0;
+  // ---- the V views: which one, the pose now and the one it eases from, how far (0..1) ----
+  private viewIndex = 0;
+  private readonly pose: ViewPose = { ...POSES[0] };
+  private readonly poseFrom: ViewPose = { ...POSES[0] };
+  private poseT = 1;
   // ---- the camera window ----
   private readonly zc = new THREE.Vector3();
   private readonly zPrev = new THREE.Vector3();
@@ -113,6 +148,29 @@ export class FollowCamera {
     return r;
   }
 
+  /** The lens's distance from the look target: the zoom, as the view has it. */
+  get lensDistance(): number {
+    return this.distance * this.pose.distance;
+  }
+
+  /** How far past the ring that stands up the view sees (world units, papertrails' viewReach). */
+  get viewReach(): number {
+    return this.pose.reach;
+  }
+
+  /** V: on to the next view (papertrails' views.next), eased over VIEW_GLIDE seconds; its index in VIEWS. */
+  nextView(): number {
+    this.viewIndex = (this.viewIndex + 1) % POSES.length;
+    Object.assign(this.poseFrom, this.pose);
+    this.poseT = 0;
+    return this.viewIndex;
+  }
+
+  /** The lens's turn round the vertical now (radians; 0: looking north), the view's and the sight assist's. */
+  get yaw(): number {
+    return (this.pose.yaw + this.aYaw) * DEG;
+  }
+
   setAspect(aspect: number): void {
     this.camera.aspect = aspect;
     this.camera.updateProjectionMatrix();
@@ -121,7 +179,7 @@ export class FollowCamera {
   /** The pose's pitch now (degrees, before the sight assist): sea or foot, tipped up by the chart. */
   private get basePitch(): number {
     const e = this.lift * this.lift * (3 - 2 * this.lift);
-    const p = CAMERA.pitchDeg + (ON_FOOT.pitchDeg - CAMERA.pitchDeg) * this.foot;
+    const p = CAMERA.pitchDeg + (ON_FOOT.pitchDeg - CAMERA.pitchDeg) * this.foot + this.pose.pitch;
     return p + (70 - p) * e;
   }
 
@@ -146,6 +204,7 @@ export class FollowCamera {
       this.foot = gl.foot + ((onFoot ? 1 : 0) - gl.foot) * e;
       if (gl.t >= 1) this.glide = null;
     } else this.distance += (this.targetDistance - this.distance) * (1 - Math.exp(-dt * 6));
+    this.easeView(dt);
     // the window for the captain and the ship alike (not tipped toward the map); the sight assist on foot only
     const zone = this.basePitch <= 60;
     if (!zone) this.zoneLive = false;
@@ -172,6 +231,15 @@ export class FollowCamera {
     this.place();
   }
 
+  /** The view's pose toward the chosen one: every key on one smoothstep over VIEW_GLIDE seconds. */
+  private easeView(dt: number): void {
+    if (this.poseT >= 1) return;
+    this.poseT = Math.min(1, this.poseT + dt / VIEW_GLIDE);
+    const e = smoothstep(0, 1, this.poseT);
+    const to = POSES[this.viewIndex];
+    for (const key of Object.keys(to) as Array<keyof ViewPose>) this.pose[key] = this.poseFrom[key] + (to[key] - this.poseFrom[key]) * e;
+  }
+
   /** Tipped toward the map (the chart is open): the camera rises over what it follows, a little below the middle. */
   private liftGoal(x: number, z: number): THREE.Vector3 {
     return _goal.set(x, 0, z - CAMERA.screenUp * (this.distance / CAMERA.distance));
@@ -187,12 +255,12 @@ export class FollowCamera {
       this.walkT = 0;
       this.zoneLive = true;
     }
-    const yaw = this.aYaw * DEG;
+    const yaw = this.yaw;
     const ux = -Math.sin(yaw);
     const uz = -Math.cos(yaw);
     const rx = Math.cos(yaw);
     const rz = -Math.sin(yaw);
-    const k = this.distance / ON_FOOT.distance;
+    const k = this.lensDistance / ON_FOOT.distance;
     // his offset from the window's centre, and his step, in screen axes (right, up)
     let oR = (px - this.zc.x) * rx + (pz - this.zc.z) * rz;
     let oU = (px - this.zc.x) * ux + (pz - this.zc.z) * uz;
@@ -256,7 +324,8 @@ export class FollowCamera {
     this.zc.x += mR * rx + mU * ux;
     this.zc.z += mR * rz + mU * uz;
     this.zc.y = py;
-    const su = ON_FOOT.screenUp * k;
+    // (papertrails' screen-up is the view's own, whatever its distance: here it scales with the zoom only)
+    const su = ON_FOOT.screenUp * this.pose.up * (this.distance / ON_FOOT.distance);
     return _goal.set(this.zc.x + ux * su, py, this.zc.z + uz * su);
   }
 
@@ -311,10 +380,11 @@ export class FollowCamera {
 
   /** How many of the three sight rays (thigh, chest, hat) from him to the lens at these offsets a building blocks. */
   private blocked(px: number, py: number, pz: number, yawOff: number, pitchOff: number): number {
-    const yaw = yawOff * DEG;
+    const yaw = (this.pose.yaw + yawOff) * DEG;
     const pitch = Math.min(80, this.basePitch + pitchOff) * DEG;
-    const h = Math.cos(pitch) * this.distance;
-    _cam.set(this.focus.x + Math.sin(yaw) * h, this.focus.y + Math.sin(pitch) * this.distance, this.focus.z + Math.cos(yaw) * h);
+    const dist = this.lensDistance;
+    const h = Math.cos(pitch) * dist;
+    _cam.set(this.focus.x + Math.sin(yaw) * h, this.focus.y + Math.sin(pitch) * dist, this.focus.z + Math.cos(yaw) * h);
     let n = 0;
     for (const f of SIGHT_HEIGHTS) {
       const oy = py + TRAVELLER_HEIGHT * f;
@@ -360,8 +430,8 @@ export class FollowCamera {
   private place(): void {
     const e = this.lift * this.lift * (3 - 2 * this.lift);
     const pitch = (this.basePitch + this.aPitch) * DEG;
-    const yaw = this.aYaw * DEG;
-    const dist = this.distance * (1 + 0.7 * e);
+    const yaw = this.yaw;
+    const dist = this.lensDistance * (1 + 0.7 * e);
     const h = Math.cos(pitch) * dist;
     const cam = this.camera;
     cam.position.set(this.focus.x + Math.sin(yaw) * h, this.focus.y + Math.sin(pitch) * dist, this.focus.z + Math.cos(yaw) * h);
@@ -374,7 +444,7 @@ export class FollowCamera {
     cam.position.z += -Math.sin(yaw) * a - Math.cos(yaw) * Math.sin(pitch) * b;
     // never let the lens sink into the page
     cam.position.y = Math.max(cam.position.y, this.focus.y + cam.near + 0.35);
-    const fov = CAMERA.fov + (ON_FOOT.fov - CAMERA.fov) * this.foot;
+    const fov = CAMERA.fov + (ON_FOOT.fov - CAMERA.fov) * this.foot + this.pose.fov;
     if (cam.fov !== fov) {
       cam.fov = fov;
       cam.updateProjectionMatrix();

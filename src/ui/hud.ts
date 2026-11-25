@@ -2,10 +2,14 @@
  * The HUD, with no chrome (the papercraft skill's paper-ui.md: feedback is paper, ink and light in the scene): the
  * sails show how much canvas is set, the flag the wind, the wake the speed, the chart (E) the voyage's counts. What
  * is left is one line of controls that fades away once you get under way, a small paper prompt over the scene
- * ("F go ashore") and a paper card for discoveries that slides down like a sheet and back up. Plain DOM.
+ * ("F go ashore"), a paper card for discoveries that slides down like a sheet and back up, and a slip naming the
+ * camera view for a moment after V. Plain DOM.
  */
 import './hud.css';
 import { bus } from '../core/events';
+
+/** How long the view's slip stays after a press of V (s). */
+const VIEW_SHOWN = 1.2;
 
 export interface HudState {
   sailSetting: number;
@@ -22,9 +26,11 @@ export class Hud {
   private readonly toast: HTMLElement;
   private readonly toastTitle: HTMLElement;
   private readonly toastLine: HTMLElement;
+  private readonly viewSlip: HTMLElement;
   private hintTimer = 0;
   private muted = false;
   private toastTimer = 0;
+  private viewTimer = 0;
   private readonly queue: Array<{ title: string; line: string }> = [];
 
   constructor(parent: HTMLElement) {
@@ -33,6 +39,7 @@ export class Hud {
     this.root.innerHTML = `
       <div class="hud-toast paper-card"><div class="hud-toast-title"></div><div class="hud-toast-line"></div></div>
       <div class="hud-prompt paper-card"></div>
+      <div class="hud-view paper-card"></div>
       <div class="hud-hint">W / S sails &nbsp;·&nbsp; A / D helm &nbsp;·&nbsp; E chart &nbsp;·&nbsp; F go ashore</div>
     `;
     parent.appendChild(this.root);
@@ -41,6 +48,7 @@ export class Hud {
     this.toast = this.root.querySelector('.hud-toast')!;
     this.toastTitle = this.root.querySelector('.hud-toast-title')!;
     this.toastLine = this.root.querySelector('.hud-toast-line')!;
+    this.viewSlip = this.root.querySelector('.hud-view')!;
 
     bus.on('discovered', (e) => this.queue.push({ title: e.name, line: e.coast ? 'Coast discovered' : 'Island discovered' }));
     bus.on('treasure', (e) => this.queue.push({ title: 'Treasure found!', line: `on ${e.name}` }));
@@ -57,7 +65,15 @@ export class Hud {
     }
   }
 
+  /** V: names the camera view now (its name, and which of how many) for VIEW_SHOWN seconds; another press renames it. */
+  showView(name: string, index: number, count: number): void {
+    this.viewSlip.innerHTML = `<b>${name}</b> view <span>${index + 1} / ${count}</span>`;
+    this.viewSlip.classList.add('on');
+    this.viewTimer = VIEW_SHOWN;
+  }
+
   update(dt: number, s: HudState): void {
+    if (this.viewTimer > 0 && (this.viewTimer -= dt) <= 0) this.viewSlip.classList.remove('on');
     // the hint goes as soon as you are under way (or ashore)
     if (s.sailSetting > 0 || s.knots > 0.3 || s.onFoot) this.hintTimer += dt;
     this.hint.classList.toggle('faded', this.hintTimer > 0.6);

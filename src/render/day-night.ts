@@ -30,10 +30,17 @@ function nightAt(hour: number): number {
   return t * t * (3 - 2 * t);
 }
 
+/** Where a press of T is carrying the clock: the hour it stops at and which way it runs. */
+interface Skip {
+  to: number;
+  toNight: boolean;
+}
+
 export class DayNight {
   /** Clock hour 0..24. */
   hour: number = TIME.startHour;
   private night = nightAt(TIME.startHour);
+  private skip: Skip | null = null;
 
   constructor(
     private readonly lights: Lights,
@@ -49,8 +56,28 @@ export class DayNight {
     return this.night;
   }
 
-  update(dt: number, fast: boolean): void {
-    this.hour = (this.hour + (dt * 24 * (fast ? TIME.fastForward : 1)) / TIME.cycleSeconds) % 24;
+  /**
+   * Day to night or back at a press (papertrails' N): the clock runs through the evening's fade (or the morning's) in
+   * TIME.toggleSeconds, first jumping to where that fade starts if it is not there yet; pressed again mid-fade, it runs
+   * back the way it came. Either way it then stands where the whole night (or day) lies ahead, a jump that shows
+   * nothing as the look is the same all night (or day) long, and goes on as before.
+   */
+  toggle(): void {
+    const toNight = this.skip ? !this.skip.toNight : this.night < 0.5;
+    const half = TIME.fadeHours / 2;
+    const inFade = (edge: number) => Math.abs(this.hour - edge) < half;
+    // (forward through its own fade, back through the other one, from the start of its own fade otherwise)
+    const [ahead, behind] = toNight ? [TIME.dusk, TIME.dawn] : [TIME.dawn, TIME.dusk];
+    if (inFade(behind)) {
+      this.skip = { to: behind - half, toNight };
+      return;
+    }
+    if (!inFade(ahead)) this.hour = ahead - half;
+    this.skip = { to: ahead + half, toNight };
+  }
+
+  update(dt: number): void {
+    this.hour = this.skip ? this.skipStep(this.skip, dt) : (this.hour + (dt * 24) / TIME.cycleSeconds) % 24;
     const n = (this.night = nightAt(this.hour));
     const mix = (day: number, night: number) => day + (night - day) * n;
 
@@ -79,5 +106,16 @@ export class DayNight {
     setGlowLevel(n);
     // (only its intensity: switching it off would change the light count the shaders are built for)
     this.shipLight.intensity = n * 2.2;
+  }
+
+  /** The clock hour after one step of a press of T; on its last, the start of the whole night (or day) it brought. */
+  private skipStep(skip: Skip, dt: number): number {
+    const step = (TIME.fadeHours / TIME.toggleSeconds) * dt;
+    const left = skip.to - this.hour;
+    if (Math.abs(left) <= step) {
+      this.skip = null;
+      return (skip.toNight ? TIME.dusk : TIME.dawn) + TIME.fadeHours / 2;
+    }
+    return this.hour + Math.sign(left) * step;
   }
 }

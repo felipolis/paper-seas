@@ -134,10 +134,11 @@ What papertrails does, Paper Seas does the same way (its traveller is as tall as
   the frame), a lantern on the captain, papertrails' night blur (16 px, less toward the camera) and calmer paper mottle,
   and its lamp pools: warm light on the page and the paper round the six lit lamps (lantern posts, campfires) nearest
   the traveller, with no real light. The clock eases from the day look into the night look over an hour and a half round
-  dusk (and back round dawn). Each biome has its own pair of looks, papertrails' biome grade blended by the biomes round
-  the traveller: the meadow its blossom (peach and lilac), the pine woods its pinewood (a weak warm sun through the
-  canopy, teal, misty); as our plain look is the skill's, each is ported as the change papertrails' biome makes to its
-  own plain look, the haze's amount staying the skill's.
+  dusk (and back round dawn); T (papertrails' N) runs it through that fade in 1.6 s, to night or back to day. Each
+  biome has its own pair of looks, papertrails' biome grade blended by the biomes round the traveller: the meadow its
+  blossom (peach and lilac), the pine woods its pinewood (a weak warm sun through the canopy, teal, misty); as our plain
+  look is the skill's, each is ported as the change papertrails' biome makes to its own plain look, the haze's amount
+  staying the skill's.
 - **Life** (`life/`, `world/critters.ts`): papertrails' densities per biome (its rows mapped to ours: the meadow its
   blossom, the pine woods its pinewood, the jungle and rocks its heartland, sand its desert): falling leaves in five
   autumn colours and blossom petals that settle and fade, drifting dust, butterflies with hinged wings, fireflies over
@@ -169,7 +170,10 @@ What papertrails does, Paper Seas does the same way (its traveller is as tall as
   0.9 s on a smoothstep. On foot it is papertrails' follow camera as it is: a 27 degree lens at 10.8, 42
   degrees down; a still zone round the captain where it does not move, a soft zone that picks up his step, hard edges;
   after a moment of steady walking the window travels with him and leads; an exact critically damped spring; a slow
-  tripod drift; the lens eases up or round when a building hides him.
+  tripod drift; the lens eases up or round when a building hides him. V cycles papertrails' five views (journey,
+  close, wide, low, postcard) over the same 0.9 s glide, at sea too, the far ones seeing a little past the ring; a
+  paper slip names the view for a moment. Ashore the keys are the screen's, as in papertrails: W walks up the screen,
+  turning with the camera in the turned views and under the sight assist.
 - **No chrome** (the papercraft skill's paper-ui.md): no HUD panel; the sails, the flag and the wake show what the
   ship is doing, and one line of hints fades once you get under way. What must be a screen is paper: every panel is a
   card of the page's stock with its fibre (ui/paper-sheet.ts), the cut edge printed on it and a contact and a cast

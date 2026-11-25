@@ -38,6 +38,20 @@ export const ON_FOOT = {
 } as const;
 
 /**
+ * papertrails' camera views, cycled with V (camera/views.js there), its numbers as they are: overrides of its follow
+ * pose, which is ON_FOOT's. The first is the plain framing; reach is how far past the ring that stands up the view sees
+ * (papertrails' tiles, 2 world units each). Here they apply to whichever pose the camera has, at sea too: the distance
+ * and screen-up as shares of ON_FOOT's, the pitch and field of view as offsets from it, the yaw as it is.
+ */
+export const VIEWS: ReadonlyArray<{ name: string; distance?: number; pitchDeg?: number; fov?: number; screenUp?: number; yawDeg?: number; reach?: number }> = [
+  { name: 'journey' },
+  { name: 'close', distance: 6.4, pitchDeg: 30, fov: 30, screenUp: 0.35, yawDeg: 0 },
+  { name: 'wide', distance: 14.5, pitchDeg: 47, fov: 27, screenUp: 1.0, yawDeg: 0, reach: 0.9 },
+  { name: 'low', distance: 7.6, pitchDeg: 25, fov: 32, screenUp: 0.5, yawDeg: -24, reach: 0.4 },
+  { name: 'postcard', distance: 9.6, pitchDeg: 30, fov: 30, screenUp: 0.55, yawDeg: 26, reach: 0.5 },
+];
+
+/**
  * The papercraft skill's clear day (look.md sections 5 and 8, its 3D template's light): a warm key from screen-left,
  * 45 degrees up and a little toward the camera, so shadows fall sideways and behind where they are seen; a warm
  * frontal fill from the camera side at ~0.27 of it (camera-facing cards never go grey); a warm sky. Azimuths are
