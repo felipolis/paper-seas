@@ -3,16 +3,15 @@
  * the explored seas ink in from the ship outward.
  *
  *   explored land and sea   the printed tiles of Exploration (the game's teal sea, sand and page tone), their edge
- *                           torn where the fog begins (the papercraft skill's torn printed areas)
+ *                           torn where the fog begins (a printed area ends in a torn edge)
  *   stamps                  tiny die-cut copies of the game's own stickers laid over the print, few and far between:
  *                           waves on open sea, trees by biome, crags on the heights, the landmark of a stamped island
  *   marks                   the ship (pointing its heading), the dashed track sailed, names of discovered lands,
  *                           an X and a chest where treasure was dug up
  *   furniture               a title cartouche with its legend, a compass rose, a scale bar, a faint graticule
  *
- * The paper is the game's own stock (papertrails' page fibre, art/paper-maps.ts) and every line is the same warm
- * brown ink, never black; as on papertrails' map page the fibre and a warm vignette lie over the print too, so the
- * print sits in the paper.
+ * The paper is the game's own stock (the page fibre, art/paper-maps.ts) and every line is the same warm brown ink,
+ * never black; the fibre and a warm vignette lie over the print too, so the print sits in the paper.
  *
  * Nothing expensive happens per frame. The explored world is baked once into world-space regions (RC x RC cells:
  * tiles and the torn fog edge) at two resolutions, re-baked only when a tile inside changes, and a frame just
@@ -36,9 +35,9 @@ import { spriteImage } from '../art/sprites';
 import { mix } from '../art/paper-colour';
 
 const INK = PALETTE.ink;
-/** papertrails' accent (its north point and pin head): a terracotta red. */
+/** The chart's accent (the north point and the pin head): a terracotta red. */
 const RED = '#b9603f';
-/** The sheet: halfway between the game's kraft and its cut edge (papertrails' page cream). */
+/** The sheet: a page cream halfway between the game's kraft and its cut edge. */
 const PAPER = mix(PALETTE.kraft, PALETTE.cutEdge, 0.5);
 const SERIF = "'IM Fell English', Georgia, serif";
 const REVEAL_TIME = 0.9;
@@ -56,7 +55,7 @@ const LO_BELOW = 6;
 /** Fine bakes kept (each is 256 x 256); the least recently shown are dropped first. */
 const HI_KEEP = 200;
 const MAX_DPR = 1.5;
-/** A veil of paper over the print keeps it matte and a little faded, like an old plate (papertrails: 0.16). */
+/** A veil of paper over the print keeps it matte and a little faded, like an old plate. */
 const VEIL = 0.14;
 /** Height (px) of the shrunken copy of each sprite that stamps are cut from. */
 const STAMP_BASE = 96;
@@ -284,7 +283,7 @@ export class Chart {
     if (this.held.has('KeyD') || this.held.has('ArrowRight')) this.vx += pan;
     if (this.held.has('KeyW') || this.held.has('ArrowUp')) this.vz -= pan;
     if (this.held.has('KeyS') || this.held.has('ArrowDown')) this.vz += pan;
-    if (Math.abs(this.targetSpan - this.span) > 0.05) this.span += (this.targetSpan - this.span) * Math.min(1, dt * 10);
+    if (Math.abs(this.targetSpan - this.span) > 0.05) this.span += (this.targetSpan - this.span) * (1 - Math.exp(-10 * dt));
     const H = this.canvas.height;
     const W = this.canvas.width;
     const halfW = (W / 2) * (this.span / H);
@@ -527,7 +526,7 @@ export class Chart {
     this.bakeSheet();
   }
 
-  /** The sheet itself: cream paper with soft light and dark clouds in it (papertrails' page), and its vignette. */
+  /** The sheet itself: cream paper with soft light and dark clouds in it, and its vignette. */
   private bakeSheet(): void {
     const W = this.sheet.width;
     const H = this.sheet.height;
@@ -824,7 +823,7 @@ export class Chart {
     c.restore();
     const me = s.onFoot;
     if (me) {
-      // ashore: the ship at anchor (an anchor mark), the dotted way to the captain and papertrails' pin on him
+      // ashore: the ship at anchor (an anchor mark), the dotted way to the captain and a pin on him
       const ax = x + r * 1.1;
       const ay = y - r * 0.9;
       c.strokeStyle = INK;
@@ -875,7 +874,7 @@ export class Chart {
     c.stroke();
   }
 
-  /** Title cartouche with its legend (papertrails' legend strip), and the scale bar. */
+  /** Title cartouche with its legend, and the scale bar. */
   private furniture(c: CanvasRenderingContext2D, H: number, u: number, ppu: number, leagues: number): void {
     const pad = 28 * u;
     const bx = pad + 4 * u;
@@ -995,7 +994,7 @@ function shrink(img: HTMLImageElement, h: number): HTMLCanvasElement {
 }
 
 /**
- * The page fibre (art/paper-maps.ts) as a grey tile around mid-grey for soft-light: read as papertrails reads it,
+ * The page fibre (art/paper-maps.ts) as a grey tile around mid-grey for soft-light: read as the ground reads it,
  * albedo / mean - 1, at half scale so its fibres come out fine on the sheet.
  */
 function fibreTile(): HTMLCanvasElement {
@@ -1014,7 +1013,7 @@ function fibreTile(): HTMLCanvasElement {
 }
 
 /**
- * The fog's edge, torn (the papercraft skill's paper-ui.md: printed areas end in torn edges, not soft fades): three
+ * The fog's edge, torn (printed areas end in torn edges, not soft fades): three
  * box-blur passes merge the discs into one round shape, then its rim is nibbled by noise in world-fixed mask pixels
  * (ox, oy: the mask's origin, so neighbouring regions tear alike) and cut almost hard; the upscale to the print softens
  * it by a pixel or two.

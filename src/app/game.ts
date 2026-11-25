@@ -49,15 +49,14 @@ import { BIOMES } from '../world/land';
 import { pondWater } from '../world/stream-mesh';
 import { lilyPads } from '../world/lily-pads';
 
-/** The cards butterflies seek (papertrails' flower tiles: flowers, flowering bushes and blossom trees, hives). */
+/** The cards butterflies seek (flowers, flowering bushes and blossom trees, hives). */
 const FLOWERS = /^(flowers-|tuft-flowers|hibiscus|orchids|bird-of-paradise|bush-|tree-blossom|beehive)/;
 /** Knots shown per world unit / s (a playful scale: full sail reads about 12 kn). */
 const KNOTS_PER_UNIT = 3.6;
 /**
- * papertrails' camera views add a reach to the ring that stands up (camera/views.js there): none in its own framing
- * (10.8 away), 0.9 tiles in its wide view (14.5 away). Our zoom is a continuum too: past the view's own reach, the
- * reach follows that line with the lens's distance (world units of reach per unit of distance; world/reveal.ts caps it
- * at papertrails' 1.5 tiles).
+ * The camera views add a reach to the ring that stands up: none in the on-foot framing (10.8 away), 0.9 tiles in the
+ * wide view (14.5 away). The zoom is a continuum too: past the view's own reach, the reach follows that line with the
+ * lens's distance (world units of reach per unit of distance; world/reveal.ts caps it at 1.5 tiles).
  */
 const REACH_FROM = ON_FOOT.distance;
 const WIDE = VIEWS.find((v) => v.name === 'wide')!;
@@ -80,13 +79,13 @@ export class Game {
   private readonly clearLine = new ClearLine();
   private readonly smoke = new Smoke(this.clearLine);
   private readonly walkWorld: WalkWorld;
-  /** Click / tap / drag to walk ashore (papertrails' controls.js). */
+  /** Click / tap / drag to walk ashore. */
   private readonly clickWalk: ClickWalk;
   readonly ship = new Ship();
   readonly progress = new Progress();
   readonly sound = new Sound();
   readonly dayNight: DayNight;
-  /** The biome's light and grade round the traveller (papertrails' biomegrade). */
+  /** The biome's light and grade round the one we follow. */
   private readonly biomeLook = new BiomeLook();
   readonly distanceMap: DistanceMap;
   readonly reflection = new Reflection();
@@ -245,7 +244,7 @@ export class Game {
     this.view.recenter();
   }
 
-  /** The captain steps ashore at (x, z): he leaves the wheel, and the camera comes down to papertrails' distance. */
+  /** The captain steps ashore at (x, z): he leaves the wheel, and the camera comes down to its on-foot distance. */
   private goAshore(x: number, z: number): void {
     this.walker.land(x, z, this.walkWorld);
     this.clickWalk.cancel();
@@ -311,16 +310,15 @@ export class Game {
     else this.focus.set(p.x + (p.vx / sp) * lead, 0, p.z + (p.vz / sp) * lead);
 
 
-    // papertrails' rules: the ring that stands up (centred ahead of the traveller, world/reveal.ts) is its own, grown by
-    // the view's reach as the camera pulls back (the haze beyond it scales with the focus distance in render/post.ts)
+    // the ring that stands up (centred ahead of the one we follow, world/reveal.ts) is its own, grown by the view's
+    // reach as the camera pulls back (the haze beyond it scales with the focus distance in render/post.ts)
     const reach = Math.max(this.view.viewReach, (this.view.lensDistance - REACH_FROM) * REACH_PER_UNIT);
     this.reveal.update(dt, fx, fz, walking ? this.walker.vx : p.vx, walking ? this.walker.vz : p.vz, reach);
     this.world.update(dt, this.reveal, fx, fz, this.dayNight.lanterns);
-    // (everything in view exists: what the ring has not raised lies folded flat, face up, as papertrails shows it)
+    // (everything in view exists: what the ring has not raised lies folded flat, face up)
     const viewReach = this.view.groundRadius(fx, fz);
     this.waves.update(dt, this.focus.x, this.focus.z, ship.wakeSource, this.reveal, viewReach);
-    // (the living pieces keep clear of the one we follow, and their weather and biomes are his, as papertrails'
-    // life.js)
+    // (the living pieces keep clear of the one we follow, and their weather and biomes are his)
     this.clearLine.update(this.view.camera, fx, fz);
     this.life.update(dt, { x: p.x, z: p.z, fx: p.forwardX, fz: p.forwardZ });
     this.flotsam.update(dt, p.x, p.z, this.reveal, viewReach);
@@ -352,9 +350,9 @@ export class Game {
     });
     this.input.endFrame();
     this.post.driftClouds(dt, fx, fz, ship.wind.x, ship.wind.z, this.dayNight.lanterns);
-    // (on foot papertrails' focus point: his chest)
+    // (on foot the focus point is his chest)
     this.lensFocus.set(fx, walking ? this.walker.group.position.y + PLAYER.height * ON_FOOT.focusHeight : 0.5, fz);
-    // (papertrails' page: full colour round the traveller, the unpainted book further out)
+    // (the page: full colour round the one we follow, the unpainted book further out)
     setPageFocus(fx, fz);
     this.post.setFocus(this.lensFocus);
     // mirror pass first, then the main render; the sea and the streams read the one image (sea/mirror.ts). The shadow

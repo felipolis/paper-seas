@@ -1,7 +1,6 @@
 /**
- * The captains as small 3D paper models, built the way papertrails builds its traveller (public/models/traveller.glb
- * there, read piece by piece): every piece a die-cut slab of card in one flat colour, its cut edge pale cream, the
- * pieces layered and slotted through each other so the figure reads from every side:
+ * The captains as small 3D paper models: every piece a die-cut slab of card in one flat colour, its cut edge pale
+ * cream, the pieces layered and slotted through each other so the figure reads from every side:
  *   - the head: a frontal face card (its back the hair's colour) with the head's profile card slotted through its
  *     middle, whose front edge is the nose and the chin; a thicker card of hair round the profile, a card of hair
  *     behind the face, small eye cards on the face and on both sides of the profile; a neck card below;
@@ -9,12 +8,12 @@
  *     waistcoat, its braid, a jabot, a scarf, a belt or a sash slotted into a cross of its own) and behind (the coat's
  *     back);
  *   - the arms and the legs: profile cards only (a sleeve bent forward, a thicker cuff, a hand; trousers, a thicker
- *     boot cuff, a boot with its toe), the right hand carrying the lantern in front of the body as the traveller does;
+ *     boot cuff, a boot with its toe), the right hand carrying the lantern in front of the body;
  *   - the hat: level discs stacked from the brim up, tilted a little back.
  * What hangs below the waist (a coat's tails, an apron) is cut in two and hung on the legs, so it swings with them;
  * nothing that moves against another piece cuts into it (tools/qa/crew-clips.mjs; pieces on one joint are slotted
  * through each other on purpose and never move apart).
- * The figure faces +z, stands on y = 0 and is papertrails' 0.6 tall (times its outfit's height). Its joints, each a
+ * The figure faces +z, stands on y = 0 and is 0.6 tall (times its outfit's height). Its joints, each a
  * node the puppet moves by rotation only: body (on the hips, carrying the arms and the head), leg_l and leg_r, arm_l
  * and arm_r, head, and the lantern below the right hand. The pieces on a joint are merged into one mesh (one draw).
  */
@@ -47,7 +46,7 @@ export interface CaptainModel {
 
 // ---- the palette and the card -------------------------------------------------------------------------------------
 
-/** papertrails' cut edge, its boot cuff, its lantern's frame and glow; the warm dark of an eye, of a skull's hollows. */
+/** The cut edge, the boot cuff, the lantern's frame and glow; the warm dark of an eye, of a skull's hollows. */
 const CREAM = '#fbf6ea';
 const CUFF = '#e8d3ac';
 const FRAME = '#513424';
@@ -61,7 +60,7 @@ const RED = '#b8443a';
 const LEATHER = '#4a2a18';
 const WOOD = '#8a5a34';
 const TIN = '#a8a49a';
-/** A cheek's flush, the mouth in a beard, papertrails' hat band, the parrot's green and its red tail. */
+/** A cheek's flush, the mouth in a beard, the hat band, the parrot's green and its red tail. */
 const BLUSH = '#e0705a';
 const MOUTH = '#5a2a1e';
 const HAT_BAND = '#bb6140';
@@ -69,7 +68,7 @@ const PARROT = '#5e9a4a';
 const PARROT_TAIL = '#b4442e';
 
 /**
- * papertrails' card thicknesses: a card, a thicker band (a cuff, a collar), a thin layer laid on another, an eye's
+ * The card thicknesses: a card, a thicker band (a cuff, a collar), a thin layer laid on another, an eye's
  * ink; the face, the head's cards (its profile, the neck, the hair behind the face), the hair round the profile, a
  * hand. GAP: the air between a layer and what it lies on.
  */
@@ -230,7 +229,7 @@ interface Look {
   hip: number;
   shoulder: number;
   neck: number;
-  /** A skull's bone, or the skin a touch lighter than the outfit's (papertrails' faces read pale in the shade). */
+  /** A skull's bone, or the skin a touch lighter than the outfit's (faces read pale in the shade). */
   skin: string;
   /** The coat's colour (null: no coat), and what is worn on the body's cards (the coat, or the shirt). */
   coat: string | null;
@@ -276,7 +275,7 @@ export function buildCaptain(o: Outfit): CaptainModel {
 }
 
 /**
- * Where the arms hang: papertrails' shoulders, outside the body wherever the sleeve crosses its front (a coat's sleeve
+ * Where the arms hang: on the shoulders, outside the body wherever the sleeve crosses its front (a coat's sleeve
  * near the shoulders, against wTop; a short sleeve, thicker with its stripes or its roll, swings across the chest).
  */
 const armXFor = (g: number, body: number, sleeve: number) => Math.max(0.071 * g, body + sleeve / 2 + 0.006);
@@ -430,7 +429,7 @@ function buildWaist(body: Node, look: Look, t: Torso): void {
   }
 }
 
-/** The collar round the neck (papertrails' scarf: a frontal band and a profile band), and a jabot or a scarf on it. */
+/** The collar round the neck (a frontal band and a profile band), and a jabot or a scarf on it. */
 function buildNeckwear(body: Node, look: Look, t: Torso): void {
   const { o, s } = look;
   const { top, wTop, zFront, zBack, z2, z3 } = t;
@@ -472,9 +471,9 @@ function buildNeckwear(body: Node, look: Look, t: Torso): void {
 // ---- the arms -----------------------------------------------------------------------------------------------------
 
 /**
- * The arms: profile cards on the shoulders beside the body, bent forward as papertrails' are (z, y from the shoulder:
- * the right one reaches forward to the lantern, the left hangs lower); a coat's long sleeve and turned-back cuff, or a
- * short sleeve and the bare forearm; a hand; the lantern below the right hand, a ladle beside the left.
+ * The arms: profile cards on the shoulders beside the body, bent forward (z, y from the shoulder: the right one
+ * reaches forward to the lantern, the left hangs lower); a coat's long sleeve and turned-back cuff, or a short sleeve
+ * and the bare forearm; a hand; the lantern below the right hand, a ladle beside the left.
  */
 function buildArms(body: Node, look: Look, armX: number): Record<'arm_l' | 'arm_r' | 'lantern', THREE.Object3D> {
   const { o, s, shoulder, extras } = look;
@@ -514,7 +513,7 @@ function buildArms(body: Node, look: Look, armX: number): Record<'arm_l' | 'arm_
 }
 
 /**
- * papertrails' lantern: two window frames slotted in a cross round a glowing cross, a cap, a hook and a base; hung on
+ * The lantern: two window frames slotted in a cross round a glowing cross, a cap, a hook and a base; hung on
  * its own joint just below the hand (hx: the hand's plane, hand: its centre), on the hand's outer side, so it swings
  * clear of the hand and the legs.
  */
@@ -599,7 +598,7 @@ function buildLegs(rig: Rig, root: THREE.Group, look: Look, t: Torso): Record<'l
 }
 
 /**
- * A leg, papertrails' (z, y from the hip, its top just below the joint so it never rises into the body): trousers,
+ * A leg (z, y from the hip, its top just below the joint so it never rises into the body): trousers,
  * their cuff and a boot; trousers to mid-shin (rolled up, or torn) over a bare shin and a shoe or a bone's foot; tall
  * boots to the knee; a wooden peg.
  */
@@ -647,7 +646,7 @@ interface Head {
   node: Node;
   look: Look;
   neck: number;
-  /** How much wider than papertrails' the head is (a stout captain's). */
+  /** How much wider the head is (a stout captain's). */
   k: number;
   /** The head's joint's z; the face card's plane, and the plane of an ink laid on the face. */
   pz: number;
@@ -658,7 +657,7 @@ interface Head {
   xy(pts: readonly Pt[]): Pt[];
 }
 
-/** The hat's brim, above the neck (times the height): papertrails' straw hat's. */
+/** The hat's brim, above the neck (times the height). */
 const BRIM = 0.16;
 /** A bandana's band: its foot below the brim; the hair under it stops just below that at the front, and under its cap behind. */
 const BANDANA_DROP = 0.04;
@@ -685,7 +684,7 @@ function buildHead(node: Node, look: Look): void {
   buildHat(h);
 }
 
-/** The noses on the profile's front edge (z, y): papertrails', a round bulb, a long straight one, a small one. */
+/** The noses on the profile's front edge (z, y): a plain one, a round bulb, a long straight one, a small one. */
 const NOSES: Record<NonNullable<Outfit['nose']> | 'plain', Pt[]> = {
   plain: [[0.069, 0.06], [0.091, 0.068], [0.074, 0.087]],
   bulb: [[0.069, 0.056], [0.084, 0.056], [0.096, 0.066], [0.09, 0.08], [0.074, 0.087]],
@@ -693,7 +692,7 @@ const NOSES: Record<NonNullable<Outfit['nose']> | 'plain', Pt[]> = {
   small: [[0.069, 0.062], [0.084, 0.068], [0.072, 0.084]],
 };
 
-/** A face: papertrails' ten-sided card, the profile slotted through it, the eyes, the face's touches, hair, whiskers. */
+/** A face: a ten-sided card, the profile slotted through it, the eyes, the face's touches, hair, whiskers. */
 function buildFace(h: Head): void {
   const { node, look, xy, zy, faceZ, onFace } = h;
   const { o, skin } = look;
@@ -816,8 +815,8 @@ function buildWhiskers(h: Head, red: boolean): void {
 // ---- the hat ------------------------------------------------------------------------------------------------------
 
 /**
- * The hat on its brim: level discs stacked from the brim up (papertrails' straw hat: a brim, a band, two tiers of
- * crown), tilted a little back; a tricorn's brim a rounded triangle with three flaps turned up on it.
+ * The hat on its brim: level discs stacked from the brim up (a brim, a band, two tiers of crown), tilted a little
+ * back; a tricorn's brim a rounded triangle with three flaps turned up on it.
  */
 function buildHat(h: Head): void {
   const { node, look } = h;

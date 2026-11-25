@@ -13,7 +13,7 @@
   pointer-events: auto;
 }
 
-/* the sheet (the papercraft skill's): up from below the frame over 0.7 s, turned by -4 degrees, settling square; the
+/* the sheet: up from below the frame over 0.7 s, turned by -4 degrees, settling square; the
    reverse to close; its cut edge and two shadows like every paper card */
 .chart-sheet {
   position: relative;

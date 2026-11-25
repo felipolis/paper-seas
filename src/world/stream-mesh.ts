@@ -1,5 +1,5 @@
 /**
- * The streams as water (papertrails' river, render/water.js there), in the sea's own colours and paper: a ribbon
+ * The streams as water, in the sea's own colours and paper: a ribbon
  * laid on the land along each stream, shaded per pixel from its flow frame (s along the stream, c across it):
  *
  *   depth      shallow at the banks, deep in the middle, in three soft printed steps, mottled
@@ -7,10 +7,10 @@
  *   dashes     cream lens-shaped dashes in staggered rows, carried along by the current, gathering by the banks
  *   banks      a dark waterline just inside the water, a thin broken cream cut line outside it, then a band of sand
  *   mirror     the world mirrored in the water as on the sea, read from the sea's image at the water's own height
- *              (sea/mirror.ts): papertrails mirrors its rivers too
+ *              (sea/mirror.ts)
  *
  * The ribbon is a little wider than the water so its bank fits on it; beyond the bank the ribbon is cut away. Its colours
- * are papertrails' water of the biome it runs through (render/biome-tint.ts waterPalettes), blended along the stream: a
+ * are the water of the biome it runs through (render/biome-tint.ts waterPalettes), blended along the stream: a
  * pinewood stream runs darker, a blossom one carries petals instead of leaves.
  *
  * A pond (world/ponds.ts) is the same water as a disc, still: its dashes and floaters lie where they are printed (laid
@@ -289,7 +289,7 @@ vec3 riverWater(vec2 p, float T, float s, float hw, float across, float edge, fl
   float gate = smoothstep(0.64, 0.76, seaNoise(p * 2.0) + 0.24 * (1.0 - smoothstep(0.0, hw, edge)));
   float dash = step(h, 0.6) * seaLens(dc, L, 0.0115 * (1.0 + 0.62 * clamp(dc.x / L, -1.0, 1.0)), aa) * gate;
   col = mix(col, gRiverRim, dash * 0.85);
-  // ---- papertrails' river floaters and current lines (render/water.js there), riding the flow in two phases that
+  // ---- the river's floaters and current lines, riding the flow in two phases that
   // cross-fade so the pattern never shears: a leaf now and then with its shadow and midrib, faint long streaks ----
   float flo = 0.0, floSh = 0.0, floInk = 0.0, streak = 0.0;
   for (int i = 0; i < 2; i++) {
@@ -312,7 +312,7 @@ vec3 riverWater(vec2 p, float T, float s, float hw, float across, float edge, fl
   }
   col = mix(col, col * 1.1 + vec3(0.02, 0.03, 0.03), streak * 0.5 * smoothstep(0.35, 0.65, seaNoise(p * 0.75 + 50.0)) * smoothstep(0.05, 0.2, edge));
   col = mix(col, col * 0.72, floSh * 0.55);
-  // (papertrails' river floater of the biome: a leaf, a petal in the blossom)
+  // (the river floater of the biome: a leaf, a petal in the blossom)
   vec3 leaf = RIVER_PAL(3);
   col = mix(col, mix(leaf, leaf * 0.62, floInk * 0.6), flo);
   gRiverMarks = clamp(dash + flo, 0.0, 1.0);

@@ -21,7 +21,7 @@ export type Biome = 'beach' | 'jungle' | 'pine' | 'meadow' | 'rocky';
 export const BIOMES: readonly Biome[] = ['beach', 'jungle', 'pine', 'meadow', 'rocky'];
 
 /**
- * The land is one sheet of paper laid on the sea page, this thick (papertrails' page is flat: the relief is all in
+ * The land is one sheet of paper laid on the sea page, this thick (the page is flat: the relief is all in
  * the standing cards). Inland it is printed in bands (sand, grass, hills, heights: terraceAt) that only choose what
  * is printed and planted there.
  */

@@ -5,7 +5,9 @@ import { launch, openGame } from '../browser.mjs';
 
 const only = process.argv.slice(2);
 const browser = await launch({ gpu: true });
-const page = await openGame(browser, { onPageError: (m) => console.log('page error:', m) });
+// (an error in the page or its console fails the check as a clip does)
+const errors = [];
+const page = await openGame(browser, { onPageError: (m) => errors.push(m), onConsoleIssue: (m) => errors.push(m) });
 const reports = await page.evaluate(async (only) => (await import('/tools/qa/model-clips.ts')).checkAll(only.length ? only : undefined), only);
 await browser.close();
 let total = 0;
@@ -15,4 +17,6 @@ for (const r of reports) {
   total += r.clips.length;
 }
 console.log(`${reports.length} models, ${total} clip(s)`);
-process.exit(total ? 1 : 0);
+for (const e of errors) console.log(`error: ${e}`);
+if (errors.length) console.log(`${errors.length} console error(s) or warning(s)`);
+process.exit(total || errors.length ? 1 : 0);

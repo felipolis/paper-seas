@@ -1,10 +1,10 @@
 /**
- * Streams (papertrails' rivers): long narrow printed water that winds across the land and never reaches the sea. A pure
- * function of the seed: the world is cut into REGION squares (papertrails' rivers lie about as far apart), and a
+ * Streams: long narrow printed water that winds across the land and never reaches the sea. A pure
+ * function of the seed: the world is cut into REGION squares, and a
  * region may hold one river, which stays inside its square (so two rivers never meet). It rises at a spring well
  * inland, sets off the way with the most land ahead and winds on with a slow meander, turning away from the beach and
- * from its square's edges, until it has run its length or has nowhere left to go. Both ends are papertrails'
- * river_source, a little round pool among stones (world/terrain.ts); the river stops the feet, and it is crossed on
+ * from its square's edges, until it has run its length or has nowhere left to go. Both ends are a
+ * river source, a little round pool among stones (world/terrain.ts); the river stops the feet, and it is crossed on
  * its own footbridges as well as where the roads bridge it.
  */
 import { WORLD } from '../config/world';
@@ -18,7 +18,7 @@ import { cellKey } from '../core/grid';
 import { BoundedCache } from '../core/bounded-cache';
 
 const SEED = WORLD.seed;
-/** One river at most per REGION x REGION square, with this chance (papertrails' rivers: about 43 units apart). */
+/** One river at most per REGION x REGION square, with this chance. */
 const REGION = 48;
 const RIVER_CHANCE = 0.8;
 /** A river keeps this far inside its square's edges, and starts turning away from them this far off. */
@@ -32,7 +32,7 @@ const SPRING_INLAND = 4.5;
 const KEEP_INLAND = 3.5;
 const SINK_INLAND = 2;
 const STEP = 0.35;
-/** A river runs between MIN_STEPS and MAX_STEPS steps (about 25 to 100 units; papertrails' rivers run on for chunks). */
+/** A river runs between MIN_STEPS and MAX_STEPS steps (about 25 to 100 units). */
 const MIN_STEPS = 70;
 const MAX_STEPS = 280;
 /** The most a river turns in one step: its meander, and its turning away from the beach and its square's edges. */
@@ -47,7 +47,7 @@ const CURL_SPAN = 40;
 /** How far ahead (and in how many ways) a spring looks for the way with the most land. */
 const LOOK_AHEAD = 24;
 const HEADINGS = 12;
-/** Width (world units) at the spring, widening to its full width over its first WIDEN points (papertrails' river: 0.7). */
+/** Width (world units) at the spring, widening to its full width over its first WIDEN points. */
 const WIDTH_SPRING = 0.5;
 const WIDTH_FULL = 0.8;
 const WIDEN = 40;

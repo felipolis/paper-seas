@@ -1,8 +1,7 @@
 /**
- * The constructions' clip check (the papercraft skill's cardClips, mechanisms.md sections 1 and 12): every Blender-built
- * model (buildings, piers, bridges, heights) unfolds from flat to standing through its own paper springs, and at a
- * few dozen poses on the way every pair of its pieces is tested for cutting into each other. A piece is the triangles
- * skinned to one bone; two pieces cut into each other where an edge of one passes through the inside of a triangle of
+ * The constructions' clip check: every Blender-built model (buildings, piers, bridges, heights) unfolds from flat to
+ * standing through its own paper springs, and at a few dozen poses on the way every pair of its pieces is tested for
+ * cutting into each other. A piece is the triangles skinned to one bone; two pieces cut into each other where an edge of one passes through the inside of a triangle of
  * the other (well clear of that triangle's own edges, so pieces meeting along a hinge or a corner never count) and
  * reaches more than DEPTH beyond its plane on the shorter side (paper overlapping by a hair at a corner is not a cut).
  * Flat on the page (progress under FLAT) the pieces lie stacked, a lift apart: that pose is not tested.

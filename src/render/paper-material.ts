@@ -1,12 +1,11 @@
 /**
- * Matte cardstock material (papertrails' paper, render/materials.js there): purely diffuse (MeshLambertMaterial)
- * extended with
+ * Matte cardstock material: purely diffuse (MeshLambertMaterial) extended with
  *   - a printed face (map) and a plain kraft back face (gl_FrontFacing), like a real die-cut card;
- *   - papertrails' card fibre in object space (so the paper sticks to a folding card), projected on the plane the
+ *   - card fibre in object space (so the paper sticks to a folding card), projected on the plane the
  *     surface faces: tooth, mottling and a broad soft mottle on the albedo, multiplied after the print so ink never
  *     hides the fibre, and the fibre's relief plus broad creases on the normal;
  *   - a per-sheet tone, a touch warmer or cooler from sheet to sheet;
- *   - on request (pencilPlan), papertrails' folded print: a card or a model lying flat fades toward a pencil plan far
+ *   - on request (pencilPlan), the folded print: a card or a model lying flat fades toward a pencil plan far
  *     from the page focus (setPageFocus);
  *   - paper lighting: wrap diffuse (soft terminator, wider for point lights) and a warm glow of thin card lit from
  *     behind;
@@ -20,7 +19,7 @@ import { SHADOW, SHADOW_GLOBALS } from './shadows';
 import { glowLike } from './glow';
 import { POOL_COUNT, poolUniforms } from './lamp-pools';
 
-/** papertrails' cardstock with its card maps (config/render.js `lights.paper` there, the `asset*` values). */
+/** The cardstock with its card maps. */
 const CARDSTOCK = {
   /** World units per tile of the card maps. */
   tile: 2.0,
@@ -36,7 +35,7 @@ const CARDSTOCK = {
   crumpleScale: 0.27,
   /** Per-sheet tone variation (+-). */
   toneVary: 0.065,
-  /** Wrap diffuse of point lights (papertrails' `lantern.wrap`): their pool on the card is wide and soft. */
+  /** Wrap diffuse of point lights: their pool on the card is wide and soft. */
   pointWrap: 0.55,
   /** Alpha threshold of the die cut, and the coverage below which a pixel is dropped (with alpha-to-coverage). */
   cut: 0.4,
@@ -44,9 +43,8 @@ const CARDSTOCK = {
 };
 
 /**
- * papertrails' unpainted book (config/world.js `book` there): the colour far from the traveller is a pale cream wash
- * (`fadedInk` of the way) with pencil lines, and a card lying flat comes up with the distance, keeping 1 - printFade of
- * its colour beyond printFar.
+ * The unpainted book: the colour far from the ship or the captain is a pale cream wash (`fadedInk` of the way) with
+ * pencil lines, and a card lying flat comes up with the distance, keeping 1 - printFade of its colour beyond printFar.
  */
 const BOOK = {
   cream: new THREE.Color(PALETTE.page),
@@ -56,7 +54,7 @@ const BOOK = {
   printFade: 0.75,
 };
 
-/** papertrails' `uTrav`: the traveller (on foot) or the ship, round which the book is painted. */
+/** The captain (on foot) or the ship, round which the book is painted. */
 const pageFocus = { value: new THREE.Vector2() };
 
 /** Where the book is painted round, every frame. */
@@ -70,8 +68,8 @@ export const PAPER_FLAT_ATTRIBUTE = 'aPaperFlat';
 export const CARD_WALL_ATTRIBUTE = 'aCardWall';
 
 /**
- * papertrails' folded print (every piece of its folded tiles, cards, houses and hills alike, is printed flat on the
- * page and fades): what the material draws fades toward a pencil plan, as it lies flat, with its distance from the
+ * The folded print (every folded piece, cards, houses and hills alike, is printed flat on the page and fades): what
+ * the material draws fades toward a pencil plan, as it lies flat, with its distance from the
  * page focus. per 'instance': instanced cards, each one's flatness in PAPER_FLAT_ATTRIBUTE (a mesh without it is never
  * faded); per 'object': one model per material (paperCopy), its flatness set with setPaperFlat.
  */
@@ -108,7 +106,7 @@ export function paperCopy<M extends THREE.Material>(mat: M): M {
   return copy;
 }
 
-/** The `fibre` option at which a card gets papertrails' cardstock. */
+/** The `fibre` option at which a card gets the full cardstock. */
 const FIBRE_DEFAULT = 0.18;
 
 export interface PaperOptions {
@@ -116,9 +114,9 @@ export interface PaperOptions {
   color?: THREE.ColorRepresentation;
   /** Colour of the unprinted back face. null = the back shows the print too. */
   back?: THREE.ColorRepresentation | null;
-  /** Fibre strength: 0.18 = papertrails' cardstock, 0 = no fibre at all (albedo or relief). */
+  /** Fibre strength: 0.18 = the full cardstock, 0 = no fibre at all (albedo or relief). */
   fibre?: number;
-  /** Per-sheet tone variation (papertrails' `vary`). */
+  /** Per-sheet tone variation. */
   vary?: boolean;
   alphaTest?: number;
   emissive?: THREE.ColorRepresentation;
@@ -142,9 +140,8 @@ export const paperLighting: PaperLighting = {
 };
 
 /**
- * Lambert direct lighting with wrap diffuse and back-lit translucency (papertrails' `RE_Direct_Paper`): in the key
- * light's shadow a warm light leaks in instead of the stock grey, and thin card glows from behind only where it is lit
- * through (a card shaded by another card does not), from the lit fractions the PCSS left (render/shadows.ts).
+ * Lambert direct lighting with wrap diffuse and back-lit translucency: in the key light's shadow a warm light leaks in
+ * instead of the stock grey, and thin card glows from behind only where it is lit through (a card shaded by another card does not), from the lit fractions the PCSS left (render/shadows.ts).
  */
 const PAPER_LAMBERT = THREE.ShaderChunk.lights_lambert_pars_fragment.replace(
   'float dotNL = saturate( dot( geometryNormal, directLight.direction ) );\n\tvec3 irradiance = dotNL * directLight.color;',
@@ -170,7 +167,7 @@ if (PAPER_LAMBERT === THREE.ShaderChunk.lights_lambert_pars_fragment) {
   console.warn('paper-material: Lambert chunk changed, paper lighting not applied');
 }
 
-/** papertrails' `patchLightsBegin`: the lighting knows which kind of light it is adding (point lights wrap wider). */
+/** The lighting knows which kind of light it is adding (point lights wrap wider). */
 const PAPER_LIGHTS_BEGIN = THREE.ShaderChunk.lights_fragment_begin
   .replace('getPointLightInfo( pointLight, geometryPosition, directLight );', '$&\n\t\tgPaperPoint = 1.0;')
   .replace('getSpotLightInfo( spotLight, geometryPosition, directLight );', '$&\n\t\tgPaperPoint = 0.0;')
@@ -278,7 +275,7 @@ const VERT_PROJECT = /* glsl */ `#include <project_vertex>
   #endif
 }`;
 
-/** papertrails' lamp pools (render/lamp-pools.ts): warm light on the paper round each lit lamp, night only. */
+/** The lamp pools (render/lamp-pools.ts): warm light on the paper round each lit lamp, night only. */
 const FRAG_POOL = /* glsl */ `
 if ( uPaperPoolCol.w > 0.0 ) {
   float pL = 0.0;
@@ -326,7 +323,7 @@ float pageNoise( vec2 p ) {
   vec2 u = f * f * ( 3.0 - 2.0 * f );
   return mix( mix( pageHash( i ), pageHash( i + vec2( 1.0, 0.0 ) ), u.x ), mix( pageHash( i + vec2( 0.0, 1.0 ) ), pageHash( i + vec2( 1.0, 1.0 ) ), u.x ), u.y );
 }
-// papertrails' unpainted book: a pale cream wash of the colour, pencil outlines from the colour's own luma gradient and
+// the unpainted book: a pale cream wash of the colour, pencil outlines from the colour's own luma gradient and
 // a little hatching in its dark areas (wq: world xz, wpx: world units per pixel; fpk = 1 on a folded card's print,
 // which washes paler and greyer)
 vec3 pageUnpainted( vec3 pr, vec2 wq, float wpx, float fpk ) {
@@ -342,12 +339,12 @@ const FRAG_MAP = /* glsl */ `vec4 paperPreMap = diffuseColor;
 if ( vPaperWall > 0.5 ) diffuseColor = paperPreMap;
 if ( !gl_FrontFacing && uPaperBackOn > 0.5 ) diffuseColor.rgb = uPaperBack;`;
 
-/** The fibre and the sheet's tone, after the print and the vertex colour (papertrails' FRAG_FIBRE). */
+/** The fibre and the sheet's tone, after the print and the vertex colour. */
 const FRAG_FIBRE = /* glsl */ `#include <color_fragment>
 #ifdef PAPER_TINT
 {
-  // papertrails' biome tint (world/book.js biomeTint, render/biome-tint.ts): the biome's colour transform, sparing the
-  // teal of water (keepWater) and the very dark printed pieces (posts, trunks, ink)
+  // the biome tint (render/biome-tint.ts): the biome's colour transform, sparing the teal of water (keepWater) and
+  // the very dark printed pieces (posts, trunks, ink)
   vec3 c = diffuseColor.rgb;
   vec3 t = max( vec3( dot( PAPER_TINT_R.xyz, c ) + PAPER_TINT_R.w, dot( PAPER_TINT_G.xyz, c ) + PAPER_TINT_G.w, dot( PAPER_TINT_B.xyz, c ) + PAPER_TINT_B.w ), 0.0 );
   float dk = 1.0 - smoothstep( 0.05, 0.2, dot( c, vec3( 0.2126, 0.7152, 0.0722 ) ) );
@@ -385,7 +382,7 @@ diffuseColor.rgb *= ( 1.0 + vPaperTone * ${f(CARDSTOCK.toneVary)} ) * vec3( 1.0 
 #endif`;
 
 /**
- * papertrails' anti-aliased die cut: the coverage comes from the alpha gradient around the threshold, and the
+ * The anti-aliased die cut: the coverage comes from the alpha gradient around the threshold, and the
  * multisampled scene target turns it into a smooth edge (alpha-to-coverage).
  */
 const FRAG_CUT = /* glsl */ `

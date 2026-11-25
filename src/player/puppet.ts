@@ -1,7 +1,7 @@
 /**
- * The captains as small paper models (player/crew-model.ts: flat card pieces slotted and layered as papertrails'
- * traveller is, a lantern carried in the right hand). Every part hangs on its joint and moves by rotation only:
- * papertrails' walk ashore (walk), steering at the helm (helm).
+ * The captains as small paper models (player/crew-model.ts: flat card pieces slotted and layered, a lantern carried
+ * in the right hand). Every part hangs on its joint and moves by rotation only: the walk ashore (walk), steering at
+ * the helm (helm).
  */
 import * as THREE from 'three';
 import { CAPTAINS } from '../config/ships';
@@ -13,7 +13,7 @@ import { stream } from '../core/rng';
 const random = stream('puppet');
 
 const DEG = Math.PI / 180;
-/** papertrails' gait and lantern (config/player.js there). */
+/** The gait and the lantern. */
 const WALK = {
   /** Distance per half-cycle (one footfall). */
   stride: 0.35,
@@ -23,7 +23,7 @@ const WALK = {
   settleRate: 14,
   hop: 0.02,
   arm: 22 * DEG,
-  /** Swing of the arm carrying the lantern, and of the other (the traveller's staff arm). */
+  /** Swing of the arm carrying the lantern, and of the other. */
   holdArm: 0.22,
   freeArm: 0.4,
   waddle: 1.6 * DEG,
@@ -97,13 +97,12 @@ export class Puppet {
   }
 
   /**
-   * Walking ashore, papertrails' gait (player/traveller.js there) with the skill's legs: the step's phase follows the
-   * distance walked (stride per half-cycle), each leg's stance angle is the one that keeps its planted foot still (so
-   * the feet never skate) and it swings forward on a smoothstep, a gait weight eases between standing and walking, the
-   * lean is an under-damped spring on the forward speed (he rocks back when he stops, leans back braking), he rolls
-   * into turns, the torso and head lag the footfall, the lantern swings as a pendulum. moved: distance this frame;
-   * speed and forward: speed and its forward part (u/s); yawRate: rad / s. Returns the foot that came down this frame
-   * (0 / 1, each whole half-cycle), or null.
+   * Walking ashore: the step's phase follows the distance walked (stride per half-cycle), each leg's stance angle is
+   * the one that keeps its planted foot still (so the feet never skate) and it swings forward on a smoothstep, a gait
+   * weight eases between standing and walking, the lean is an under-damped spring on the forward speed (he rocks back
+   * when he stops, leans back braking), he rolls into turns, the torso and head lag the footfall, the lantern swings as
+   * a pendulum. moved: distance this frame; speed and forward: speed and its forward part (u/s); yawRate: rad / s.
+   * Returns the foot that came down this frame (0 / 1, each whole half-cycle), or null.
    */
   walk(dt: number, moved: number, speed: number, forward: number, yawRate: number): 0 | 1 | null {
     const W = WALK;
@@ -147,7 +146,7 @@ export class Puppet {
     return moved > 1e-5 && step > stepBefore ? ((step & 1) as 0 | 1) : null;
   }
 
-  /** papertrails' applyPose: everything from the phase, the gait weight, the springs and the idle breath. */
+  /** The pose: everything from the phase, the gait weight, the springs and the idle breath. */
   private pose(): void {
     const W = WALK;
     const P = this.parts;
@@ -173,7 +172,7 @@ export class Puppet {
   }
 
   /**
-   * A leg's forward angle at phase ph (the skill's leg(): one stride is 2 pi, swing for the first half, stance for the
+   * A leg's forward angle at phase ph (one stride is 2 pi, swing for the first half, stance for the
    * second): planted, the angle whose foot stays put while the hip covers one stride (asin of the stride over the leg's
    * length, linear in distance); swinging, eased from behind to in front. Scaled down with the gait as he stops.
    */

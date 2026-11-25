@@ -68,7 +68,7 @@ function stage(sc) {
   }
   const hold = () => { s.x = spot[0]; s.z = spot[1]; s.vx = s.vz = 0; };
   // (simulated time, not waiting: TOUR_STEPS per point of a tour, STAND_STEPS for the place to rise and settle,
-  // papertrails' rise of a cell taking about 2 s after its ripple delay)
+  // the rise of a cell taking about 2 s after its ripple delay)
   const TOUR_STEPS = 40;
   const STAND_STEPS = 540;
   for (const [px, pz] of sc.tour ?? []) {

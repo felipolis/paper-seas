@@ -1,10 +1,9 @@
 /**
- * The captains' clip check (the papercraft skill's __papercraft.clips(), mechanisms.md section 12), run in the dev
- * build's page by tools/qa/crew-clips.mjs: each captain is posed standing, through two stride cycles walking straight
- * and turning, and at the helm, and every pair of its pieces on different joints is tested for cutting into each
- * other (pieces on one joint never move apart; papertrails slots them through each other on purpose). A piece is its
- * outline, less its holes, extruded by its thickness (the model's Piece list); points sampled through piece A's slab
- * are taken into piece B's frame and counted when they fall inside B's slab.
+ * The captains' clip check, run in the dev build's page by tools/qa/crew-clips.mjs: each captain is posed standing,
+ * through two stride cycles walking straight and turning, and at the helm, and every pair of its pieces on different
+ * joints is tested for cutting into each other (pieces on one joint never move apart, and are slotted through each
+ * other on purpose). A piece is its outline, less its holes, extruded by its thickness (the model's Piece list);
+ * points sampled through piece A's slab are taken into piece B's frame and counted when they fall inside B's slab.
  */
 import * as THREE from 'three';
 import { CAPTAINS } from '../../src/config/ships';

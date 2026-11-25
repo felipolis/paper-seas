@@ -1,6 +1,6 @@
 /**
- * Ambient life round the focus (after papertrails' life, life/life.js there): small cut-paper pieces that make the
- * diorama feel alive and calm. How much of each kind is out follows the biome and the night (life-frame.ts).
+ * Ambient life round the focus: small cut-paper pieces that make the diorama feel alive and calm. How much of each
+ * kind is out follows the biome and the night (life-frame.ts).
  *
  *   leaves      drift down from high up with the wind, rocking and tumbling, rest on the ground a while and shrink away
  *   petals      the same, pink
@@ -10,10 +10,9 @@
  *   weather     rain and mist in the pine woods (weather.ts)
  *   flocks      birds crossing the view in a V, their shadows on the ground (flocks.ts)
  *
- * Leaves, petals and dust are pure functions of the clock, wrapped in papertrails' weather box round the focus; as
- * there, a kind comes in and out by rank instead of all at once, and a piece fades out where it would come between the
- * camera and the captain or near the lens (the shared clear line). papertrails' page has no sea: what falls or drifts
- * keeps to the land.
+ * Leaves, petals and dust are pure functions of the clock, wrapped in a weather box round the focus; a kind comes in
+ * and out by rank instead of all at once, and a piece fades out where it would come between the camera and the captain
+ * or near the lens (the shared clear line). What falls or drifts keeps to the land.
  */
 import * as THREE from 'three';
 import { AMBIENT } from '../config/life';
@@ -83,7 +82,7 @@ const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
 
 /**
- * papertrails' floor (life/life.js there): a leaf or a speck faded below this size is not drawn at all. A card shrunk
+ * The floor: a leaf or a speck faded below this size is not drawn at all. A card shrunk
  * to a speck still rasterises a pixel now and then, and its lighting there can come out invalid: a black dot the
  * bokeh spreads into a white disc.
  */
@@ -101,7 +100,7 @@ function pieceTexture(draw: (c: CanvasRenderingContext2D, s: number) => void, si
 }
 
 /**
- * One wing, as papertrails cuts it: the hinge on the left edge, the leading edge toward the top; a forewing and a
+ * One wing: the hinge on the left edge, the leading edge toward the top; a forewing and a
  * smaller hindwing in white (the instance colour tints it) with a brown edge and a spot.
  */
 const wingTex = () =>
@@ -178,7 +177,7 @@ export class Ambience {
     this.group.add(...this.fallers.map((f) => f.bits.group), this.dust.group, this.weather.group, this.flocks.group);
 
     const paper = (map: THREE.Texture) => createPaperMaterial({ map, back: null });
-    // a wing lies flat with its hinge at the origin and its leading edge toward +z (papertrails puts the wing's middle
+    // a wing lies flat with its hinge at the origin and its leading edge toward +z (the wing's middle is
     // 0.42 of the span out, so the roots overlap a little over the body)
     const B = AMBIENT.butterflies;
     const wing = new THREE.PlaneGeometry(1, 1).rotateX(Math.PI / 2).translate(0.42, 0, 0);
@@ -236,7 +235,7 @@ export class Ambience {
   }
 
   /**
-   * papertrails' fallers: each piece falls from the top of the box at its own speed, rocking side to side (less near
+   * The fallers: each piece falls from the top of the box at its own speed, rocking side to side (less near
    * the ground) and tumbling about a face-up pose, so it always catches the key light; the wind carries it to where it
    * lands; it rests there `land` s and shrinks away, then starts again somewhere else. Nothing rests on water.
    */
@@ -277,7 +276,7 @@ export class Ambience {
     k.bits.commit();
   }
 
-  /** papertrails' dust: specks drifting along the wind at their own speed and height, bobbing, turned to the camera. */
+  /** The dust: specks drifting along the wind at their own speed and height, bobbing, turned to the camera. */
   private drift(): void {
     const cfg = AMBIENT.dust;
     const { w: W, d: D } = AMBIENT.box;
@@ -324,9 +323,9 @@ export class Ambience {
   }
 
   /**
-   * papertrails' butterflies: a Lissajous loop round the home, heading along it, wings hinged and beating. One whose home
-   * has flowers within reach takes its home over them, keeps closer round them and comes out whatever its rank (its
-   * flower tiles, `flowers`), so they gather over the flowers.
+   * The butterflies: a Lissajous loop round the home, heading along it, wings hinged and beating. One whose home has
+   * flowers within reach takes its home over them, keeps closer round them and comes out whatever its rank (up to the
+   * `flowers` share), so they gather over the flowers.
    */
   private updateButterflies(dt: number): void {
     const B = AMBIENT.butterflies;
@@ -363,7 +362,7 @@ export class Ambience {
   }
 
   /**
-   * papertrails' fireflies: each loops slowly round its home and pulses (glow 3.6, a squared sine); one whose home has
+   * The fireflies: each loops slowly round its home and pulses (glow 3.6, a squared sine); one whose home has
    * water within reach moves over the bank and comes out whatever its rank, so they gather over streams and shores.
    */
   private updateFireflies(dt: number): void {
@@ -393,7 +392,7 @@ export class Ambience {
     this.sparks.instanceColor!.needsUpdate = true;
   }
 
-  /** papertrails' spot search: rings of 8 out to 2.4 round the home; the first water found pulls the home 0.85 there. */
+  /** The spot search: rings of 8 out to 2.4 round the home; the first water found pulls the home 0.85 there. */
   private seekWater(o: Roamer): void {
     o.sought = true;
     for (let ri = 1; ri <= 3; ri++) {

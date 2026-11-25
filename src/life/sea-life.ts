@@ -459,7 +459,7 @@ class PassingShip implements Encounter {
 /** The share of the ships passing by night that are ghosts (a glimpse now and then; the Phantom is life/marvels.ts). */
 const GHOST_SHARE = 0.1;
 
-/** papertrails' paper flip: the card's facing eases round at this rate (1/s), cut across its middle below FLIP_CUT. */
+/** The paper flip: the card's facing eases round at this rate (1/s), cut across its middle below FLIP_CUT. */
 const FLIP_RATE = 11;
 const FLIP_CUT = 0.3;
 /** The share of the gulls still out at night. */
@@ -481,7 +481,7 @@ class Gull {
   private t = random() * 10;
 
   constructor() {
-    // every frame turned to face right; turning round, the card flips like papertrails' animals (its width eased through 0)
+    // every frame turned to face right; turning round, the card flips (its width eased through 0)
     this.frames = ['gull-up', 'gull-down', 'gull-glide'].map((n) => {
       const m = createCard(spriteArt(n, { height: n === 'gull-glide' ? 0.28 : 0.5, bottom: -0.25 }), { flipX: mirrorFor(n, 1) });
       m.receiveShadow = false;
@@ -551,7 +551,7 @@ export class SeaLife {
 
   update(dt: number, ship: ShipState): void {
     Object.assign(this.ship, ship);
-    // at night most of them roost (papertrails keeps 0.35 of its birds): they go by rank, the last first
+    // at night most of them roost (0.35 of them stay out): they go by rank, the last first
     const zone = this.zone();
     this.flock += ((zone.gulls ? (this.isNight() ? NIGHT_GULLS : 1) : 0) - this.flock) * (1 - Math.exp(-dt * 0.5));
     this.gulls.forEach((g, i) => g.update(dt, this.ship, clamp((this.flock * this.gulls.length - i) / 0.6, 0, 1), this.clearLine));

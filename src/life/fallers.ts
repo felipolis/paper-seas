@@ -1,7 +1,7 @@
 /**
- * papertrails' fallers (life/life.js there): what the leaves, the petals and the rain share. Each piece falls from the
- * top of the weather box at its own speed, rests where it lands a while, then starts again at another hashed spot of
- * the box, wrapped round the focus; what lies where it lands is looked up once per cycle.
+ * The fallers: what the leaves, the petals and the rain share. Each piece falls from the top of the weather box at
+ * its own speed, rests where it lands a while, then starts again at another hashed spot of the box, wrapped round the
+ * focus; what lies where it lands is looked up once per cycle.
  */
 import { AMBIENT } from '../config/life';
 import { hash01 } from '../core/rng';

@@ -76,7 +76,7 @@ export class Sound {
     return this.musicOff;
   }
 
-  /** M: the music off or on again (papertrails' M: the paper, the steps and the sea play on). */
+  /** M: the music off or on again (the paper, the steps and the sea play on). */
   toggleMusic(): void {
     this.musicOff = !this.musicOff;
     bus.emit('music', { off: this.musicOff });
@@ -146,7 +146,7 @@ export class Sound {
     return this.graph && this.graph.ctx.state === 'running' ? this.graph : null;
   }
 
-  /** A piece height tall rose or folded at (x, z): a flap as large as it is in papertrails' tiles. */
+  /** A piece height tall rose or folded at (x, z): a flap as large as the piece is against a tile's height. */
   private paper(x: number, z: number, height: number, up: boolean, delay: number, key: string): void {
     const g = this.live();
     if (!g) return;

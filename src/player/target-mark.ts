@@ -1,7 +1,7 @@
 /**
- * papertrails' click-to-walk target mark (player/controls.js buildMarkerGeometry there): a hand-inked dashed ring with
- * a small cross, one flat mesh printed on the page where he is walking to. It inks in over 0.1 s, each stamp at its own
- * angle, and fades away once he gets there or the walk is let go.
+ * The click-to-walk target mark: a hand-inked dashed ring with a small cross, one flat mesh printed on the page where
+ * he is walking to. It inks in over 0.1 s, each stamp at its own angle, and fades away once he gets there or the walk
+ * is let go.
  */
 import * as THREE from 'three';
 import { CLICK_WALK } from '../config/player';

@@ -1,12 +1,11 @@
 /**
- * What stands on the land and how tall, after papertrails (its traveller is 0.6 tall, our captain 0.58, so its
- * heights carry over as they are): trees about 1.8 x the traveller, pines 2.2, bushes 0.67, flowers and tufts a
- * third, rocks half, boulders one; animals at most half the captain (the skill's creatures, 1/3 to 1/2 of the hero);
- * every kind varied +-15 % about the middle of its range.
- * Ground cover is planted by 2 x 2 tiles (world/cover.ts), as papertrails' page is: each tile is one composition (a
- * grove, a thicket, a glade...) mixing several tall species near its corners with clumps of ground cover, flowers,
- * small props and its animals (papertrails: 9 or 10 cards a tile, nearly every one a different drawing), chosen
- * per biome, with forest tiles massing where a low-frequency field is high.
+ * What stands on the land and how tall, measured against the captain (0.58 tall): trees about 1.8 x the captain,
+ * pines 2.2, bushes 0.67, flowers and tufts a third, rocks half, boulders one; animals at most half the captain (1/3
+ * to 1/2 of his height); every kind varied +-15 % about the middle of its range.
+ * Ground cover is planted by 2 x 2 tiles (world/cover.ts): each tile is one composition (a grove, a thicket, a
+ * glade...) mixing several tall species near its corners with clumps of ground cover, flowers, small props and its
+ * animals (9 or 10 cards a tile, nearly every one a different drawing), chosen per biome, with forest tiles massing
+ * where a low-frequency field is high.
  */
 import type { Biome } from '../world/land';
 
@@ -44,13 +43,13 @@ export const HEIGHT: Record<string, [number, number]> = {
   'bush-yellow': [0.36, 0.44],
   'bush-coral': [0.36, 0.44],
   'bush-plum': [0.36, 0.44],
-  // (papertrails' ferns: 0.33-0.46)
+  // ferns
   'fern-0': [0.33, 0.46],
   'fern-1': [0.33, 0.46],
   'fern-2': [0.33, 0.46],
   'fern-3': [0.33, 0.46],
   'fern-4': [0.33, 0.46],
-  // flowers and reeds (papertrails: flowers and tufts half the traveller, reeds a little more)
+  // flowers and reeds (flowers and tufts half the captain's height, reeds a little more)
   hibiscus: [0.34, 0.42],
   orchids: [0.28, 0.34],
   'flowers-yellow': [0.22, 0.28],
@@ -81,7 +80,7 @@ export const HEIGHT: Record<string, [number, number]> = {
   'rock-cairn': [0.36, 0.44],
   'rock-big': [0.52, 0.66],
   'rock-spire': [0.7, 0.85],
-  // animals: the skill's creatures, at most half the captain (a kind taller than that scaled down to it, its range kept)
+  // animals: at most half the captain (a kind taller than that scaled down to it, its range kept)
   monkey: [0.254, 0.29],
   parrot: [0.2, 0.24],
   toucan: [0.2, 0.24],
@@ -118,7 +117,7 @@ export const HEIGHT: Record<string, [number, number]> = {
   'hut-round': [0.75, 0.85],
   'pier-post': [0.3, 0.36],
   shipwreck: [0.8, 0.95],
-  // structures and camp (papertrails' watchtower stands about three travellers tall)
+  // structures and camp
   watchtower: [1.4, 1.5],
   well: [0.62, 0.68],
   bench: [0.3, 0.34],
@@ -135,7 +134,7 @@ export const HEIGHT: Record<string, [number, number]> = {
   beehive: [0.55, 0.6],
   stall: [0.58, 0.64],
   campfire: [0.3, 0.36],
-  // the spring of a stream and the crags round it (papertrails' river_source: 0.32 tall, crags 0.46-0.73)
+  // the spring of a stream and the crags round it
   spring: [0.32, 0.36],
   'crag-0': [0.7, 0.75],
   'crag-1': [0.5, 0.55],
@@ -155,8 +154,8 @@ export const HEIGHT: Record<string, [number, number]> = {
 export const SEA_STACK: [number, number] = [1.2, 1.6];
 
 /**
- * A sprite's height for a random r in [0, 1): the middle of its range, varied +-SIZE_VARY (the skill: every kind ~15 %
- * in scale, so no two of a kind stand alike).
+ * A sprite's height for a random r in [0, 1): the middle of its range, varied +-SIZE_VARY (every kind ~15 % in
+ * scale, so no two of a kind stand alike).
  */
 export function heightOf(sprite: string, r: number): number {
   const h = HEIGHT[sprite];
@@ -165,8 +164,8 @@ export function heightOf(sprite: string, r: number): number {
 }
 
 /**
- * The kinds printed in several variants (the papercraft skill: 4-6 seeded variants per kind, no stamped repeats). A
- * tile's lists name a kind by any of its members; each card it plants is drawn among all of them (variantOf).
+ * The kinds printed in several variants (4-6 seeded variants per kind, no stamped repeats). A tile's lists name a
+ * kind by any of its members; each card it plants is drawn among all of them (variantOf).
  */
 const VARIANTS: readonly (readonly string[])[] = [
   ['tree-broad', 'tree-broad-1', 'tree-broad-2', 'tree-broad-3', 'tree-broad-4'],
@@ -199,7 +198,7 @@ export interface TileKind {
   forest?: boolean;
   /**
    * Tall pieces near the corners: the species a slow field picks leads (so neighbouring tiles share it), the others
-   * of the list mixed in (papertrails' forest tile: 4 species).
+   * of the list mixed in.
    */
   tall?: { species: string[]; count: [number, number] };
   /** Clumps of ground cover and flowers (world/cover.ts: one to four cards of different species from the list). */
@@ -208,15 +207,14 @@ export interface TileKind {
   props?: { species: string[]; count: [number, number] };
   /** Animals from the biome's list: how many on the tile on average. */
   animals?: number;
-  /** papertrails' meadow pen (its fence_pad with sheep, world/pen.ts): this share of the tiles keep one (one a square at most). */
+  /** A meadow pen (a diamond of low fences with a herd inside, world/pen.ts): this share of the tiles keep one (one a square at most). */
   pen?: number;
 }
 
 /**
- * The tile compositions of each biome. Like papertrails' tiles they are full: a few tall pieces of mixed species,
- * clumps of ground cover and flowers, small props, animals; the wild is mostly wood: forest tiles carry most of the
- * weight and grow more likely still where the forest field is high, so the woods close up and the open ground comes
- * in glades.
+ * The tile compositions of each biome. They are full: a few tall pieces of mixed species, clumps of ground cover and
+ * flowers, small props, animals; the wild is mostly wood: forest tiles carry most of the weight and grow more likely
+ * still where the forest field is high, so the woods close up and the open ground comes in glades.
  */
 export const TILES: Record<Biome, TileKind[]> = {
   jungle: [
@@ -249,14 +247,13 @@ export const TILES: Record<Biome, TileKind[]> = {
   ],
 };
 
-/** When an animal is about (papertrails' spawn flags d and n): by day only, or by night only; always if not given. */
+/** When an animal is about: by day only, or by night only; always if not given. */
 export type Awake = 'day' | 'night';
 
 /**
- * One row of a biome's animals, papertrails' spawn entry (config/animals.js there: species, chance, min, max, flags):
- * its weight among the biome's rows, how many come, whether they keep together (its h: one tight group), when they are
- * about, and where they are: at a tree of the tile (its at:tree and behind:tree vignettes) or perched on a stump, a log
- * or a stone of it (its p: no perch, no animal).
+ * One row of a biome's animals: its weight among the biome's rows, how many come, whether they keep together (one
+ * tight group), when they are about, and where they are: at a tree of the tile (beside it or half hidden behind it) or
+ * perched on a stump, a log or a stone of it (no perch, no animal).
  */
 export interface AnimalRow {
   species: string;
@@ -270,11 +267,9 @@ export interface AnimalRow {
 const row = (species: string, weight: number, count: [number, number], more: Omit<AnimalRow, 'species' | 'weight' | 'count'> = {}): AnimalRow => ({ species, weight, count, ...more });
 
 /**
- * The animals of each biome: papertrails' rows (config/animals.js spawns there), each as its nearest kind of ours plays
- * it (world/critters.ts): sheep and cows come in herds (our goats and pigs), hens, chicks and songbirds in flocks by day
- * (our hens, parrots, toucans, hummingbirds), squirrels and lizards by day (our monkeys, geckos and iguanas); a fox
- * half hidden behind a tree by day and out in the open at night (our boar), the hedgehog by night (our tortoise), the
- * owl by night up on a stump or a log.
+ * The animals of each biome, as world/critters.ts plays them: goats and pigs come in herds, hens, parrots, toucans and
+ * hummingbirds in flocks by day, monkeys, geckos and iguanas by day; the boar half hidden behind a tree by day and out
+ * in the open at night, the tortoise by night, the owl by night up on a stump or a log.
  */
 export const ANIMALS: Partial<Record<Biome, AnimalRow[]>> = {
   beach: [row('crab', 1, [1, 2]), row('pelican', 0.4, [1, 1], { awake: 'day' }), row('tortoise', 0.4, [1, 1]), row('heron', 0.3, [1, 1], { awake: 'day' })],

@@ -1,11 +1,11 @@
 /**
- * What every kind of ambient life reads each frame (papertrails' life/life.js update() there): the clock, the focus,
- * the wind, where the camera and the key light stand, the night, and how much of each kind is out.
+ * What every kind of ambient life reads each frame: the clock, the focus, the wind, where the camera and the key light
+ * stand, the night, and how much of each kind is out.
  *
- * The amounts are papertrails' densities(): each kind's share in the biome (config/life.ts, our biomes mapped to its
- * rows), cross-faded over the biome borders, times its night factor. As there it is known at the focus and as a gradient across the
- * weather box (from biome weights sampled GRAD units either side), so each piece takes the mix at its own spot, and
- * the cross-fade is sharpened so a little of a neighbour biome brings none of its life.
+ * The amounts are each kind's share in the biome (config/life.ts, each biome mapped to a row), cross-faded over the
+ * biome borders, times its night factor. It is known at the focus and as a gradient across the weather box (from
+ * biome weights sampled GRAD units either side), so each piece takes the mix at its own spot, and the cross-fade is
+ * sharpened so a little of a neighbour biome brings none of its life.
  */
 import * as THREE from 'three';
 import { AMBIENT, type LifeKind } from '../config/life';
@@ -16,15 +16,15 @@ import { rankGate, smoothstep } from '../core/math';
 /** World units between the biome samples of the gradient. */
 const GRAD = 5;
 /**
- * papertrails blends its biomes over 1.6 tiles; our biomes are a hard partition, so the weight of a biome at a point
- * is the share of a 3 x 3 stencil of samples this far apart that lies in it.
+ * The biomes are a hard partition, so the weight of a biome at a point is the share of a 3 x 3 stencil of samples
+ * this far apart (world units) that lies in it.
  */
 const BLEND = 1.6;
 const KINDS = Object.keys(AMBIENT.biomes.heartland) as LifeKind[];
 type Row = keyof typeof AMBIENT.biomes;
 
 
-/** n seeded random numbers in [0, 1) (papertrails' per-piece table: six per piece). */
+/** n seeded random numbers in [0, 1) (a per-piece table: six per piece). */
 export function randomTable(n: number, seed: number): Float32Array {
   const rng = mulberry32(seed);
   const out = new Float32Array(n);
@@ -90,7 +90,7 @@ export class LifeFrame {
   }
 
   /**
-   * papertrails' gate: the piece of this rank (0..1) at (dx, dz) off the focus shows once the share there reaches its
+   * The gate: the piece of this rank (0..1) at (dx, dz) off the focus shows once the share there reaches its
    * rank, fading in, and fades out over the outer 14 % of a w x d box.
    */
   gate(kind: LifeKind, dx: number, dz: number, rank: number, w: number, d: number): number {

@@ -1,6 +1,5 @@
 /**
- * The little animals among the cards, and how they live and take the captain, after papertrails' animals
- * (life/animals.js and config/animals.js there). Each of ours behaves as papertrails' nearest animal does:
+ * The little animals among the cards, and how they live and take the captain. Each behaves as one of these:
  *
  *   pet    (cat, dog)                 wanders and sits near home; a cat naps, a dog gets up and wags as he passes
  *   graze  (goat, pig, tortoise,      slow drift, head down; lifts the head as he passes, a goat or a pig shuffles a
@@ -13,19 +12,19 @@
  *   float  (a duck on a stream)       drifts in slow arcs, turning back at the bank
  *   perch  (owl)                      sits still, rocking a little
  *
- * Between its reactions an animal turns from idling to walking a few steps about its home and back (papertrails'
- * think / wander); where it ran or flew to is its home from then on. papertrails walks on two printed frames; our
- * card has one, so a walk is papertrails' hop and rock per step alone, and a head-down pose (graze, peck) is the
- * card tipped forward. By night the grazers stand still and the cats nap. A card turning round flips like paper:
- * it turns through edge-on, and since both its faces are printed it comes round mirrored (papertrails' flipRate).
+ * Between its reactions an animal turns from idling to walking a few steps about its home and back (think /
+ * wander); where it ran or flew to is its home from then on. A card has one printed frame, so a walk is a hop and a
+ * rock per step, and a head-down pose (graze, peck) is the card tipped forward. By night the grazers stand still
+ * and the cats nap. A card turning round flips like paper: it turns through edge-on, and since both its faces are
+ * printed it comes round mirrored.
  */
 import type { Card } from './card-field';
 import { mulberry32 } from '../core/rng';
 
-/** A pose of papertrails' idle lists as one print shows it: standing (or sitting), head down (graze, peck), asleep. */
+/** An idle pose as one print shows it: standing (or sitting), head down (graze, peck), asleep. */
 type Idle = 'stand' | 'down' | 'sleep';
 
-/** papertrails' species numbers (config/animals.js there): speeds in u/s, step: ground per walk frame, hop / rock: lift and roll per step, roam: wander radius. */
+/** A species' numbers: speeds in u/s, step: ground per walk frame, hop / rock: lift and roll per step, roam: wander radius. */
 interface Gait {
   idle: Idle[];
   speed: number;
@@ -35,7 +34,7 @@ interface Gait {
   hop: number;
   rock: number;
   roam: number;
-  /** It bounds (papertrails' mid-leap frame, `air`) when it runs, and a shy one when it walks too; `leap`: only when it flees. */
+  /** It bounds (`air`) when it runs, and a shy one when it walks too; `leap`: only when it flees. */
   air?: boolean;
   leap?: boolean;
 }
@@ -83,7 +82,7 @@ const TORTOISE: Grazer = { b: 'graze', idle: ['stand'], speed: 0.08, step: 0.025
 /** The duck's waddle: a wading bird walks it, and the duck itself swims too. */
 const WADER: Grazer = { b: 'graze', idle: ['stand'], speed: 0.16, step: 0.05, hop: 0.005, rock: 0.08, roam: 0.22 };
 const DUCK: Grazer = { ...WADER, swim: { arc: [0.1, 0.26], drift: 0.07 } };
-/** papertrails' cat: sit, sit, tail up, stretch (all standing on our print) or asleep; it never follows him (follow 0). */
+/** The cat: sits, stands or stretches (all the standing print), or sleeps; it never follows him. */
 const CAT: Pet = { b: 'pet', idle: ['stand', 'stand', 'stand', 'stand', 'sleep'], speed: 0.42, run: 2.75, step: 0.085, hop: 0.012, rock: 0.05, roam: 0.7 };
 const DOG: Pet = { b: 'pet', idle: ['stand'], wag: true, speed: 0.5, run: 2.75, step: 0.1, hop: 0.014, rock: 0.05, roam: 0.6 };
 const OWL: Percher = { b: 'perch', idle: ['stand'], speed: 0, step: 1, hop: 0, rock: 0.03, roam: 0 };
@@ -92,7 +91,7 @@ interface Kind {
   sp: Species;
   /** Which way the print looks (checked by eye on the cut sprites; again whenever they are regenerated): 1 right, -1 left, 0 straight out (it never needs to turn). */
   art: 1 | -1 | 0;
-  /** Placed on the water: it floats (papertrails' 'w' flag). */
+  /** Placed on the water: it floats. */
   float?: boolean;
 }
 
@@ -122,24 +121,24 @@ const CRITTERS: Record<string, Kind> = {
   hummingbird: { sp: SONGBIRD, art: -1 },
 };
 
-/** papertrails' reaction radii: heads up, scatter (peck), wag (dog), slide (bank duck), shuffle (graze). */
+/** Reaction radii: heads up, scatter (peck), wag (dog), slide (bank duck), shuffle (graze). */
 const HEADS_UP = 1.35;
 const SCATTER = 0.75;
 const WAG = 1.3;
 const SLIDE = 0.85;
 const SHUFFLE = 0.62;
-/** A bank duck stands within this of the water (papertrails' 'b' flag). */
+/** A bank duck stands within this of the water. */
 const BANK = 0.3;
-/** papertrails' vignettes: how often one keeps its place when it thinks of wandering, and its leap down from a seat (s). */
+/** Vignettes: how often one keeps its place when it thinks of wandering, and its leap down from a seat (s). */
 const STAY = 0.75;
 const LEAP = 0.42;
-/** papertrails' flight directions off straight away from him (rad), the paper flip (1/s), the fastest walk-frame swap (1/s). */
+/** The flight directions off straight away from him (rad), the paper flip (1/s), the fastest walk-frame swap (1/s). */
 const FLEE_OFFS = [0, 0.5, -0.5, 1.0, -1.0, 1.6, -1.6, 2.3, -2.3];
 const FLIP_RATE = 11;
-/** The flip is cut at its middle (the skill): the card's width never shows below this share, it jumps across the edge-on. */
+/** The flip is cut at its middle: the card's width never shows below this share, it jumps across the edge-on. */
 const FLIP_CUT = 0.3;
 const STEP_RATE = 9;
-/** How far our print tips forward for papertrails' head-down frame (rad). */
+/** How far the print tips forward for the head-down pose (rad). */
 const HEAD_DOWN = 0.22;
 
 /** What the animals ask of the world: where they may stand (land, out of the streams), where a stream's water is, whether it is night. */
@@ -185,7 +184,7 @@ interface State {
   dir: number;
   spin: number;
   bank: boolean;
-  /** Its own random sequence (papertrails' per-animal stream). */
+  /** Its own random sequence. */
   rand: () => number;
   /** Where it heads once down from its seat, whether it was fleeing, and whether it bounds there. */
   leapTo: [number, number] | null;
@@ -222,7 +221,7 @@ export class Critters {
     const dx = fx - (c.x + s.x);
     const dz = fz - (c.z + s.z);
     const d2 = dx * dx + dz * dz;
-    // papertrails desyncs the animals by their slot index (0..55); here by the card's phase
+    // the animals are desynced by the card's phase, taken as a slot index (0..55)
     const i = c.phase * 56;
     s.t += dt;
     if (s.cool > 0) s.cool -= dt;
@@ -343,7 +342,7 @@ export class Critters {
         break;
       }
       case 'slide': {
-        // papertrails' bank duck slides into the water; ours (a standing print) waddles to the water's edge
+        // a bank duck (a standing print) waddles to the water's edge
         const u = Math.min(1, s.t / s.dur);
         const e = u * u * (3 - 2 * u);
         s.x = s.fx + (s.tx - s.fx) * e;
@@ -359,7 +358,7 @@ export class Critters {
         rock = Math.sin(t * 0.7 + i) * sp.rock;
         break;
       case 'leap': {
-        // papertrails' paper leap down from a seat: over to the spot beside it, dropping to the ground
+        // the paper leap down from a seat: over to the spot beside it, dropping to the ground
         const u = Math.min(1, s.t / LEAP);
         const seat = c.vignette?.seat ?? 0;
         s.x = s.fx + (s.tx - s.fx) * u;
@@ -384,7 +383,7 @@ export class Critters {
       }
     }
     if (s.mv) {
-      // papertrails' paper walk, on our one print: a hop and a roll per step, or a bound per stride
+      // the paper walk, on the one print: a hop and a roll per step, or a bound per stride
       shown = 'stand';
       if (s.air) {
         const f = s.ph - Math.floor(s.ph);
@@ -398,7 +397,7 @@ export class Critters {
         rock = Math.sin(s.ph * Math.PI) * sp.rock;
       }
     } else if (s.st === 'idle' && shown !== 'sleep') rock += Math.sin(t * 1.1 + i * 2.3) * 0.012; // a breath of life
-    s.faceK += (s.face - s.faceK) * Math.min(1, dt * FLIP_RATE);
+    s.faceK += (s.face - s.faceK) * (1 - Math.exp(-FLIP_RATE * dt));
     // (cut at the middle: never seen edge-on, a sliver; it jumps across to the turned side)
     if (Math.abs(s.faceK) < FLIP_CUT) s.faceK = FLIP_CUT * Math.sign(s.face);
 
@@ -408,7 +407,7 @@ export class Critters {
     p.dy = lift - s.down;
     // the paper flip: a yaw from 0 (as printed) to pi (turned round), cut across edge-on
     p.yaw = kind.art === 0 ? 0 : Math.acos(Math.max(-1, Math.min(1, s.faceK)));
-    // papertrails rolls the picture on screen, so a turned card (seen from its back) rolls the other way; head down,
+    // the picture rolls on screen, so a turned card (seen from its back) rolls the other way; head down,
     // the print tips toward its nose
     p.lean = (s.faceK < 0 ? -rock : rock) - (shown === 'down' ? HEAD_DOWN * kind.art * (c.flip ? -1 : 1) : 0);
     return p;
@@ -426,7 +425,7 @@ export class Critters {
     return p;
   }
 
-  /** A new animal at its card's spot (papertrails' reset); the terrain's random mirroring of the card is its facing. */
+  /** A new animal at its card's spot; the terrain's random mirroring of the card is its facing. */
   private spawn(c: Card, kind: Kind): State {
     const s: State = {
       x: 0, z: 0, hx: 0, hz: 0, tx: 0, tz: 0, fx: 0, fz: 0, st: 'idle', t: 0, dur: 0, v: 0, air: false, ph: 0, stuck: 0,
@@ -458,7 +457,7 @@ export class Critters {
     return s;
   }
 
-  /** papertrails' think: the next idle pose, or a walk about home; a vignette mostly keeps its place, or goes back. */
+  /** Think: the next idle pose, or a walk about home; a vignette mostly keeps its place, or goes back. */
   private think(s: State, c: Card, sp: Species): void {
     s.t = 0;
     const night = this.habitat.night();
@@ -469,7 +468,7 @@ export class Critters {
         s.dur = 6 + s.rand() * 10;
         return;
       }
-      // back to it (only on the ground: a seat is not reached again, as in papertrails)
+      // back to it (only on the ground: a seat is not reached again)
       if (!c.vignette.seat && sp.speed > 0 && this.habitat.canStand(c.x, c.z)) {
         s.tx = 0;
         s.tz = 0;
@@ -557,7 +556,7 @@ export class Critters {
   }
 
   /**
-   * Up on a seat, a walk or a flight starts with papertrails' leap down to the ground beside the piece, toward
+   * Up on a seat, a walk or a flight starts with the leap down to the ground beside the piece, toward
    * (tx, tz), where it goes on afterwards (bounding with `air`); false when it is already on the ground (or finds no
    * spot to land on).
    */
@@ -640,7 +639,7 @@ export class Critters {
     }
   }
 
-  /** One step toward (tx, tz), sliding along what blocks it on one axis (papertrails' advance). */
+  /** One step toward (tx, tz), sliding along what blocks it on one axis. */
   private advance(s: State, c: Card, kind: Kind, tx: number, tz: number, speed: number, dt: number): Step {
     const ok = (x: number, z: number) => this.habitat.canStand(c.x + x, c.z + z);
     const ex = tx - s.x;

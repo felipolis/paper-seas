@@ -1,5 +1,5 @@
 /**
- * The wind in the standing cards (papertrails' sway, world/fold.js and config/fold.js there): every upright card rocks a
+ * The wind in the standing cards: every upright card rocks a
  * little about its hinge, toward and away from the camera, more the taller and thinner it is, by its kind (grass and
  * palms loose, posts and animals stiff, rocks and walls rigid), the tall ones slower, and twists a little about its own
  * long axis as it rocks. The angle is a pure function of (time, place):
@@ -40,7 +40,7 @@ const KF = (2 * Math.PI) / 5;
 /** Seconds for the sway to fade in once a card has settled upright, and to relax away once it moves again. */
 export const SWAY_FADE_IN = 1.2;
 export const SWAY_RELEASE = 0.22;
-/** Only cards this close to the focus sway (papertrails: 5.5 tiles). */
+/** Only cards this close to the focus sway. */
 export const SWAY_RADIUS = 11;
 
 const LOOSE = /^(grass|fern|flower|palm|cattails|papyrus)/;
@@ -92,7 +92,7 @@ export function swayAngle(s: Sway, x: number, z: number, nx: number, nz: number,
 }
 
 /**
- * papertrails' wind strength per biome (config/fold.js wind.strength there: heartland 1, blossom 0.85, pinewood 0.32,
+ * The wind strength per biome (heartland 1, blossom 0.85, pinewood 0.32,
  * the pine woods all but still), its rows taken as the biome tints take them (render/biome-tint.ts). A card with no
  * biome (an animal) takes the heartland's.
  */

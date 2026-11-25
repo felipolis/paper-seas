@@ -2,7 +2,7 @@
  * Diorama camera: in the plain view north is up and the pitch fixed, so every card faces the viewer like a pop-up book
  * on a table (the V views turn and tip it, the sight assist and the open chart a little more).
  *
- * On foot it is papertrails' follow camera (camera/follow.js, config/player.js there), ported as it is:
+ * On foot it is a follow camera:
  *   - the look target is a critically damped spring, stepped exactly toward the goal at the middle of the step, so it
  *     moves the same at any frame rate;
  *   - the goal comes from the camera window: a still zone round the captain where the camera does not move at all,
@@ -13,28 +13,28 @@
  *   - a very slow, tiny drift keeps the frame alive, like a hand-set tripod head;
  *   - sight assist: when a building hides him for a moment, the lens eases up and / or round, the gentlest offset that
  *     clears him, and eases back once the plain view has been clear for a while.
- * Every window size is papertrails' at its distance and scales with the zoom.
+ * Every window size is set for the on-foot distance and scales with the zoom.
  *
  * At sea the ship has the same window, its sizes scaled with the zoom, so the camera stands still while the ship idles
- * or turns about and only travels once it sails on (the skill: a calm camera that never chases); the sight assist is
+ * or turns about and only travels once it sails on (a calm camera that never chases); the sight assist is
  * for the captain only. A change of view (boarding, going ashore) glides over VIEW_GLIDE seconds on a smoothstep of
- * every key (distance, pitch, field of view), never an exponential ease or a cut. The wheel zooms. V cycles
- * papertrails' views (config/view.ts VIEWS), each a share or offset of the pose, eased the same way.
+ * every key (distance, pitch, field of view), never an exponential ease or a cut. The wheel zooms. V cycles the
+ * views (config/view.ts VIEWS), each a share or offset of the pose, eased the same way.
  */
 import * as THREE from 'three';
 import { CAMERA, ON_FOOT, VIEWS } from '../config/view';
 import { PLAYER } from '../config/player';
 import { DEG, clamp, smoothstep } from '../core/math';
 
-/** papertrails' sightBlocked: does the ray from (ox, oy, oz) along the unit (dx, dy, dz) meet a large piece within len? */
+/** Does the ray from (ox, oy, oz) along the unit (dx, dy, dz) meet a large piece within len? */
 export type SightTest = (ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, len: number) => boolean;
 
 const SIGHT_HEIGHTS = [0.35, 0.65, 0.95];
 
-/** How long a change of view (boarding, going ashore) takes (s; the skill's 0.9). */
+/** How long a change of view (boarding, going ashore) takes (s). */
 const VIEW_GLIDE = 0.9;
 
-/** papertrails' tiles, in world units (a view's reach). */
+/** A tile, in world units (the unit of a view's reach). */
 const TILE = 2;
 
 /**
@@ -50,7 +50,7 @@ interface ViewPose {
   reach: number;
 }
 
-/** A VIEWS entry as a pose against ON_FOOT's (papertrails' own pose). */
+/** A VIEWS entry as a pose against ON_FOOT's (the plain pose). */
 function viewPose(v: (typeof VIEWS)[number]): ViewPose {
   return {
     distance: (v.distance ?? ON_FOOT.distance) / ON_FOOT.distance,
@@ -85,7 +85,7 @@ function springStep(x: number, v: number, goal: number, omega: number, dt: numbe
 
 export class FollowCamera {
   readonly camera: THREE.PerspectiveCamera;
-  /** The look target (papertrails' `target`). */
+  /** The look target. */
   readonly focus = new THREE.Vector3();
   distance: number = CAMERA.distance;
   targetDistance: number = CAMERA.distance;
@@ -100,7 +100,7 @@ export class FollowCamera {
     this.initialised = false;
     this.zoneLive = false;
   }
-  /** 0..1: on foot (papertrails' pose) or at sea, as the glide has it now. */
+  /** 0..1: on foot (the plain pose) or at sea, as the glide has it now. */
   private foot = 0;
   /** The view change under way: how far (0..1), and the distance and pose it set out from; null when none is. */
   private glide: { t: number; distance: number; foot: number } | null = null;
@@ -154,12 +154,12 @@ export class FollowCamera {
     return this.distance * this.pose.distance;
   }
 
-  /** How far past the ring that stands up the view sees (world units, papertrails' viewReach). */
+  /** How far past the ring that stands up the view sees (world units). */
   get viewReach(): number {
     return this.pose.reach;
   }
 
-  /** V: on to the next view (papertrails' views.next), eased over VIEW_GLIDE seconds; its index in VIEWS. */
+  /** V: on to the next view, eased over VIEW_GLIDE seconds; its index in VIEWS. */
   nextView(): number {
     this.viewIndex = (this.viewIndex + 1) % POSES.length;
     Object.assign(this.poseFrom, this.pose);
@@ -246,7 +246,7 @@ export class FollowCamera {
     return _goal.set(x, 0, z - CAMERA.screenUp * (this.distance / CAMERA.distance));
   }
 
-  /** papertrails' zoneStep: the camera window round the captain, and the look target it gives. */
+  /** The camera window round the captain, and the look target it gives. */
   private zoneStep(dt: number, px: number, py: number, pz: number, vx: number, vz: number): THREE.Vector3 {
     const ZN = ON_FOOT.zone;
     if (!this.zoneLive) {
@@ -325,12 +325,12 @@ export class FollowCamera {
     this.zc.x += mR * rx + mU * ux;
     this.zc.z += mR * rz + mU * uz;
     this.zc.y = py;
-    // (papertrails' screen-up is the view's own, whatever its distance: here it scales with the zoom only)
+    // (the screen-up is the view's own and scales with the zoom only)
     const su = ON_FOOT.screenUp * this.pose.up * (this.distance / ON_FOOT.distance);
     return _goal.set(this.zc.x + ux * su, py, this.zc.z + uz * su);
   }
 
-  /** papertrails' sight assist: decide ten times a second, ease critically damped. */
+  /** The sight assist: decide ten times a second, ease critically damped. */
   private updateAssist(dt: number, on: boolean, px: number, py: number, pz: number): void {
     const AS = ON_FOOT.assist;
     if (!on) {

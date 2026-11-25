@@ -1,6 +1,7 @@
 name: Deploy
 
-# Type-checks and builds the game on every pull request, and deploys it to Cloudflare Workers when `main` changes.
+# Checks (types, dead code, the rules of AGENTS.md) and builds the game on every pull request, and deploys it to
+# Cloudflare Workers when `main` changes.
 on:
   push:
     branches: [main]
@@ -22,7 +23,9 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      # (typecheck + production build into dist/)
+      # (typecheck + dead-code check: nothing unused gets in)
+      - run: npm run check
+      # (production build into dist/)
       - run: npm run build
       - name: Deploy to Cloudflare
         if: github.event_name != 'pull_request'

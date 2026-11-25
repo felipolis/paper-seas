@@ -1,7 +1,7 @@
 /**
- * What the sea and the streams share, so they are one water (papertrails prints its rivers with the same terms as
- * its ponds): the palette, the paper fibre, the clock, the wind and the sun as uniforms (one object each: the sea
- * updates them, every water material follows), and the GLSL helpers (hash, value noise, lens-shaped cut dashes).
+ * What the sea and the streams share, so they are one water printed with the same terms: the palette, the paper
+ * fibre, the clock, the wind and the sun as uniforms (one object each: the sea updates them, every water material
+ * follows), and the GLSL helpers (hash, value noise, lens-shaped cut dashes).
  */
 import * as THREE from 'three';
 import { PALETTE } from '../config/palette';

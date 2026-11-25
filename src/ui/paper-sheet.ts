@@ -1,5 +1,5 @@
 /**
- * The interface's cardstock (the papercraft skill's paperSheet, paper-ui.md section 3): one seamless tile of the page
+ * The interface's cardstock: one seamless tile of the page
  * colour with soft blotches, fine fibres and specks, drawn once at start-up and set as the CSS --paper the panels lay
  * over their page colour (ui/paper.css).
  */

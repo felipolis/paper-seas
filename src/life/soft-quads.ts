@@ -1,5 +1,5 @@
 /**
- * papertrails' soft quads (life/life.js there): premultiplied soft shapes that write no depth: mist cards and bird
+ * Soft quads: premultiplied soft shapes that write no depth: mist cards and bird
  * shadows. Each piece has a colour and alpha, an opacity (1 = over, 0 = additive), a `front` flag (ground shadows are
  * pulled to the near plane, so they darken whatever stands on them) and a shape (0 = round falloff, 1 = a soft blob
  * with a wavy outline, its phase per piece).

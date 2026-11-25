@@ -3,7 +3,7 @@
  * per chunk square. On the coast a fishing village or a port town, well inland now and then a hamlet; here and there
  * old ruins. A site's layout is worked out from the site, keeping clear of the roads that reach it, of the streams and
  * of the ground already claimed by the neighbouring sites laid out before it (laidOutBefore): its buildings, ringed
- * round the square or lined along a street through it (papertrails' village rows), its props and scenes, its piers,
+ * round the square or lined along a street through it, its props and scenes, its piers,
  * and the lanes branching from the square (or the street) to every door.
  */
 import { WORLD } from '../config/world';
@@ -30,13 +30,13 @@ const BRANCH_FROM = 9;
 const BRANCH_SAVING = 0.75;
 
 /**
- * papertrails' village rows (its villages line up along the roads): this share of the villages (not the jungle's
+ * Village rows: this share of the villages (not the jungle's
  * stilt huts, which keep to a clearing) line their houses along a street through the square, the others ring it.
  */
 const STREET_SHARE = 0.5;
-/** The village square's radius on the print (papertrails' road is 0.5 wide). */
+/** The village square's radius on the print. */
 export const SQUARE_RADIUS = 0.95;
-/** Width of the lanes from a village square to its doors on the print (papertrails' road: 0.5). */
+/** Width of the lanes from a village square to its doors on the print. */
 export const LANE_WIDTH = 0.36;
 /** The street's width on the print (between the lanes' and a road's, world/roads.ts ROAD_WIDTH). */
 export const STREET_WIDTH = 0.55;
@@ -90,7 +90,7 @@ export interface Placed {
   x: number;
   z: number;
   yaw: number;
-  /** Cards (props): their height and mirroring, and papertrails' vignette for an animal tied to a piece. */
+  /** Cards (props): their height and mirroring, and the vignette for an animal tied to a piece. */
   height?: number;
   flip?: boolean;
   vignette?: { seat: number };
@@ -298,8 +298,8 @@ export function layoutOf(land: LandField, avoid: Avoid, site: Site): Layout {
     taken.push([x, z, propFoot(name)]);
     props.push({ name, x, z, yaw: 0, height: heightOf(name, rng()), flip: rng() < 0.5, ...more });
   };
-  // props about the square or the street (papertrails' village and farm tiles: a well, stalls, laundry, bunting,
-  // carts, benches, lamps, hives and fences)
+  // props about the square or the street (a well, stalls, laundry, bunting, carts, benches, lamps, hives and
+  // fences)
   const hamlet = site.kind === 'hamlet';
   const kit = hamlet
     ? ['barrel', 'well', 'laundry', 'crates', 'fence-bamboo', 'bench', 'handcart', 'beehive']
@@ -310,7 +310,7 @@ export function layoutOf(land: LandField, avoid: Avoid, site: Site): Layout {
     const at = spotFor(propFoot(sprite));
     if (at) prop(sprite, ...at);
   }
-  // its flocks (papertrails' village and farm rows: hens and chicks by day, a few goats, a pig or two)
+  // its flocks (hens and chicks by day, a few goats, a pig or two)
   const flocks: Array<[string, number, number, Awake | undefined]> = hamlet
     ? [['hen', 2, 3, 'day'], ['goat', 1, 2, undefined]]
     : [['hen', 2, 3, 'day'], ['chick', 1, 2, 'day'], ['goat', 2, 3, undefined], ['pig', 1, 2, undefined]];
@@ -393,7 +393,7 @@ function streetSlots(site: Site, houses: string[], turn: number, shift: number, 
 }
 
 /**
- * papertrails' village row: the houses lined along a street through the square, nearly east-west, at the turn and
+ * A village row: the houses lined along a street through the square, nearly east-west, at the turn and
  * shift that seat the most of them (STREET_TRIES). A house that does not fit (the shore, a stream, a road, a
  * neighbour) is left for the square; with fewer than STREET_MIN seated there is no street.
  */
@@ -450,7 +450,7 @@ const PEN_RING: [number, number] = [2.4, 6.5];
 const PEN_TRIES = 40;
 
 /**
- * Little scenes, the way papertrails composes its tiles (rather than props strewn about): a bed of flowers by a door,
+ * Little scenes (rather than props strewn about): a bed of flowers by a door,
  * a pen of goats (or a pig) between two fences, a handcart with its hay, a rowboat drawn up on the beach by a pier.
  * ok(x, z, r): on the land, clear by r and off the paths; byDoor: the same, but a house's own ground is its door's;
  * place: a prop, claimed; claim: holds ground besides (a pen's, so nothing grows in it); shore: the shore distance.
@@ -523,7 +523,7 @@ function scenes(
 }
 
 /**
- * papertrails' village vignettes (config/animals.js spawns: village, house, manor, village_green there): a cat sitting
+ * Village vignettes: a cat sitting
  * ON a fence, a barrel, the well, crates, hay, a woodpile or a bench (its feet at the piece's top, sunk 0.03), a cat
  * asleep or sitting BY a door, a dog sitting AT the cart, a bench, the well or a signpost, hens AT a fence or the cart
  * (by day).
@@ -534,7 +534,7 @@ function vignettes(site: Site, buildings: Placed[], props: Placed[], rng: () => 
     const list = props.filter((p) => re.test(p.name) && !p.vignette);
     return list.length ? list[Math.floor(rng() * list.length)] : null;
   };
-  // on: across the piece's top, feet at its print's top there (a seat between 0.13 and 0.75, as papertrails takes)
+  // on: across the piece's top, feet at its print's top there (a seat between 0.13 and 0.75)
   const seat = rng() < (hamlet ? VIG.onHamlet : VIG.on) ? pick(/^(fence-|barrel$|well$|crates$|bench$)/) : null;
   if (seat && seat.height) {
     const t = (rng() - 0.5) * 0.9;
@@ -585,7 +585,7 @@ function vignettes(site: Site, buildings: Placed[], props: Placed[], rng: () => 
   if (rng() < VIG.hens) beside('hen', /^(fence-|handcart$)/, 3, 'day');
 }
 
-/** papertrails' vignette chances: village / house cat on a piece, at the door, a dog at the cart, hens at the yard. */
+/** Vignette chances: village / house cat on a piece, at the door, a dog at the cart, hens at the yard. */
 const VIG = { on: 1, onHamlet: 0.55, door: 0.7, doorHamlet: 1, dog: 0.7, hens: 0.7, sink: 0.03 };
 
 function finish(site: Site, buildings: Placed[], props: Placed[], piers: Placed[], street: Pt[] | null, lanes: Pt[][], claims: Claim[]): Layout {

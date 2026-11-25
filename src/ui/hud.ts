@@ -1,5 +1,5 @@
 /**
- * The HUD, with no chrome (the papercraft skill's paper-ui.md: feedback is paper, ink and light in the scene): the
+ * The HUD, with no chrome (feedback is paper, ink and light in the scene): the
  * sails show how much canvas is set, the flag the wind, the wake the speed, the chart (E) the voyage's counts. What
  * is left is two lines of controls that fade away once you get under way (and the walking keys, the first time ashore), a small paper prompt over the scene
  * ("F go ashore"), a paper card for discoveries that slides down like a sheet and back up, and a slip naming the

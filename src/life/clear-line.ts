@@ -1,12 +1,12 @@
 /**
- * papertrails' clearK x camK (life/life.js there): a living piece fades away where it would come between the camera
- * and the one we follow (the captain or the ship), and close to the lens, where the bokeh would blow it up into a
- * big pale disc. One shared line, set once a frame.
+ * The clear line: a living piece fades away where it would come between the camera and the one we follow (the
+ * captain or the ship), and close to the lens, where the bokeh would blow it up into a big pale disc. One shared
+ * line, set once a frame.
  */
 import * as THREE from 'three';
 import { smoothstep } from '../core/math';
 
-/** Pieces within this band of the line fade away (papertrails: 0.24 -> 0.42). */
+/** Pieces within this band of the line fade away (0.24 -> 0.42). */
 const BAND: [number, number] = [0.24, 0.42];
 /** ...and pieces nearer the lens than this (2.2 -> 5). */
 const LENS: [number, number] = [2.2, 5];

@@ -21,7 +21,7 @@ import { hash01 } from '../core/rng';
 export interface FlapTuning {
   /** Upright height of the card (world units): large cards are slower and whip further. */
   size: number;
-  /** Any number of the flap's own, hashed into its spring jitter, flutter jitter and twist (papertrails' hash01). */
+  /** Any number of the flap's own, hashed into its spring jitter, flutter jitter and twist (hash01). */
   seed: number;
   /** Multiplier on the flutter (0.2 .. 2.5). */
   wobble?: number;
@@ -51,7 +51,7 @@ export function flapConstants(t: FlapTuning): FlapConstants {
   const S = POPUP;
   const sizeT = clamp((t.size - S.sizeSmall) / (S.sizeLarge - S.sizeSmall), 0, 1);
   const stiff = Math.max(0.25, t.stiffness ?? 1);
-  // (three independent draws per flap, as papertrails' fold.js: the spring's pace, the flutter's and the twist)
+  // (three independent draws per flap: the spring's pace, the flutter's and the twist)
   const id = Math.round(t.seed * 1e6) | 0;
   const jitter = (hash01(SEED_SALT, id, 0) * 2 - 1) * S.jitter;
   const fs = (S.freqSmall + (S.freqLarge - S.freqSmall) * sizeT) * Math.sqrt(stiff) * (1 + jitter);

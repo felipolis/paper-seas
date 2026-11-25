@@ -22,9 +22,9 @@
 // the "clean" pass, ART_NOFRINGE=1 the fringe peel.
 //
 // Two kinds of sheet:
-//   keyed ("key": "#rrggbb", per sheet or for the whole config; the game's sprites): the papercraft skill's sheets, on
-//     one flat key colour that appears in no piece. Every pixel near the key is background, enclosed openings included,
-//     and the key is un-mixed out of the soft cut. The pieces come with their cut edge printed (a thin dark line, a pale
+//   keyed ("key": "#rrggbb", per sheet or for the whole config; the game's sprites): sheets on one flat key colour
+//     that appears in no piece. Every pixel near the key is background, enclosed openings included, and the key is
+//     un-mixed out of the soft cut. The pieces come with their cut edge printed (a thin dark line, a pale
 //     highlight on the lit side), so nothing is added to it.
 //   white (the models' and the ship's printed faces): the plain white background is flood-filled from the image border,
 //     white pockets ringed by the generator's cream margin are background too, the margin is peeled and the pale fringe
@@ -156,7 +156,7 @@ async function cutSheet({ dataUrl, merge, key, tears }) {
       for (let k = 0; k < 3; k++) line[k] += data[i * 4 + k];
       lineN++;
     }
-    // (mostly the skill's cut-line brown #4a2812, P.rim's: the measured line is lightened by its own soft edge and
+    // (mostly the cut-line brown #4a2812, P.rim's: the measured line is lightened by its own soft edge and
     // reddened by the key's hue smeared into it)
     const lineColour = [74, 40, 18].map((v, k) => (lineN ? 0.3 * (line[k] / lineN) + 0.7 * v : v));
     const lineSum = lineColour[0] + lineColour[1] + lineColour[2];

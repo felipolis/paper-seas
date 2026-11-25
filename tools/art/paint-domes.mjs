@@ -1,4 +1,4 @@
-// Paints the printed faces of the mountains (after papertrails' dunes, hills and boulders): rounded dome cards and
+// Paints the printed faces of the mountains: rounded dome cards and
 // rounded stone slabs, each a band of colours (a pale cap hugging the top, wavy strata below, a darker foot), printed
 // over the grain of a terrain swatch (assets-src/models/swatches, cut by cut-sprites with tools/art/ship-sheets.json),
 // with the pale paper rim of a cut card along the outline.
@@ -166,7 +166,7 @@ const out = await page.evaluate(async ({ jobs, grains }) => {
     x.fillStyle = bands[0];
     x.fillRect(0, 0, W, H);
     for (let i = 1; i < bands.length; i++) fillAbove(lines[i], bands[i]);
-    // a darker stratum between two bands (papertrails' rocks have one running across each stone)
+    // a darker stratum between two bands, running across each stone
     const si = 1 + Math.floor(rnd() * (bands.length - 1));
     const sw = R(0.04, 0.07);
     {

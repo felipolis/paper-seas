@@ -1,23 +1,22 @@
 /**
- * The land's printed top, finished in its shader the way papertrails finishes its page (render/water.js
- * `groundBodyGLSL` and world/book.js there): the chunk's base print gives the colours (sand, the biome's ground); a
- * small data texture gives the roads (a crisp and a soft mask of every road, lane and square) and where the grass grows;
- * and per pixel, in world space, the shader lays on
+ * The land's printed top, finished in its shader: the chunk's base print gives the colours (sand, the biome's
+ * ground); a small data texture gives the roads (a crisp and a soft mask of every road, lane and square) and where
+ * the grass grows; and per pixel, in world space, the shader lays on
  *
  *   wobble     every printed edge read through a fine hand-cut wobble and a slow one
- *   roads      papertrails' trodden path: a grainy feathered cut (no outline), a faint pale halo and a darker fringe
+ *   roads      the trodden path: a grainy feathered cut (no outline), a faint pale halo and a darker fringe
  *              outside it, a darker worn middle, fine grit, pebbles biting the margin
  *   mottle     the ground in broad lighter / darker, warmer / cooler patches (3 octaves)
- *   contact    a soft darker patch under what stands on the ground (papertrails' groundPrint.contact)
+ *   contact    a soft darker patch under what stands on the ground
  *   tufts      grass tufts of three tapered blades, in drifts, leaning on the road's fringe
  *   flowers    five-petalled flowers in drifts of one colour, each with its own heart
  *   unpainted  far from the focus (render/paper-material.ts setPageFocus) the land is the book's unpainted part: a pale
  *              cream wash with pencil outlines and a little hatching
  *   seams      the cover tiles' scored creases (world/reveal.ts CELL)
- *   page stock papertrails' rougher page paper: fine tooth and coarse clouding on the albedo, its tooth on the normal
+ *   page stock a rougher page paper: fine tooth and coarse clouding on the albedo, its tooth on the normal
  *
  * Every term is a function of the world position, so the land runs on unbroken across chunks. The land's cut edge is
- * papertrails' stacked sheets (landEdgeMaterial).
+ * a stack of sheets (landEdgeMaterial).
  */
 import * as THREE from 'three';
 import { edgeStrip, pageFibre } from '../art/paper-maps';
@@ -30,14 +29,13 @@ const DATA_PPU = 22;
 const BLUR_CRISP = 0.03;
 const BLUR_SOFT = 0.125;
 /**
- * papertrails' contact patch (render/water.js groundBodyGLSL, groundPrint.contact there): its baked print is darkest
- * under the props of a tile, and a little of that stays as a soft darker patch on open ground; ours is drawn from the
- * props themselves (addContact), a disc under each standing piece, this much of its width, blurred this far; under a
- * building its footprint, grown by margin all round, its corners rounded by corner.
+ * The contact patch, a soft darker patch on open ground, is drawn from the props themselves (addContact): a disc
+ * under each standing piece, this much of its width, blurred this far; under a building its footprint, grown by
+ * margin all round, its corners rounded by corner.
  */
 const CONTACT = { strength: 0.13, reach: 0.42, blur: 0.09, margin: 0.1, corner: 0.15 };
 
-/** papertrails' page (config/world.js `book` and the texture manifest there). */
+/** The page: its paper stock, its fade with distance and its tile seams. */
 const PAGE = {
   /** World units per tile of the page stock's maps, and of their second, coarser read. */
   tile: 2.5,
@@ -56,7 +54,7 @@ const PAGE = {
 };
 
 /**
- * papertrails' stacked-sheet edge (world/book.js `blockMat` there): the cut core's cream, the edge strip's band of
+ * The stacked-sheet edge: the cut core's cream, the edge strip's band of
  * sheets (v from the top of the block to its foot) at the band's pitch on the book's 0.25-unit block, and world units
  * per repeat along the edge.
  */
@@ -165,9 +163,9 @@ export function addContact(tex: THREE.DataTexture, x0: number, z0: number, props
 }
 
 /**
- * papertrails' road tone per biome (biomeTint[b].path): over the chunk, a small grid of the tone the trodden ground
- * takes there (linear rgb) and how much of it (alpha), blended over a tile like the ground tint. tone(u, v) answers
- * for a node (0..1 across the chunk); grid: nodes per side - 1.
+ * The road tone per biome: over the chunk, a small grid of the tone the trodden ground takes there (linear rgb) and
+ * how much of it (alpha), blended like the ground tint. tone(u, v) answers for a node (0..1 across the chunk); grid:
+ * nodes per side - 1.
  */
 export function pathTones(grid: number, tone: (u: number, v: number) => [number, number, number, number] | null): THREE.DataTexture {
   const n = grid + 1;
@@ -189,8 +187,8 @@ export function pathTones(grid: number, tone: (u: number, v: number) => [number,
 }
 
 /**
- * The ground's paper material: papertrails' page (no card fibre, no per-sheet tone), its colour the chunk's base print
- * finished by papertrails' page terms.
+ * The ground's paper material: the page (no card fibre, no per-sheet tone), its colour the chunk's base print
+ * finished by the page terms.
  */
 export function groundMaterial(print: THREE.Texture, data: THREE.Texture, paths: THREE.DataTexture, x0: number, z0: number, size: number): THREE.MeshLambertMaterial {
   const mat = createPaperMaterial({ back: null, fibre: 0, vary: false });
@@ -216,7 +214,7 @@ export function groundMaterial(print: THREE.Texture, data: THREE.Texture, paths:
   return mat;
 }
 
-/** The land's cut edge: papertrails' stacked sheets, cream paper with thin warm-brown gaps (UVs: edgeWallUV). */
+/** The land's cut edge: stacked sheets, cream paper with thin warm-brown gaps (UVs: edgeWallUV). */
 export function landEdgeMaterial(): THREE.MeshLambertMaterial {
   const mat = createPaperMaterial({ color: SHEETS.core, back: null, vary: false });
   const uSheet = { value: edgeStrip() };
@@ -296,7 +294,7 @@ const GROUND_FRAGMENT = /* glsl */ `
   vec2 wq = vPaperPos.xz;
   float wpx = max(fwidth(wq.x), fwidth(wq.y));
   // ---- every printed edge read through a fine hand-cut wobble and a slow one (gentle width variation of the roads),
-  // eased out at the chunk's border, where the next chunk's print takes over (papertrails eases it out at a tile's) ----
+  // eased out at the chunk's border, where the next chunk's print takes over ----
   vec2 be = min(wq - uGroundBox.xy, uGroundBox.xy + uGroundBox.z - wq);
   float ew = smoothstep(0.0, 0.28, min(be.x, be.y));
   vec2 wob = ((vec2(pageNoise(wq * 4.0 + 3.1), pageNoise(wq * 4.0 + 8.7)) - 0.5) * 0.044 + (vec2(pageNoise(wq + 1.7), pageNoise(wq + 6.3)) - 0.5) * 0.064) * ew;
@@ -318,12 +316,12 @@ const GROUND_FRAGMENT = /* glsl */ `
   float mot = (m3 * 0.5 + m1 * 0.5 + m2 * 0.3) * 2.0;
   gcol *= 1.0 + 0.15 * mot * (0.45 + 0.55 * open);
   gcol *= vec3(1.0) + 0.09 * (m2 + m3) * vec3(0.9, 0.05, -1.1) * open;
-  // ---- papertrails' contact patch: a little darker under what stands on open ground ----
+  // ---- the contact patch: a little darker under what stands on open ground ----
   gcol *= 1.0 - ${CONTACT.strength.toFixed(3)} * rd.a * open * vec3(0.9, 1.0, 1.15);
-  // ---- the trodden track: papertrails' peach cream (#ffd5b4), fine grit, the mottle, a darker worn middle ----
+  // ---- the trodden track: a peach cream (#ffd5b4), fine grit, the mottle, a darker worn middle ----
   const vec3 PC = vec3(1.0, 0.665, 0.456);
   vec3 pcol = PC * (1.0 + 0.09 * (pageHash(floor(wq * 96.0)) - 0.5)) * (1.0 + 0.075 * mot);
-  // papertrails' road tone of the biome (a pine-needle track in the pine woods, a cream garden path in the blossom)
+  // the road tone of the biome (a pine-needle track in the pine woods, a cream garden path in the blossom)
   {
     vec2 pu = gUv(wq);
     float pn = float(textureSize(uPathTone, 0).x);
@@ -347,8 +345,8 @@ const GROUND_FRAGMENT = /* glsl */ `
     vec3 pebC = mix(vec3(0.5, 0.4, 0.29), vec3(0.93, 0.8, 0.62), smoothstep(pr * 0.5, -pr * 0.4, pc.y + pc.x * 0.4));
     gcol = mix(gcol, pebC * mix(1.0, 0.8, smoothstep(pr * 0.75, pr, pl)), peb);
   }
-  // ---- printed grass tufts and flowers, in drifts, on open grass and biting into the road's margin (papertrails'
-  // ground is all grass: here they keep off the sand); at 0.7 of their full ink (papertrails' clumps) ----
+  // ---- printed grass tufts and flowers, in drifts, on open grass and biting into the road's margin (they keep
+  // off the sand), at 0.7 of their full ink ----
   float grassy = max(grass * open, fringe * 0.85 * grass) * 0.7;
   if (grassy > 0.01) {
     vec2 cg = wq * 5.0;
@@ -385,7 +383,7 @@ const GROUND_FRAGMENT = /* glsl */ `
   vec2 line = 1.0 - smoothstep(vec2(${f(PAGE.creaseWidth * 0.5)}), vec2(${f(PAGE.creaseWidth * 0.5)} + wpx), ad);
   gcol *= 1.0 - ${f(PAGE.creaseDark * PAGE.seam)} * max(line.x, line.y);
   vec2 groove = (1.0 - smoothstep(vec2(0.0), vec2(${f(PAGE.creaseWidth * 3)} + wpx), ad)) * sign(sd);
-  // ---- papertrails' page stock: fine tooth + coarse clouding on the albedo, a tooth normal ----
+  // ---- the page stock: fine tooth + coarse clouding on the albedo, a tooth normal ----
   vec2 fuv = wq * ${f(1 / PAGE.tile)};
   float fa = texture2D(uPageFibre, fuv).g / uPageFibreMean - 1.0;
   float fc = texture2D(uPageFibre, wq.yx * vec2(${f(1 / PAGE.tile2)}, ${f(-1 / PAGE.tile2)}) + vec2(0.31, 0.67)).g / uPageFibreMean - 1.0;
@@ -395,7 +393,7 @@ const GROUND_FRAGMENT = /* glsl */ `
 }
 `;
 
-/** The page stock's tooth on the normal (papertrails tilts its page's normal in world space). */
+/** The page stock's tooth on the normal, tilted in world space. */
 const GROUND_TILT = /* glsl */ `
 normal = normalize(normal + mat3(viewMatrix) * vec3(gPageTilt.x, 0.0, gPageTilt.y));
 `;

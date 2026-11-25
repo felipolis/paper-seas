@@ -1,19 +1,18 @@
 /**
- * papertrails' lamp pools (config/render.js `lights.pools`, life/life.js `pools()` and render/materials.js there): at
- * night a warm pool of light on the page and the paper round each lit lamp, with no real light: the six lamps nearest
- * the traveller are written into every paper material's uniforms, and its shader adds the pools to the paper
+ * Lamp pools: at night a warm pool of light on the page and the paper round each lit lamp, with no real light: the six
+ * lamps nearest the ship or the captain are written into every paper material's uniforms, and its shader adds the pools to the paper
  * (render/paper-material.ts). A lamp pools only once its card stands, and the pools fade out 9-12 units away.
  */
 import * as THREE from 'three';
 import { smoothstep } from '../core/math';
 
-/** papertrails' pools: the reach from the lamp itself (world units), strength at full night, colour. */
+/** The pools: the reach from the lamp itself (world units), strength at full night, colour. */
 const POOLS = { radius: 1.5, strength: 1, colour: '#ffc878' } as const;
 /** How many lamps pool at once (the shader's loop). */
 export const POOL_COUNT = 6;
-/** The pools fade out between these distances from the traveller. */
+/** The pools fade out between these distances from the ship or the captain. */
 const FADE: [number, number] = [9, 12];
-/** A lamp sits this share of its card's height up, no lower than LAMP_MIN (papertrails: 0.72 of the lamp's top). */
+/** A lamp sits this share of its card's height up, no lower than LAMP_MIN. */
 const LAMP_HEIGHT = 0.72;
 const LAMP_MIN = 0.22;
 
@@ -35,7 +34,7 @@ export interface Lamp {
 const colour = new THREE.Color(POOLS.colour);
 const used = new Set<Lamp>();
 
-/** Writes this frame's pools: night 0..1, the traveller at (fx, fz), the lamps standing round him. */
+/** Writes this frame's pools: night 0..1, the ship or the captain at (fx, fz), the lamps standing round it. */
 export function updatePools(night: number, fx: number, fz: number, lamps: Iterable<Lamp>): void {
   const k = night * POOLS.strength;
   const col = poolUniforms.uPaperPoolCol.value;
@@ -62,7 +61,7 @@ export function updatePools(night: number, fx: number, fz: number, lamps: Iterab
       continue;
     }
     used.add(best);
-    // (it lights as its card stands up, and fades with the distance from the traveller)
+    // (it lights as its card stands up, and fades with the distance from the ship or the captain)
     const strength = smoothstep(0.6, 1, best.risen) * (1 - smoothstep(FADE[0], FADE[1], Math.sqrt(bestD)));
     slot.set(best.x, best.y + Math.max(LAMP_MIN, best.height * LAMP_HEIGHT), best.z, strength);
   }

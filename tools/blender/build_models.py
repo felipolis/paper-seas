@@ -5,22 +5,22 @@ public/models/models.glb.
     "C:/Program Files/Blender Foundation/Blender 5.3/blender.exe" -b --factory-startup \
         -P tools/blender/build_models.py
 
-Every model is a tree of paper pieces joined by hinges, like a pop-up page (after papertrails by xikhar, MIT):
-the front wall stands up off the page, the side walls swing out from the front, the roof planes fold over from the
-side walls, the chimney pops up from the roof... Each piece is a node whose origin lies on its fold line and whose
-local X axis is the hinge axis; its rest pose is the assembled model, and the game draws it at
+Every model is a tree of paper pieces joined by hinges, like a pop-up page: the front wall stands up off the page,
+the side walls swing out from the front, the roof planes fold over from the side walls, the chimney pops up from the
+roof... Each piece is a node whose origin lies on its fold line and whose local X axis is the hinge axis; its rest
+pose is the assembled model, and the game draws it at
     quaternion = rest * RotX(foldAngle * (1 - p))
 so at p = 0 every piece lies folded flat onto its parent (or onto the page). Node extras (glTF): hinge, foldAngle,
-delay (0..1 start order: papertrails' rule, a construction opens as one, so only a piece standing on the page has a start
-of its own and every piece hinged on it starts with it, pulled up as its parent rises), and where set layer (flat
-stacking) and liftSign. The model root carries extras { model }.
+delay (0..1 start order: a construction opens as one, so only a piece standing on the page has a start of its own
+and every piece hinged on it starts with it, pulled up as its parent rises), and where set layer (flat stacking) and
+liftSign. The model root carries extras { model }.
 
 The printed faces come from the atlas (tools/art/pack-atlas.mjs -> assets-src/models/atlas.json +
 public/models/atlas.png); their gable measurements size the walls and roofs, so a roof sits exactly on its gable.
-Every piece is real card, as papertrails' (its cardThickness): printed face, back and a cut edge coloured like the print
-around it. A piece printed with a cut-out shape (the chimney, the sign) is cut to the print's own outline, traced from
-its alpha (atlas.json outline), so its edge follows the drawing; the rest are cut to rectangles or to the print's
-measured spans.
+Every piece is real card (THICK): printed face, back and a cut edge coloured like the print around it. A piece
+printed with a cut-out shape (the chimney, the sign) is cut to the print's own outline, traced from its alpha
+(atlas.json outline), so its edge follows the drawing; the rest are cut to rectangles or to the print's measured
+spans.
 
 Geometry is written in the game's frame (Y up, the model's front facing +Z) and converted to Blender's Z-up on
 creation; the glTF exporter converts it back.
@@ -39,8 +39,8 @@ ATLAS = json.load(open(os.path.join(ROOT, "assets-src", "models", "atlas.json"))
 DOMES = json.load(open(os.path.join(ROOT, "assets-src", "models", "domes.json")))  # tools/art/paint-domes.mjs
 OUT = os.path.join(ROOT, "public", "models", "models.glb")
 SIZE = ATLAS["size"][0]
-THICK = 0.016  # card thickness (world units): papertrails' cardThickness
-HALF = 0.4 * THICK  # a slotted cross's half cards: papertrails' tree_xf / tree_xb (0.006 to its cards' 0.016)
+THICK = 0.016  # card thickness (world units)
+HALF = 0.4 * THICK  # a slotted cross's half cards
 
 # game frame (x, y up, z front) -> Blender (x, -z, y)
 C = Matrix(((1, 0, 0, 0), (0, 0, -1, 0), (0, 1, 0, 0), (0, 0, 0, 1)))
@@ -108,8 +108,8 @@ class Model:
           flat      world direction the card lies along when folded flat (perpendicular to the hinge)
           delay     its start (0..1), for a card standing on the page (one hinged on another starts with it)
         The card gets a back and a cut edge (a convex loop's except along open_edges, given as outline indices: edge i
-        runs from poly[i] to poly[i + 1]). The back carries the same print (as papertrails' cards: whichever way a
-        piece folds flat, no blank kraft ever lies face up); back="kraft" gives a plain back instead.
+        runs from poly[i] to poly[i + 1]). The back carries the same print (whichever way a piece folds flat, no
+        blank kraft ever lies face up); back="kraft" gives a plain back instead.
         """
         c00, c10, c11, c01 = corners
 
@@ -393,9 +393,9 @@ def gable_house(name, W, front, side, roof, depth_scale=1.0, chimney=None, sign=
 
 def cross_halves(m, name, card, art, poly, foot, up, along, normal, width, height):
     """
-    papertrails' slotted cross (its tiles.glb: tree + tree_xf + tree_xb): the second plane of a crossed card (printed
-    art, cut to poly) as two half cards, HALF thick, one on each of the card's faces, hinged on the vertical line down
-    its middle (foot: the line's bottom on the card's face, up: its direction). Each lies folded flat against its face
+    A slotted cross: the second plane of a crossed card (printed art, cut to poly) as two half cards, HALF thick, one
+    on each of the card's faces, hinged on the vertical line down its middle (foot: the line's bottom on the card's
+    face, up: its direction). Each lies folded flat against its face
     while the card lies (the front one along the card, the back one the other way) and is pulled open square to it as
     the card rises (nested on it). along: the card's own direction across; normal: its front's (the way the second
     plane runs); width, height: the second plane's, centred on the card's middle. Each half is hinged 2 mm of air
@@ -579,10 +579,10 @@ def stilt_hut(name):
 
 
 # ------------------------------------------------------------------------------------------------------------------
-# mountains (after papertrails' dunes, hills and rocks): no solids, cards. A tall pair of curved dome cards set in a V
-# at the back, a smaller pair in front of it, a long low dome at the foot and outcrops of rounded stone slabs, each
-# stone a pair (a taller one behind, a smaller one overlapping it in front). Every card stands up off the page on the
-# chord of its foot; folded, they lie face up behind their feet, the front ones stacked on top (layer).
+# mountains: no solids, cards. A tall pair of curved dome cards set in a V at the back, a smaller pair in front of it,
+# a long low dome at the foot and outcrops of rounded stone slabs, each stone a pair (a taller one behind, a smaller
+# one overlapping it in front). Every card stands up off the page on the chord of its foot; folded, they lie face up
+# behind their feet, the front ones stacked on top (layer).
 
 
 
@@ -625,7 +625,7 @@ def ridge(name, kind, stone, seed, scale=1.0):
 
 
 def outcrop(name, stone, seed, scale=1.0):
-    """A rock outcrop like papertrails' rocks tile: overlapping stone pairs, the big ones at the back."""
+    """A rock outcrop: overlapping stone pairs, the big ones at the back."""
     import random as _r
     rng = _r.Random(seed)
     m = Model(name)
@@ -645,8 +645,7 @@ def outcrop(name, stone, seed, scale=1.0):
 def pier(name, L=3.0, W=0.62, H=0.16):
     m = Model(name)
     art = "pier-plank"
-    # each side's start, its posts' too (they stand on the page beside it and come up with it, as papertrails' jetty
-    # posts ride on the jetty)
+    # each side's start, its posts' too (they stand on the page beside it and come up with it)
     start = {"l": 0.0, "r": 0.05}
     left = m.card("side_l", None, art, (V(-W / 2, 0, -L / 2), V(-W / 2, 0, L / 2), V(-W / 2, H, L / 2), V(-W / 2, H, -L / 2)), FULL,
                   (V(-W / 2, 0, -L / 2), V(0, 0, 1)), V(-1, 0, 0), start["l"])
@@ -677,8 +676,7 @@ def pier(name, L=3.0, W=0.62, H=0.16):
 
 
 # ------------------------------------------------------------------------------------------------------------------
-# a footbridge (the papercraft skill's bridge, built-ground.js there, at our scale: hero 0.58 against its 3.6). It runs
-# along +z, its banks at z = +-L/2.
+# a footbridge. It runs along +z, its banks at z = +-L/2.
 #   DECK   a ramp hinged on each bank rising RAMP_DEG over RAMP_SHARE of its half span, a crown panel hinged on the
 #          ramp's top edge bent back to CROWN_DEG; folded, the ramps and crowns lie flat over the water
 #   SIDES  a card along each deck edge, its foot on the page, an arch cut under the deck, its top the deck line plus a

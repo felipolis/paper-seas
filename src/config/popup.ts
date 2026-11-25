@@ -20,7 +20,7 @@ export const POPUP = {
   /** Seconds over which the flaps of one group start, ordered by their delay (0..1). */
   staggerSpan: 0.34,
   /**
-   * NESTED (the skill's and papertrails' linkage): a piece that rides on another (a roof on its wall, a deck panel on
+   * NESTED (linkage): a piece that rides on another (a roof on its wall, a deck panel on
    * its ramp) is pulled by it while it moves, p'' = clamp(k (p_parent - p) + c (p'_parent - p'), +-maxAccel), with
    * c = 2 damping sqrt(k), so the planes of one construction open together and never scissor; it starts at least
    * `lag` seconds after its parent.

@@ -13,7 +13,7 @@ export const CAMERA = {
   far: 120,
 } as const;
 
-/** On foot, papertrails' follow camera, its numbers as they are (config/player.js camera, camera/follow.js there). */
+/** On foot: the follow camera. */
 export const ON_FOOT = {
   fov: 27,
   pitchDeg: 42,
@@ -38,10 +38,10 @@ export const ON_FOOT = {
 } as const;
 
 /**
- * papertrails' camera views, cycled with V (camera/views.js there), its numbers as they are: overrides of its follow
- * pose, which is ON_FOOT's. The first is the plain framing; reach is how far past the ring that stands up the view sees
- * (papertrails' tiles, 2 world units each). Here they apply to whichever pose the camera has, at sea too: the distance
- * and screen-up as shares of ON_FOOT's, the pitch and field of view as offsets from it, the yaw as it is.
+ * The camera views, cycled with V: overrides of the follow pose, which is ON_FOOT's. The first is the plain framing;
+ * reach is how far past the ring that stands up the view sees (in tiles of 2 world units). They apply to whichever pose
+ * the camera has, at sea too: the distance and screen-up as shares of ON_FOOT's, the pitch and field of view as
+ * offsets from it, the yaw as it is.
  */
 export const VIEWS: ReadonlyArray<{ name: string; distance?: number; pitchDeg?: number; fov?: number; screenUp?: number; yawDeg?: number; reach?: number }> = [
   { name: 'journey' },
@@ -52,17 +52,16 @@ export const VIEWS: ReadonlyArray<{ name: string; distance?: number; pitchDeg?: 
 ];
 
 /**
- * The papercraft skill's clear day (look.md sections 5 and 8, its 3D template's light): a warm key from screen-left,
- * 45 degrees up and a little toward the camera, so shadows fall sideways and behind where they are seen; a warm
- * frontal fill from the camera side at ~0.27 of it (camera-facing cards never go grey); a warm sky. Azimuths are
- * relative to the camera (0 = from the camera side, negative = from screen-left).
+ * A clear day: a warm key from screen-left, 45 degrees up and a little toward the camera, so shadows fall sideways and
+ * behind where they are seen; a warm frontal fill from the camera side at ~0.27 of it (camera-facing cards never go
+ * grey); a warm sky. Azimuths are relative to the camera (0 = from the camera side, negative = from screen-left).
  */
 export const LIGHTS = {
   key: { color: '#ffdcb2', intensity: 3.0, azimuthDeg: -56, elevationDeg: 45 },
   fill: { color: '#f2dcc2', intensity: 0.8, azimuthDeg: 24, elevationDeg: 24 },
   hemi: { sky: '#fff0da', ground: '#b39a78', intensity: 0.42 },
   /**
-   * The key's shadow map; the filter is papertrails' PCSS (render/shadows.ts). Its frustum is fitted to the camera's
+   * The key's shadow map; the filter is PCSS (render/shadows.ts). Its frustum is fitted to the camera's
    * footprint every frame: half size = visible ground radius x fit + pad, clamped; the light stands `distance` back.
    */
   shadow: { mapSize: 4096, fit: 1.12, pad: 1.5, minExtent: 3.5, maxExtent: 20, distance: 35, normalBias: 0.0015 },
@@ -75,29 +74,29 @@ export const PAPER = {
   /** Warm glow of thin card lit from behind. */
   translucency: 0.3,
   translucencyTint: '#ffb070',
-  /** Warm amber leaking into the key's shadow, so shadows on the warm ground come out warmer than it, never grey (the skill's day leak). */
+  /** Warm amber leaking into the key's shadow, so shadows on the warm ground come out warmer than it, never grey. */
   shadowLeak: '#a0602c',
-  /** Albedo swing of the paper's 0.15-0.3 unit mottling (papertrails' fibreCloud). */
+  /** Albedo swing of the paper's 0.15-0.3 unit mottling. */
   cloud: 0.085,
 } as const;
 
 export const POST = {
   /**
-   * A subtle haze, only far away, in one mid-tone colour by ground distance from the focus (the skill: never a colour
-   * fog over the frame, never a screen gradient): start, end (world units from the focus at the 17-unit framing,
-   * scaled with the focus distance: on foot ~9 to ~26 hero heights), amount, colour.
+   * A subtle haze, only far away, in one mid-tone colour by ground distance from the focus (never a colour fog over the
+   * frame, never a screen gradient): start, end (world units from the focus at the 17-unit framing, scaled with the
+   * focus distance: on foot ~9 to ~26 captain heights), amount, colour.
    */
   fade: { start: 6.7, end: 18.7, amount: 0.3, color: '#d8bf8e' },
-  /** What shows past the page (papertrails' `lights.background`). */
+  /** What shows past the page. */
   background: '#96744a',
   /**
-   * papertrails' gobo: the key's left-to-right falloff round the focus (screen-left brighter: a lamp over the table).
+   * The gobo: the key's left-to-right falloff round the focus (screen-left brighter: a lamp over the table).
    * radius (world at the 17-unit framing), key falloff, warm-left / cool-right tint, share of the falloff removed in
    * macro framing.
    */
   gobo: { radius: 9, key: 0.12, tint: 0.07, closeRelief: 0.7 },
 
-  // ---- depth of field: tilt-shift, papertrails' (config/render.js dof there; its night blurs more, see NIGHT) ----
+  // ---- depth of field: tilt-shift (the night blurs more, see NIGHT) ----
   /** Fraction of the frame height around the focus that stays fully sharp. */
   focusBand: 0.36,
   /** Fraction of the frame height over which blur ramps up beyond the band. */
@@ -125,10 +124,10 @@ export const POST = {
   // ---- bloom ----
   bloom: 0.5,
   bloomThreshold: 1.7,
-  /** Lamp light washing the paper round the glowing panes (papertrails' screen-space spill; only the night raises it). */
+  /** Lamp light washing the paper round the glowing panes (a screen-space spill; only the night raises it). */
   spill: 0,
 
-  // ---- grade (the skill's: look.md section 7) ----
+  // ---- grade ----
   exposure: 0.82,
   /** Exposure multiplier in macro framing (focus closer than 4 units, blending out by 8): lit cream does not clip. */
   closeExposure: 0.82,
@@ -138,7 +137,7 @@ export const POST = {
   shadowTint: '#3a200c',
   shadowLift: 0.03,
   /**
-   * Pulls saturated yellow-green toward a muted paper green (0 = off; the skill's template 0.3). It masks by g > b, so
+   * Pulls saturated yellow-green toward a muted paper green (0 = off). It masks by g > b, so
    * the sea's teal is left alone; lower would let the land's grass turn lime.
    */
   greenPull: 0.3,
@@ -162,9 +161,9 @@ export const POST = {
 } as const;
 
 /**
- * The night look (the skill's night set, look.md section 8): an even, saturated pale-blue moon (about half the day key)
- * with a blue fill and sky keeps every card readable and coloured; the warm windows and lanterns carry the warmth, and
- * navy lives in the far haze and the deep shadows, never as a filter over the frame.
+ * The night look: an even, saturated pale-blue moon (about half the day key) with a blue fill and sky keeps every card
+ * readable and coloured; the warm windows and lanterns carry the warmth, and navy lives in the far haze and the deep
+ * shadows, never as a filter over the frame.
  */
 export const NIGHT = {
   key: { color: '#c8d6ff', intensity: 1.6, azimuthDeg: -56, elevationDeg: 45 },
@@ -175,12 +174,12 @@ export const NIGHT = {
   /** PCSS light size (penumbra per unit of blocker distance). */
   lightSize: 0.22,
   gobo: { key: 0.2, tint: 0.05 },
-  /** The navy of the distance (on foot ~4 to ~15 hero heights). */
+  /** The navy of the distance (on foot ~4 to ~15 captain heights). */
   fade: { start: 2.75, end: 10.8, amount: 0.9, color: '#0e1a44' },
   background: '#070a24',
 
   exposure: 1.0,
-  /** papertrails' night depth of field (render/biomegrade.js there): a wider blur, less of it toward the camera. */
+  /** The night depth of field: a wider blur, less of it toward the camera. */
   maxBlurPx: 16,
   nearGain: 1.2,
   bloom: 0.3,
@@ -197,7 +196,7 @@ export const NIGHT = {
   aoTint: '#081030',
   greenPull: 0.3,
   split: 0.02,
-  /** The dark die-cut edge stays (papertrails keeps its dark rim colour at night, only weaker). */
+  /** The dark die-cut edge stays dark at night, only weaker. */
   rim: 0.6,
   aoIntensity: 1.0,
   aoRadius: 0.22,

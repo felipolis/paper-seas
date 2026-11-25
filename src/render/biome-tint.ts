@@ -1,14 +1,13 @@
 /**
- * papertrails' biome tints (config/world.js biomeTint, world/book.js biomeTintUniforms there): its page has one ground
- * colour and one set of prints, and each biome turns them its own way with a colour transform (a hue turn, a
- * saturation, a tint mixed in with a gain and a lift). heartland is the identity. Ours take its rows: the meadow its
- * blossom, the pine woods its pinewood, the jungle and the rocks its heartland. (Its desert and snow have no biome of
- * ours; the beach is the coast's fringe of the biome inland, world/land.ts biomeInland.)
+ * Biome tints: the page has one ground colour and one set of prints, and each biome turns them its own way with a
+ * colour transform (a hue turn, a saturation, a tint mixed in with a gain and a lift). heartland is the identity. Our
+ * biomes take the rows: the meadow the blossom, the pine woods the pinewood, the jungle and the rocks the heartland.
+ * (The beach is the coast's fringe of the biome inland, world/land.ts biomeInland.)
  *
  *   ground  the printed land (world/terrain.ts bakes it into the ground print)
  *   prop    every standing card and model of the biome (a material variant per biome, tintMaterial)
- *   path    the tone the trodden roads take there (world/ground-shader.ts)
- *   water   the streams' colours there (world/stream-mesh.ts)
+ *   path    the tone the trodden roads take in the biome (world/ground-shader.ts)
+ *   water   the streams' colours in the biome (world/stream-mesh.ts)
  */
 import * as THREE from 'three';
 import type { Biome } from '../world/land';
@@ -27,7 +26,7 @@ interface Transform {
   keepWater?: number;
 }
 
-/** papertrails' table, as it is. */
+/** The tint of each row. */
 const TINTS: Record<Exclude<Row, 'heartland'>, { ground: Transform; prop: Transform; path: { color: string; amount: number } }> = {
   blossom: {
     ground: { hue: 14, sat: 1.15, tint: '#9cc468', amount: 0.3, gain: 1.6, lift: 0.55, keepWater: 0.9 },
@@ -41,7 +40,7 @@ const TINTS: Record<Exclude<Row, 'heartland'>, { ground: Transform; prop: Transf
   },
 };
 
-/** papertrails' water per biome (render/water.js WATER_DEFAULTS.palette there): shallow, deep, rim, river floater. */
+/** The water per biome: shallow, deep, rim, river floater. */
 const WATER: Record<Row, [string, string, string, string]> = {
   heartland: ['#6fc4b0', '#1f8f8a', '#f6e6bc', '#dc9440'],
   blossom: ['#72c2ae', '#218a82', '#f6e4cc', '#f4a3b3'],
@@ -49,19 +48,19 @@ const WATER: Record<Row, [string, string, string, string]> = {
 };
 const WATER_ROWS: readonly Row[] = ['heartland', 'blossom', 'pinewood'];
 
-/** Which of papertrails' biomes each of ours takes. */
+/** Which row each of our biomes takes. */
 const ROWS: Record<Biome, Row> = { jungle: 'heartland', rocky: 'heartland', meadow: 'blossom', pine: 'pinewood', beach: 'heartland' };
 
 /**
- * papertrails' biomeTintKeep: in the blossom the prop tint passes over reeds, rocks, haystacks, fences, roofs and logs
- * (they keep their own colours).
+ * In the blossom the prop tint passes over reeds, rocks, haystacks, fences, roofs and logs (they keep their own
+ * colours).
  */
 const BLOSSOM_KEEP = /^(cattails|papyrus|rock-|crag-|hay$|fence-|log$|stump$|woodpile$)/;
 
 /** A colour transform: three rows (r, g, b) of [x, y, z, w] (rgb = rows · c + w), in linear colour. */
 export type TintRows = [number, number, number, number][];
 
-/** papertrails' transform matrix (hue rotation about the luma axis, then saturation, then the tint). */
+/** The transform matrix (hue rotation about the luma axis, then saturation, then the tint). */
 function rowsOf(t: Transform): TintRows {
   const L = [0.2126, 0.7152, 0.0722];
   const amount = t.amount ?? 0;
@@ -99,13 +98,13 @@ export function groundTint(biome: Biome): TintRows | null {
   return groundRows.get(row)!;
 }
 
-/** Applies a transform to a linear colour in place (papertrails' biomeTintGround: clamped at 0). */
+/** Applies a transform to a linear colour in place (clamped at 0). */
 export function applyTint(rows: TintRows, c: [number, number, number]): void {
   const [r, g, b] = c;
   for (let i = 0; i < 3; i++) c[i] = Math.max(0, rows[i][0] * r + rows[i][1] * g + rows[i][2] * b + rows[i][3]);
 }
 
-/** The tone a road takes in a biome (linear rgb) and how much of it (papertrails' min(amount, 0.9)); null: none. */
+/** The tone a road takes in a biome (linear rgb) and how much of it (min(amount, 0.9)); null: none. */
 export function pathTone(biome: Biome): [number, number, number, number] | null {
   const row = ROWS[biome];
   if (row === 'heartland') return null;

@@ -1,8 +1,7 @@
 /**
- * papertrails' light rig (render/lights.js there): a key light from screen-left that casts the soft PCSS shadows, a
- * fill from the right and a hemisphere ambient. Key and fill are aimed relative to the camera, and the key's shadow
- * frustum is fitted to the camera's footprint on the page every frame (its centre snapped to shadow texels, so the
- * shadows do not shimmer). Colours, intensities and angles are set by the day / night look (render/day-night.ts).
+ * The light rig: a key light from screen-left that casts the soft PCSS shadows, a fill from the right and a
+ * hemisphere ambient. Key and fill are aimed relative to the camera, and the key's shadow frustum is fitted to the
+ * camera's footprint on the page every frame (its centre snapped to shadow texels, so the shadows do not shimmer). Colours, intensities and angles are set by the day / night look (render/day-night.ts).
  */
 import * as THREE from 'three';
 import { LIGHTS } from '../config/view';
@@ -55,8 +54,8 @@ export class Lights {
   }
 
   /**
-   * Aims key and fill from the camera and fits the key's shadow frustum to the page the camera sees (papertrails'
-   * update()). focus: the traveller, the frame's centre should the camera ever look above the page.
+   * Aims key and fill from the camera and fits the key's shadow frustum to the page the camera sees. focus: the
+   * camera's focus, the frame's centre should the camera ever look above the page.
    */
   follow(camera: THREE.PerspectiveCamera, focus: THREE.Vector3): void {
     const S = LIGHTS.shadow;

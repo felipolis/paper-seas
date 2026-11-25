@@ -14,7 +14,7 @@ import { PADDING } from './blockers';
 /** Waves, creatures and flotsam keep at least this far from any beach. */
 const SHALLOWS = 0.9;
 /**
- * papertrails' animals stand only where the walk field leaves this much room (config/animals.js minClear: clearance
+ * Animals stand only where the walk field leaves this much room (clearance
  * past the blockers' padding), so they go round trees, rocks, fences and houses instead of through them.
  */
 const ANIMAL_ROOM = 0.07;
@@ -92,14 +92,14 @@ export class World {
 
   /** reveal: which part of the land stands up (around the ship or the captain on foot); night: 0 day .. 1 night. */
   update(dt: number, reveal: Reveal, focusX: number, focusZ: number, night: number): void {
-    // papertrails' animals know day or night, not the fade between them
+    // the animals know day or night, not the fade between them
     this.night = night > 0.5;
     this.terrain.update(focusX, focusZ);
     this.cards.update(dt, reveal, focusX, focusZ);
     this.terrain.updateHouses(dt, reveal);
   }
 
-  /** papertrails' walk-field clearance at a point: the distance to whatever stops the feet, past its padding. */
+  /** The walk-field clearance at a point: the distance to whatever stops the feet, past its padding. */
   private room(x: number, z: number): number {
     return this.terrain.roomAt(x, z) - PADDING;
   }

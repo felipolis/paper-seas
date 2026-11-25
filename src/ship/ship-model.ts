@@ -177,7 +177,7 @@ export class ShipModel {
   /** The chosen captain stands just aft of the wheel, facing the bow, hands on its spokes. */
   private buildCaptain(wheel: THREE.Vector3): Puppet {
     const puppet = new Puppet(activeCaptain().id);
-    // papertrails' traveller is 0.6 tall: at the wheel he is cut smaller to the ship's scale, and leaves the lantern
+    // the captain is 0.6 tall ashore: at the wheel he is cut smaller to the ship's scale, and leaves the lantern
     puppet.root.scale.setScalar(SHIP_CAPTAIN_SCALE);
     puppet.lanternShown = false;
     puppet.root.position.set(wheel.x, wheel.y - 0.24, wheel.z + 0.13);

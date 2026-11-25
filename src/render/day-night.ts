@@ -1,7 +1,6 @@
 /**
- * The clock and the look it picks. papertrails has a day look and a night look (render/daynight.js and
- * render/biomegrade.js there) and blends every value between them by one eased night amount; here the clock sets that
- * amount (config/time.ts). It drives the key / fill / ambient light, the paper's response, the post chain's grade,
+ * The clock and the look it picks. There is a day look and a night look, and every value is blended between them by
+ * one eased night amount, which the clock sets (config/time.ts). It drives the key / fill / ambient light, the paper's response, the post chain's grade,
  * the glowing windows and lanterns, and the warm light the ship carries at night. The two looks are the biome's here
  * (render/biome-look.ts).
  */
@@ -21,7 +20,7 @@ const TRANSLUCENCY = pair(PAPER.translucencyTint, NIGHT.paper.translucencyTint);
 /** The paper's shared lighting uniforms (render/paper-material.ts), as the look writes them. */
 const paper: Record<'uPaperWrap' | 'uPaperTrans' | 'uPaperCloud', THREE.IUniform<number>> & Record<'uPaperTransTint' | 'uPaperShadowLeak', THREE.IUniform<THREE.Color>> = paperLighting;
 
-/** 0 by day .. 1 by night at this clock hour: an eased fade between papertrails' two looks, centred on dawn and dusk. */
+/** 0 by day .. 1 by night at this clock hour: an eased fade between the two looks, centred on dawn and dusk. */
 function nightAt(hour: number): number {
   const span = TIME.fadeHours;
   const sunUp = clamp((hour - TIME.dawn) / span + 0.5, 0, 1);
@@ -57,7 +56,7 @@ export class DayNight {
   }
 
   /**
-   * Day to night or back at a press (papertrails' N): the clock runs through the evening's fade (or the morning's) in
+   * Day to night or back at a press: the clock runs through the evening's fade (or the morning's) in
    * TIME.toggleSeconds, first jumping to where that fade starts if it is not there yet; pressed again mid-fade, it runs
    * back the way it came. Either way it then stands where the whole night (or day) lies ahead, a jump that shows
    * nothing as the look is the same all night (or day) long, and goes on as before.

@@ -23,7 +23,7 @@ let total = 0;
 for (const seed of seeds) {
   const errors = [];
   const keep = (m) => errors.push(m);
-  const page = await openGame(browser, { viewport: { width: 960, height: 600 }, seed, onPageError: keep, onConsoleError: keep });
+  const page = await openGame(browser, { viewport: { width: 960, height: 600 }, seed, onPageError: keep, onConsoleIssue: keep });
   const report = await page.evaluate(checkWorld);
   const issues = [...errors.map((e) => ({ kind: 'error', note: e })), ...report.issues];
   total += issues.length;
@@ -159,7 +159,7 @@ async function checkWorld() {
         for (const a of card.cross ? CROSS_PLANES.map((p) => card.yaw + p) : [card.yaw]) {
           for (const s of [-1, 1]) if (card.y - ground(card.x + Math.cos(a) * w * s, card.z - Math.sin(a) * w * s) > 0.05) hangs = true;
         }
-        // (a vignette, papertrails' animal tied to a piece, sits up on its seat, and may sit by a door on a lane)
+        // (a vignette, an animal tied to a piece, sits up on its seat, and may sit by a door on a lane)
         const seat = card.vignette?.seat ?? 0;
         if (hangs && !seat && !SEA_CARDS.has(card.sprite)) add('floating', card.x, card.z, `${card.sprite} (end over lower ground)`);
         if (card.y - seat - ground(card.x, card.z) > 0.05 && !SEA_CARDS.has(card.sprite)) add('floating', card.x, card.z, `${card.sprite} (foot above ground)`);

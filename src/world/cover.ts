@@ -1,16 +1,15 @@
 /**
- * Ground cover, planted by 2 x 2 tiles like papertrails' page (see config/flora.ts): every tile on land is one
- * composition picked for its biome: a few tall pieces near its corners (a leading species that drifts slowly from
- * tile to tile, the others of its list mixed in, as papertrails' forest tile mixes four), clumps of ground cover and
- * flowers, small props, and its animals (papertrails' spawn rows: herds and flocks, some about by day or by night
- * only, config/flora.ts ANIMALS). Like papertrails' tiles, a tile hardly ever shows the same drawing twice: each
- * list hands out all its species before any comes again. Forest tiles gather where a low-frequency field is high, so
- * the woods mass together; where another slow field is low the tile is a clearing (the skill's designed negative
- * space: open ground between the groups, clumped, never even), only a low clump or two on it. In any view-sized region
- * no more than SAME_CAP of one prop or animal stand (the skill: a world of clones reads as a tech demo).
+ * Ground cover, planted by 2 x 2 tiles (see config/flora.ts): every tile on land is one composition picked for its
+ * biome: a few tall pieces near its corners (a leading species that drifts slowly from tile to tile, the others of
+ * its list mixed in), clumps of ground cover and flowers, small props, and its animals (herds and flocks, some about
+ * by day or by night only, config/flora.ts ANIMALS). A tile hardly ever shows the same drawing twice: each list hands
+ * out all its species before any comes again. Forest tiles gather where a low-frequency field is high, so the woods
+ * mass together; where another slow field is low the tile is a clearing (designed negative space: open ground
+ * between the groups, clumped, never even), only a low clump or two on it. In any view-sized region no more than
+ * SAME_CAP of one prop or animal stand (a world of clones reads as a tech demo).
  *
- * A clump is papertrails' (tiles.glb, its 86 clumps measured): one to four cards of different species, the tallest at
- * the back and the shorter ones stepping out in front of it, the cards toward the back printed darker.
+ * A clump is one to four cards of different species, the tallest at the back and the shorter ones stepping out in
+ * front of it, the cards toward the back printed darker.
  */
 import { WORLD } from '../config/world';
 import { pickWeighted } from '../core/rng';
@@ -23,25 +22,25 @@ import type { Biome } from './land';
 import type { SetDown } from './card-field';
 
 const SEED = WORLD.seed;
-/** Tall pieces stand this far from the tile centre along both axes (papertrails: about 0.6-0.9), give or take. */
+/** Tall pieces stand this far from the tile centre along both axes, give or take. */
 const CORNER = 0.62;
 const CORNER_JITTER = 0.15;
 /** Where the tall pieces of a tile stand: its corners, and its middle for a fifth. */
 const SPOTS: Array<[number, number]> = [[-1, -1], [1, -1], [-1, 1], [1, 1], [0, 0]];
 /**
- * papertrails' vignettes at a tree (life/animals.js resolveAnchor there): beside its trunk, 0.08 + 0.14 out and 0.07
+ * Vignettes at a tree: beside its trunk, 0.08 + 0.14 out and 0.07
  * toward the camera; behind it, 0.1 out and 0.05 back (the body hidden by the card, the head out past its edge).
  */
 const VIGNETTES: Record<string, [number, number]> = { gecko: [0.22, 0.07], boar: [0.1, -0.05] };
-/** How many cards a clump has (weights: papertrails' clumps, 16 of one card, 49 of two, 19 of three, 2 of four). */
+/** How many cards a clump has (weights: 16 of one card, 49 of two, 19 of three, 2 of four). */
 const CLUMP_SIZES: Array<[number, number]> = [[1, 16], [2, 49], [3, 19], [4, 2]];
 /**
- * papertrails' clump shading, by the card's place from the back (every card's foot in tiles.glb is 0.787 of its tone):
+ * Clump shading, by the card's place from the back:
  * the front card as drawn, each one behind it about a tenth darker.
  */
 const CLUMP_TONES: number[][] = [[], [1], [0.87, 1], [0.79, 0.89, 1], [0.69, 0.79, 0.89, 1]];
 /**
- * Where the next card of a clump stands from the last: to either side, and a little in front (papertrails: about 0.2
+ * Where the next card of a clump stands from the last: to either side, and a little in front (about 0.2
  * apart, 0.06 nearer the camera, the median).
  */
 const CLUMP_SIDE: [number, number] = [0.08, 0.24];
@@ -52,13 +51,13 @@ const PROP_ROOM = 0.25;
 const COVER_ROOM = 0.06;
 const ANIMAL_ROOM = 0.15;
 /**
- * papertrails' herd (life/animals.js there): the first of a group finds its spot, the others stand within this of it
+ * A herd: the first of a group finds its spot, the others stand within this of it
  * (0.2 + 0.09 a head), no nearer than HERD_GAP to one another.
  */
 const HERD_SPREAD = [0.2, 0.09] as const;
 const HERD_GAP = 0.16;
 /**
- * papertrails' perches (config/animals.js perch there): the props an owl may sit on, and the window of their tops it
+ * Perches: the props an owl may sit on, and the window of their tops it
  * takes (world units); a sitter sinks this far below the top.
  */
 const PERCH = /^(stump|log|rock-|woodpile)/;
@@ -66,7 +65,7 @@ const PERCH_TOP: [number, number] = [0.06, 0.62];
 const PERCH_SINK = 0.03;
 /** How many spots a small piece tries on its tile before it gives up (the tall pieces have their corners). */
 const TRIES = 6;
-/** Forest field: period (world units) and the weight it gives forest tiles (papertrails: 0.06 + 5.2 F^2). */
+/** Forest field: period (world units) and the weight it gives forest tiles (0.06 + 5.2 F^2). */
 const FOREST_PERIOD = 20;
 const SPECIES_PERIOD = 12;
 /** Clearing field: its period (world units, several groups wide) and the level below which a tile is a clearing. */
@@ -85,7 +84,7 @@ export interface CoverEnv {
   /** Keeps r round the point clear from now on. */
   claim(x: number, z: number, r: number): void;
   /**
-   * Stands a card; card.vignette: papertrails' animal tied to a piece (it keeps its place); card.tone: its clump
+   * Stands a card; card.vignette: an animal tied to a piece (it keeps its place); card.tone: its clump
    * shading; card.awake: an animal about by day or by night only; card.passable: too low to stop the feet; card.yaw:
    * its own turn, set with the rest of its scene (a pen's fences), not a random one.
    */
@@ -212,7 +211,7 @@ function plantTile(env: CoverEnv, kind: TileKind, kindIndex: number, biome: Biom
       const side = env.rng() < 0.5 ? -1 : 1;
       for (const [m, { sprite, height }] of cards.entries()) {
         if (env.distance(x, z) < -0.12 && !env.blocked(x, z, COVER_ROOM)) {
-          // (a lone card is not a clump: it takes papertrails' rear copy instead, world/terrain.ts)
+          // (a lone card is not a clump: it takes a rear copy instead, world/terrain.ts)
           env.place(sprite, x, z, height, size > 1 ? { tone: CLUMP_TONES[size][m] } : {});
           env.claim(x, z, COVER_ROOM);
         }
@@ -231,13 +230,13 @@ function plantTile(env: CoverEnv, kind: TileKind, kindIndex: number, biome: Biom
 }
 
 /**
- * One of a tile's animal rows (papertrails' spawn entry): at a tree, up on a perch, or on the ground, a herd about the
+ * One of a tile's animal rows: at a tree, up on a perch, or on the ground, a herd about the
  * first of it. A herd counts once against the same-kind cap (room).
  */
 function plantAnimals(env: CoverEnv, row: AnimalRow, cx: number, cz: number, talls: ReadonlyArray<[number, number]>, perches: ReadonlyArray<[number, number, number]>, room: (sprite: string, x: number, z: number) => boolean): void {
   const sprite = row.species;
   const awake = row.awake;
-  // papertrails' grove vignettes: a squirrel at a tree's trunk (our gecko), a fox half hidden behind one (our boar)
+  // grove vignettes: a gecko at a tree's trunk, a boar half hidden behind one
   if (row.at === 'tree' && talls.length && VIGNETTES[sprite]) {
     const tree = talls[Math.floor(env.rng() * talls.length)];
     const side = env.rng() < 0.5 ? -1 : 1;
@@ -266,7 +265,7 @@ function plantAnimals(env: CoverEnv, row: AnimalRow, cx: number, cz: number, tal
   }
 }
 
-/** papertrails' meadow pen (world/pen.ts) about the tile's middle, its herd keeping its place; whether it found room. */
+/** A meadow pen (world/pen.ts) about the tile's middle, its herd keeping its place; whether it found room. */
 function plantPen(env: CoverEnv, cx: number, cz: number): boolean {
   const pen = penAt(cx + (env.rng() - 0.5) * 0.4, cz + (env.rng() - 0.5) * 0.4, env.rng);
   const clear = (px: number, pz: number, r: number) => env.distance(px, pz) < -0.3 && !env.blocked(px, pz, r);

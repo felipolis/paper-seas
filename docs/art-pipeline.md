@@ -5,14 +5,13 @@ How the printed cards, the Blender-built buildings, mountains, ships and captain
 ## The cards
 
 Every sprite starts as a sheet of die-cut paper cards generated in Google Flow (Nano Banana Pro), saved in
-`assets-src/flow`, and is cut out into `public/art`. The sheets follow the papercraft skill's look
-([xikhar/papercraft](https://github.com/xikhar/papercraft), `references/image-gen.md`): printed layered paper collage
+`assets-src/flow`, and is cut out into `public/art`. The sheets share one look: printed layered paper collage
 with lit-side lips and bold ornaments on plants, cloth, wood and buildings (stone, water and animals stay plain), a thin
 dark cut line with a pale highlight on its lit side, never felt, stitching or an even cream sticker rim. A prompt is its
 sheet's subject (`assets-src/prompts/NN-*.txt`) followed by the shared style (`assets-src/prompts/style.txt`, with
 KEY set to the sheet's key colour: magenta `#FF00FF`, green `#00FF00` where a piece is pink or purple, blue `#0000FF` where it is both pink and green: the lily pads, 49, drawn seen from above as they lie on the water), generated
 with two reference images attached: `assets-src/flow/00-style-sheets.jpg` (finished sheets of this set) and
-`00-style-oasis.jpg` (a frame of the skill's gallery, MIT licence).
+`00-style-oasis.jpg` (a reference frame of the style).
 
 The waves came out with olive and green-teal layers (the style's palette names olive and sage), so three were redone
 one per sheet, blue only: the low swell (`06-waves-swell`) with the blue waves as its first reference, the big curl and
@@ -34,7 +33,7 @@ rows makes its sheet read as one row, left to right. The audit pages are generat
 
 ## Buildings (Blender)
 
-Villages, lighthouses and forts are real paper constructions built by a Blender script, like papertrails' tiles. On a
+Villages, lighthouses and forts are real paper constructions built by a Blender script. On a
 fresh cut, run the ship's sheets first ([below](#the-ships-hull-blender)): `paint-domes.mjs` prints the mountains
 over the terrain swatches (`assets-src/models/swatches`) and `pack-atlas.mjs` prints the pier's planks from
 `public/models/tex/plank-oak.png`, both cut from them.
@@ -50,8 +49,8 @@ The script (`tools/blender/build_models.py`) assembles each model from hinged ca
 swinging out of it, roof planes folding over from the walls, chimney, sign, belfry and spire, battlements, lantern
 room...) and writes `public/models/models.glb`: every piece is a node on its fold line with glTF extras `{ hinge,
 foldAngle, delay }` (a start of its own only for a piece standing on the page: one hinged on another starts with it,
-papertrails' one construction, one start). Every piece is card 0.016 thick, as papertrails' (its `cardThickness`), the half cards of a slotted
-cross 40 % of that; a piece printed with a cut-out shape (the chimney, the tavern sign) is cut to its print's outline,
+one construction, one start). Every piece is card 0.016 thick, the half cards of a slotted cross 40 % of that; a
+piece printed with a cut-out shape (the chimney, the tavern sign) is cut to its print's outline,
 traced from its alpha by `pack-atlas.mjs` (`tools/art/outline.mjs`), so its cut edge follows the drawing. In the game
 (`src/world/models.ts`) each building becomes one skinned mesh (one draw call) whose bones unfold through the same paper
 springs as every card; the atlas is drawn with the paper material, and its printed windows light up at night.
@@ -74,7 +73,7 @@ which builds her from printed planking (`tools/blender/build_ship.py`): banded h
 decks, cabin fronts with doors and windows at every break, balustrades along the castles, a lit stern gallery, quarter
 galleries, crest, beakhead and figurehead, guns run out of every port, chainwales, anchors, rudder, fittings, wheel. Her
 printed details (gun ports, galleries, windows, doors, crest, scroll, grating, eyes, figurehead) are glued-on layers
-0.004 thick (papertrails' layers run 0.002 - 0.006), cut to their prints' outlines (`tools/ship/trace-details.mjs`). The
+0.004 thick, cut to their prints' outlines (`tools/ship/trace-details.mjs`). The
 gun port's print had a cannon painted in it, over the 3D barrel run out of the port: it was painted out by hand once
 (its slot in the sheet is `null` in `ship-sheets.json`, so cutting the sheets again keeps the empty port). The ghost
 ship (`broken` in her spec) is a whole wreck, not a broken model: her rails run smooth but for three breaches torn
@@ -95,9 +94,8 @@ reaches that share of the key's span. The balustrades are Blender-built baluster
 ## The captains
 
 The captains are small paper models built in the game from their outfits (`src/player/crew-model.ts`, each after its
-picture in the shipyard), the way papertrails builds its traveller (`public/models/traveller.glb` there, read piece by
-piece): every piece a die-cut slab in one flat colour with a pale cream cut edge, layered and slotted through each
-other. The face is a frontal card with the head's profile card slotted through its middle (the profile's front edge is
+picture in the shipyard): every piece a die-cut slab in one flat colour with a pale cream cut edge, layered and
+slotted through each other. The face is a frontal card with the head's profile card slotted through its middle (the profile's front edge is
 the nose and the chin), a thicker hair card round the profile and a hair card behind the face, small eye cards on the
 face and on both sides of the profile; the body is a frontal and a profile card in a cross with what is worn layered on
 it (a waistcoat, braid, buttons, a belt in a cross of its own, a jabot, a scarf); the arms and the legs are profile cards
@@ -106,12 +104,12 @@ stacked from the brim up, tilted a little back. Pieces on one joint are slotted 
 one mesh, a draw per joint); pieces on joints that move against each other never cut into each other: the arms hang
 beside the body, what hangs below the waist (a coat's tails, an apron) is cut in two and hung on the legs, and
 `node tools/qa/crew-clips.mjs` poses every captain standing, walking, turning and at the helm and lists any pair that
-does. `src/player/puppet.ts` walks with papertrails' gait (legs and arms on the step's phase, the torso and the head
+does. `src/player/puppet.ts` walks them (legs and arms on the step's phase, the torso and the head
 lagging it, the lean and roll springs, the lantern a lagging pendulum) and steers.
 
 ## Mountains
 
-Mountains are built like papertrails' dunes, hills and rocks: no solids, cards. `tools/art/paint-domes.mjs` paints
+Mountains are built of cards, not solids. `tools/art/paint-domes.mjs` paints
 rounded dome faces and stone slabs (bands of colour from a darker foot to a pale cap, printed over the grain of a terrain
 swatch, the pale paper rim of the cut along the outline) and writes each outline to `assets-src/models/domes.json`;
 `build_models.py` cuts curved cards to those outlines: a tall pair in a V at the back, a smaller pair in front, a long

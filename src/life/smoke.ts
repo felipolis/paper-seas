@@ -1,7 +1,7 @@
 /**
- * Chimney smoke, as papertrails puffs it (life/life.js, config/life.js there): round paper discs cut with a spiral and
- * a darker lip, turned to the camera, rising off every standing chimney near the focus, growing as they rise, drifting
- * with the wind and fading away. A chimney starts puffing a moment after its house stands; the smoke rests at night.
+ * Chimney smoke: round paper discs cut with a spiral and a darker lip, turned to the camera, rising off every standing
+ * chimney near the focus, growing as they rise, drifting with the wind and fading away. A chimney starts puffing a
+ * moment after its house stands; the smoke rests at night.
  */
 import * as THREE from 'three';
 import { createPaperMaterial } from '../render/paper-material';
@@ -13,7 +13,7 @@ const random = stream('smoke');
 
 const EMITTERS = 10;
 const PER_EMITTER = 4;
-/** papertrails: life 5.4 s, rise 0.78, size 0.085 -> 0.235, fade in over the first 14 %, out after 68 %. */
+/** A puff lives 5.4 s, rises 0.78 and grows 0.085 -> 0.235; it fades in over the first 14 %, out after 68 %. */
 const LIFE = 5.4;
 const RISE = 0.78;
 const SIZE: [number, number] = [0.085, 0.235];
@@ -25,7 +25,7 @@ const SPIN = 0.5;
 /** A chimney starts this long after its house stands (s), and only within this distance of the focus. */
 const START: [number, number] = [0.7, 1.7];
 const REACH = 12;
-/** papertrails: a puff shown smaller than this (world units) is not drawn. */
+/** A puff shown smaller than this (world units) is not drawn. */
 const MIN_SIZE = 0.002;
 
 const _q = new THREE.Quaternion();
@@ -93,7 +93,7 @@ export class Smoke {
 
   constructor(private readonly clearLine: ClearLine) {
     const plane = new THREE.PlaneGeometry(1, 1);
-    // two creams, half the puffs each (papertrails: #fff3dc / #f8e8cb)
+    // two creams, half the puffs each
     this.meshes = ['#fff3dc', '#f8e8cb'].map((fill) => {
       const m = createPaperMaterial({ map: puffTexture(fill), back: null });
       const mesh = new THREE.InstancedMesh(plane, m, (EMITTERS * PER_EMITTER) / 2);
@@ -142,7 +142,7 @@ export class Smoke {
           f.z + windZ * DRIFT * u * u,
         );
         const shown = size * this.clearLine.k(_p.x, _p.y, _p.z);
-        // (papertrails' floor: a puff faded to a speck is not drawn; a speck can light into an invalid pixel)
+        // (the floor: a puff faded to a speck is not drawn; a speck can light into an invalid pixel)
         if (shown <= MIN_SIZE) {
           mesh.setMatrixAt(i, _m.makeScale(0, 0, 0));
           return;

@@ -1,10 +1,10 @@
 /**
- * Click / tap / drag to walk, papertrails' way (player/controls.js there). The pointer is cast onto the ground; the
- * captain heads straight for that point while the way is clear, and when it is not, a route is planned round what
- * stands in the way (player/route.ts) and walked leg by leg; with no route he feels his way round, trying the
- * directions turned STEER away from it. He eases in and stops on the mark, and the walk is let go when he gets there,
- * when he has been held still for a while, or when he has stopped getting nearer. Holding and dragging keeps re-aiming;
- * a key walking him lets it go. The only feedback is the inked mark on the page (player/target-mark.ts).
+ * Click / tap / drag to walk. The pointer is cast onto the ground; the captain heads straight for that point while the
+ * way is clear, and when it is not, a route is planned round what stands in the way (player/route.ts) and walked leg
+ * by leg; with no route he feels his way round, trying the directions turned STEER away from it. He eases in and stops
+ * on the mark, and the walk is let go when he gets there, when he has been held still for a while, or when he has
+ * stopped getting nearer. Holding and dragging keeps re-aiming; a key walking him lets it go. The only feedback is
+ * the inked mark on the page (player/target-mark.ts).
  */
 import * as THREE from 'three';
 import { CLICK_WALK, PLAYER } from '../config/player';

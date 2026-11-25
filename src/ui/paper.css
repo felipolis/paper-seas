@@ -1,9 +1,9 @@
 /*
- * The interface as paper (the papercraft skill's paper-ui.md): one ink, one page, one core, one accent; every panel a
+ * The interface as paper: one ink, one page, one core, one accent; every panel a
  * card of the page's stock (its fibre, ui/paper-sheet.ts) with the cut edge printed on it (a pale highlight on the lit
  * side, a thin dark-brown line) and two shadows (a tight contact, a wide cast away from the light), never a cream band
- * or a glow; buttons press like card; sheets slide in like paper (without the skill's shadow ahead of their leading
- * edge: it read as a dark panel above them).
+ * or a glow; buttons press like card; sheets slide in like paper (with no shadow ahead of their leading edge:
+ * it read as a dark panel above them).
  */
 :root {
   --ink: #5a3a28;

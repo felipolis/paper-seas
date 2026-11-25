@@ -1,7 +1,6 @@
 /**
  * Sound tunables (src/audio). Times in seconds, frequencies in Hz (at pitch factor 1), gains linear unless a key
- * ends in Db. The paper-flap voicing and the voice allocation follow papertrails by xikhar (MIT), see
- * src/audio/paper-synth.ts.
+ * ends in Db. The paper-flap voicing and the voice allocation are in src/audio/paper-synth.ts.
  */
 export const AUDIO = {
   /** Final output gain after the soft limiter. */
@@ -11,8 +10,8 @@ export const AUDIO = {
   spareVoices: 4,
   stealFade: 0.008,
   /**
-   * Distance law for world sounds: gain = 1 / (1 + (d / falloff)^falloffPow), faded out from earshotFade to earshot (the
-   * skill's and papertrails': near events stay present, far ones fall away fast, none beyond ~2.4 x falloff).
+   * Distance law for world sounds: gain = 1 / (1 + (d / falloff)^falloffPow), faded out from earshotFade to earshot (near
+   * events stay present, far ones fall away fast, none beyond ~2.4 x falloff).
    */
   falloff: 9,
   falloffPow: 4,
@@ -21,7 +20,7 @@ export const AUDIO = {
   /** Voices quieter than this are not played at all. */
   minGain: 0.004,
   sampleRate: 48000,
-  /** Fraction of the full pan used at |pan| = 1 (the skill: half the range). */
+  /** Fraction of the full pan used at |pan| = 1 (half the range). */
   panWidth: 0.5,
   /** World units across which a sound pans from centre to full side. */
   panSpan: 14,
@@ -40,10 +39,10 @@ export const AUDIO = {
   densityTickDuck: 0.55,
   /** Cards rising around the ship: a soft flap now and then, not a continuous rustle. */
   flaps: {
-    /** A flap's size: its piece's upright height in papertrails' tiles (world units), minSize .. 1 (fold.js there). */
+    /** A flap's size: its piece's upright height in tiles of `tile` world units, minSize .. 1. */
     tile: 2,
     minSize: 0.05,
-    /** Minimum time between flap onsets (+- jitter): 0.35-0.75 s, two flaps a second at most (the skill). */
+    /** Minimum time between flap onsets (+- jitter): 0.35-0.75 s, two flaps a second at most. */
     spacing: 0.55,
     spacingJitter: 0.2,
     /**
@@ -160,8 +159,8 @@ export const AUDIO = {
   knock: { gain: 0.5, dur: 0.16, bedHz: 800, bedQ: 0.7, bedGain: 0.55, resHz: [180, 420, 950], resQ: [2.2, 1.8, 1.5], lpHz: 1500, knock: 0.9 },
 
   /**
-   * The captain's footsteps ashore (papertrails' step voice): soft paper taps, quiet (papertrails keeps them at 0.15 of
-   * a flap), a little apart in pitch and pan from foot to foot, the timbre set by what is underfoot.
+   * The captain's footsteps ashore: soft paper taps, quiet (0.15 of a flap), a little apart in pitch and pan from foot
+   * to foot, the timbre set by what is underfoot.
    */
   step: {
     gain: 0.02,
@@ -202,7 +201,7 @@ export const AUDIO = {
   music: { gain: 1.2, bpm: 112, reverb: 0.42, fadeIn: 5 },
 
   /**
-   * The sea under the table as the skill's room tone, so the silence between flaps is never digital black: a slow warm
+   * The sea under the table as a room tone, so the silence between flaps is never digital black: a slow warm
    * wash low-passed at lpHz, normalised, at ~-63 dBFS RMS (gain), faded in over fadeIn seconds.
    */
   sea: { gain: 0.001, length: 12, lpHz: 240, swell: 0.55, fadeIn: 1.5 },

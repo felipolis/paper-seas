@@ -5,7 +5,7 @@
  * Every card is finished the same way, which is what makes the set read as one printed sheet:
  *   1. the art is filled and detailed by a painter (clipped to its outline where it wants)
  *   2. a light grain is printed over it
- *   3. a thin ink line traces the cut (the dark cut edge; papercraft skill, look.md section 3)
+ *   3. a thin ink line traces the cut (the dark cut edge)
  * Anything left transparent is cut away (the card material alpha-tests it).
  */
 import * as THREE from 'three';

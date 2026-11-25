@@ -1,22 +1,20 @@
 /**
- * papertrails' paper maps (public/textures/paper: copied from papertrails by xikhar, MIT licence,
- * https://github.com/xikhar/papertrails, public/textures/paper): the fine card stock of every cut piece and the rougher
- * page stock of the ground, each a grey detail map (linear data, mean 0.5) and its tangent-space normal map (OpenGL +Y),
- * and the edge strip of stacked sheets for the land's cut edge. Loaded once at startup.
+ * The paper maps (public/textures/paper): the fine card stock of every cut piece and the rougher page stock of the
+ * ground, each a grey detail map (linear data, mean 0.5) and its tangent-space normal map (OpenGL +Y), and the edge
+ * strip of stacked sheets for the land's cut edge. Loaded once at startup.
  *
- * The card maps are repacked as papertrails repacks them (render/materials.js `packFromAssets` there) into the one
- * texture the paper material samples: RG = the normal's xy, B = the detail around its mean, A = a procedural cloud (the
+ * The card maps are repacked into the one texture the paper material samples: RG = the normal's xy, B = the detail around its mean, A = a procedural cloud (the
  * 0.15-0.3 unit mottling).
  */
 import * as THREE from 'three';
 import { mulberry32 } from '../core/rng';
 import { addValueNoise } from './tile-noise';
 
-/** The rougher page stock of the ground (papertrails' `pagePaper` / `pagePaperNormal`). */
+/** The rougher page stock of the ground. */
 export interface PageFibre {
   albedo: THREE.Texture;
   normal: THREE.Texture;
-  /** Mean luminance of the albedo (papertrails' `imageMean`): the detail is read as albedo / mean - 1. */
+  /** Mean luminance of the albedo (`imageMean`): the detail is read as albedo / mean - 1. */
   mean: number;
 }
 
@@ -25,7 +23,7 @@ let cardPacked: THREE.DataTexture | null = null;
 let page: PageFibre | null = null;
 let sheetStrip: THREE.Texture | null = null;
 
-/** A tiling data map, mipmapped and anisotropic (papertrails' loader: linear, repeat, flipY). */
+/** A tiling data map, mipmapped and anisotropic (linear, repeat, flipY). */
 function repeatTexture(image: HTMLImageElement): THREE.Texture {
   const t = new THREE.Texture(image);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
@@ -52,7 +50,7 @@ function normalise(a: Float32Array): Float32Array {
   return a;
 }
 
-/** papertrails' mottling cloud: three octaves of value noise (render/materials.js `makeCloud`). */
+/** The mottling cloud: three octaves of value noise. */
 function makeCloud(n: number, rng: () => number): Float32Array {
   const c = new Float32Array(n * n);
   addValueNoise(c, n, 9, 1.0, rng);
@@ -69,7 +67,7 @@ function pixels(image: HTMLImageElement, n: number): Uint8ClampedArray {
   return ctx.getImageData(0, 0, n, n).data;
 }
 
-/** papertrails' `packFromAssets`: the card detail and normal maps and the cloud in one RGBA texture. */
+/** The card detail and normal maps and the cloud in one RGBA texture. */
 function packCardFibre(detail: HTMLImageElement, normal: HTMLImageElement): THREE.DataTexture {
   const n = Math.min(1024, detail.width);
   const d = pixels(detail, n);
@@ -98,7 +96,7 @@ function packCardFibre(detail: HTMLImageElement, normal: HTMLImageElement): THRE
   return tex;
 }
 
-/** papertrails' `imageMean` (world/book.js there): mean luminance on a 32 px copy. */
+/** Mean luminance on a 32 px copy. */
 function imageMean(image: HTMLImageElement): number {
   const d = pixels(image, 32);
   let s = 0;
@@ -138,8 +136,8 @@ export function pageFibre(): PageFibre {
 }
 
 /**
- * papertrails' edge strip (`edgeStrip`): the luminance of stacked sheets seen edge-on. u runs along the edge, v across
- * it; the stacked-sheet band is v 0.3125..1 (with flipY).
+ * The edge strip: the luminance of stacked sheets seen edge-on. u runs along the edge, v across it; the stacked-sheet
+ * band is v 0.3125..1 (with flipY).
  */
 export function edgeStrip(): THREE.Texture {
   if (!sheetStrip) throw new Error('paper maps not loaded');

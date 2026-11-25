@@ -1,8 +1,8 @@
 /**
- * papertrails' bits (life/life.js there): the small cut-paper pieces of the ambient life (leaves, petals, dust, rain
- * streaks and splash rings, birds). Each is a quad creased down its middle (the halves bent back a little, so it
- * catches the light like folded card), cut out by a white shape with a darker lip of thickness under it, tinted per
- * piece, lit by the scene and written to depth (so the lens blurs it with the scene).
+ * The small cut-paper pieces of the ambient life (leaves, petals, dust, rain streaks and splash rings, birds). Each is
+ * a quad creased down its middle (the halves bent back a little, so it catches the light like folded card), cut out by
+ * a white shape with a darker lip of thickness under it, tinted per piece, lit by the scene and written to depth (so
+ * the lens blurs it with the scene).
  *
  * One InstancedMesh per shape; a kind whose pieces come in several shapes keeps one per shape and draws each piece in
  * its own. Pieces are written allocation-free straight into the instance matrices.
@@ -126,7 +126,7 @@ function shapeTexture(shape: Exclude<Shape, 'bar'>): THREE.Texture {
   return tex;
 }
 
-/** papertrails' creased quad: unit square in XY, the two halves bent back 0.16 from the crease along Y. */
+/** A creased quad: unit square in XY, the two halves bent back 0.16 from the crease along Y. */
 function creasedQuad(): THREE.BufferGeometry {
   const b = 0.16;
   const geo = new THREE.BufferGeometry();

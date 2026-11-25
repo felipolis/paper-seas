@@ -1,5 +1,5 @@
 /**
- * Bird flocks crossing the view (papertrails' birds(), life/life.js there): up to five flocks of three to five paper
+ * Bird flocks crossing the view: up to five flocks of three to five paper
  * birds in a V. Flock f crosses once every period * (1 + 0.23 f) s, taking `cross` s over `span` units, on a heading of
  * its own each crossing, just above the treetops (higher up the tilt-shift would blur them away). A crossing is aimed
  * at the point above the ground the camera sees over the focus (so it passes through the frame, not over its top) and

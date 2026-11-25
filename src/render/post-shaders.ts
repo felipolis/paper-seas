@@ -76,13 +76,13 @@ float cocAt(vec2 uv, float z) {
 ${HELPERS}
 vec3 viewPos(vec2 uv, float z) { return vec3((uv * 2.0 - 1.0) * vec2(uProj.z * uProj.w, uProj.z) * z, -z); }
 
-// papertrails' world-space light falloff: the key side (screen-left) brighter and warmer, the fill side dimmer and
+// the world-space light falloff: the key side (screen-left) brighter and warmer, the fill side dimmer and
 // cooler; and far from the focus, on the ground, a subtle haze of one colour.
 vec3 gradeWorld(vec3 col, vec2 uv, float z, float rawDepth) {
   vec3 pv = viewPos(uv, z);
   vec3 pw = (uCamWorld * vec4(pv, 1.0)).xyz;
   vec2 rel = pw.xz - uFocusW.xz;
-  // papertrails' cloud shadows: soft patches on the page, darkening whatever stands on them
+  // the cloud shadows: soft patches on the page, darkening whatever stands on them
   if (rawDepth < 0.99999) col = cloudShadows(col, pw, uCamWorld[3].xyz);
   float t = clamp(dot(rel, uGobo.xy) * uGobo.z, -1.0, 1.0);
   col *= (1.0 - uGobo.w * t) * vec3(1.0 - uGobo2.x * 0.5 * t, 1.0, 1.0 + uGobo2.x * t);
@@ -315,7 +315,7 @@ void main() {
   sharp.r = sceneAt(tScene, vUv + co).r;
   sharp.b = sceneAt(tScene, vUv - co).b;
   float ac = abs(coc);
-  // papertrails: 4 taps round the pixel, an unsharp mask inside the focus band turning into a small full-res blur for
+  // 4 taps round the pixel, an unsharp mask inside the focus band turning into a small full-res blur for
   // CoC 0.5 - 3 px, so detail fades out gradually before the half-res bokeh layer takes over
   vec2 mo = uTexel * max(0.75, ac * 0.8);
   vec3 sb = 0.25 * (sceneAt(tScene, vUv + mo * vec2(1.0, 0.4)) + sceneAt(tScene, vUv + mo * vec2(-1.0, -0.4))
@@ -329,7 +329,7 @@ void main() {
   sharp *= mix(uAoTint, vec3(1.0), ao);
 
   // --- a thin darker card edge where this pixel is the front of a depth silhouette (the die-cut edge) --
-  // papertrails' two rings (axis taps, then diagonal taps 1.55 x further out) give a smooth band, not a dotted line;
+  // two rings (axis taps, then diagonal taps 1.55 x further out) give a smooth band, not a dotted line;
   // the depth step is relative to the view distance, so far cards keep their edge
   float zfar = max(max(zl, zr), max(zd, zu));
   vec2 od = uTexel * rw * 1.55;
@@ -348,7 +348,7 @@ void main() {
   float blend = max(smoothstep(1.2, 3.6, ac), blur.a);
   vec3 col = mix(sharp, blur.rgb, blend);
   col += texture2D(tBloom, vUv).rgb * uFx.x;
-  // papertrails' light spill: the very wide blur of the glowing panes and lanterns lights the paper round them
+  // the light spill: the very wide blur of the glowing panes and lanterns lights the paper round them
   if (uSpill > 0.0) {
     float cl = max(col.r, max(col.g, col.b));
     col += texture2D(tSpill, vUv).rgb * uSpill * (col * 5.0 + 0.035) * (1.0 - smoothstep(0.5, 1.4, cl));
@@ -363,8 +363,8 @@ void main() {
   col = mix(vec3(l), col, uTone.z);
   col = toSRGB(max(col, 0.0));
   col = (col - 0.42) * uTone.y + 0.42;
-  // yellow-green grass under the warm key reads as a video game: pull only those hues toward sage (after
-  // papertrails; cream, ochre, terracotta and the teal sea are outside the mask)
+  // yellow-green grass under the warm key reads as a video game: pull only those hues toward sage
+  // (cream, ochre, terracotta and the teal sea are outside the mask)
   float gm = smoothstep(0.1, 0.3, col.g - col.b) * smoothstep(-0.2, -0.05, col.g - col.r) * uDofC.y;
   col = mix(col, mix(vec3(luma(col)), col, 0.45) * vec3(0.97, 1.0, 1.03), clamp(gm, 0.0, 1.0));
   col += uShadowTint * uTone.w * (1.0 - smoothstep(0.0, 0.45, l));

@@ -1,10 +1,10 @@
-/** The captain ashore: papertrails' traveller (config/player.js there), who is as tall as the captain. */
+/** The captain ashore. */
 export const PLAYER = {
-  /** His height (papertrails' traveller's, before his outfit's): the lens focuses on his chest, sight is tested to his hat. */
+  /** His height (before his outfit's): the lens focuses on his chest, sight is tested to his hat. */
   height: 0.6,
   /**
-   * Walking speed (u/s), Shift's run multiplier, the slow stroll's (a lone tap of Ctrl toggles it, papertrails'
-   * slowMul), the acceleration toward the wanted velocity (u/s²).
+   * Walking speed (u/s), Shift's run multiplier, the slow stroll's (a lone tap of Ctrl toggles it), the acceleration
+   * toward the wanted velocity (u/s²).
    */
   speed: 1.15,
   runMul: 1.8,
@@ -12,7 +12,7 @@ export const PLAYER = {
   accel: 17,
 } as const;
 
-/** Click / tap / drag to walk: papertrails' values (config/player.js there). */
+/** Click / tap / drag to walk. */
 export const CLICK_WALK = {
   /** How near the target counts as arrived (u). */
   arriveRadius: 0.12,

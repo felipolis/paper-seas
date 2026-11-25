@@ -1,11 +1,11 @@
 /**
- * Live player of the synthesised paper sounds (allocation after papertrails by xikhar, MIT, audio/paper.js there):
+ * Live player of the synthesised paper sounds:
  *   - a fixed pool of voice slots (gain + stereo panner, each with its own reusable buffer), the quietest voice is
  *     faded out and replaced when all are busy;
  *   - a token-bucket rate limit, and overlapping voices turned down (~1 / sqrt(voices)) so they never sum into hiss;
  *     detail flaps (the smallest pieces) give way first when the page is busy, and may not spend the last tokens;
  *   - one sound per gesture: the pieces of one cell moving the same way within a group window speak as one, its
- *     largest piece taking the gesture's place while it waits (the skill: one flap for a group's largest layer);
+ *     largest piece taking the gesture's place while it waits (one flap for a group's largest layer);
  *   - flaps keep a minimum spacing: pieces rising around the ship come out as a soft flap now and then, the loudest
  *     waiting gesture (nearest, largest) taking the next slot, a little quieter the longer it waited, late ones
  *     dropped.
@@ -62,7 +62,7 @@ export class PaperVoices {
   private tokenT = -1;
   private lastSt: number | null = null;
   private nextOnset = -1;
-  /** The one flap waiting for the next slot (papertrails' queue of one). */
+  /** The one flap waiting for the next slot (a queue of one). */
   private queued: Candidate | null = null;
   /** The gestures under way, by key and direction. */
   private readonly gestures = new Map<string, Gesture>();
@@ -132,7 +132,7 @@ export class PaperVoices {
 
   /**
    * The rise of gesture `key` was called off before its pieces moved: its flap, if still waiting for its slot, is
-   * dropped (papertrails voices a flap only as it starts moving, so a rise called off is never heard).
+   * dropped (a flap is voiced only as its piece starts moving, so a rise called off is never heard).
    */
   cancel(key: string): void {
     const g = this.gestures.get(`${key}|1`);
@@ -151,7 +151,7 @@ export class PaperVoices {
     this.launch(slot, now + 0.004, n / this.sr, AUDIO.knock.gain * clamp(0.5 + strength * 0.6, 0.4, 1.1), 0, AUDIO.knock.dur);
   }
 
-  /** A foot came down (papertrails: never rate-limited, a little to its own side). */
+  /** A foot came down (never rate-limited, a little to its own side). */
   step(surface: StepSurface, foot: 0 | 1, seed: number): void {
     const now = this.ctx.currentTime;
     const V = stepVoice(surface, seed, foot);

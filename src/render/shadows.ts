@@ -1,7 +1,7 @@
 /**
- * papertrails' shadows (render/materials.js there): three's basic shadow filter is replaced, for every lit material,
- * by a PCSS soft shadow: a blocker search, then a Vogel-disc filter whose width grows with the distance from the
- * blocker (lightSize per unit), so a card's shadow is crisp where it stands on the page and widens away from it.
+ * Soft shadows: three's basic shadow filter is replaced, for every lit material, by a PCSS soft shadow: a blocker
+ * search, then a Vogel-disc filter whose width grows with the distance from the blocker (lightSize per unit), so a
+ * card's shadow is crisp where it stands on the page and widens away from it.
  * The key light's stock uniforms carry what the filter needs (lights.ts): shadow.radius the world size of the shadow
  * map, shadow.bias the light size; the real depth bias is baked in here.
  *
@@ -40,7 +40,7 @@ bool gShadowSet = false;
 #endif
 `;
 
-const PCSS = /* glsl */ `	#else // SHADOWMAP_TYPE_BASIC: papertrails' PCSS (render/shadows.ts)
+const PCSS = /* glsl */ `	#else // SHADOWMAP_TYPE_BASIC: the PCSS (render/shadows.ts)
 
 		// (the paper material declares these earlier, before its lighting reads them: SHADOW_GLOBALS)
 		#ifndef PAPER_SHADOW_GLOBALS

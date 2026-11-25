@@ -315,7 +315,7 @@ interface OutfitBase {
   hairdo?: 'ponytail' | 'curls' | 'bob';
   /** A full beard (a moustache on it), or a thin moustache and a goatee. */
   beard?: 'full' | 'goatee';
-  /** The nose on the profile's front edge: a round bulb, a long straight one, a small one (default: papertrails'). */
+  /** The nose on the profile's front edge: a round bulb, a long straight one, a small one (default: a plain one). */
   nose?: 'bulb' | 'long' | 'small';
   /** Touches on the face: rosy cheeks, freckles, lashes, a red mouth, gold hoops in the ears. */
   face?: readonly ('blush' | 'freckles' | 'lashes' | 'lips' | 'hoops')[];
@@ -339,7 +339,7 @@ interface OutfitBase {
   /** A plume in the hat; a bandana's dots. */
   feather?: string;
   dots?: string;
-  /** Width of the body (slim 0.85 .. stout 1.3) and its height (papertrails' traveller: 1). */
+  /** Width of the body (slim 0.85 .. stout 1.3) and its height (times PLAYER.height). */
   girth: number;
   height: number;
   extras?: readonly ('belt' | 'sash' | 'strap' | 'parrot' | 'epaulettes' | 'gloves' | 'ladle' | 'peg')[];

@@ -1,9 +1,7 @@
 /**
- * Cloud shadows, as papertrails casts them (life/life.js `clouds()`, config/life.js `clouds` there): five soft dark
- * patches with a wavy outline lying on the page, 8 to 13 units across, drifting with the wind, wrapped round the
- * traveller in a 30-unit square and faded at its edge, gone at night. papertrails draws each as a ground quad pulled
- * in front of everything ("ground shadows darken whatever stands on them"); here the post pass does the same per pixel,
- * from where the pixel's view ray meets the page.
+ * Cloud shadows: five soft dark patches with a wavy outline lying on the page, 8 to 13 units across, drifting with the
+ * wind, wrapped round the ship or the captain in a 30-unit square and faded at its edge, gone at night. They darken
+ * whatever stands on them: the post pass draws them per pixel, from where the pixel's view ray meets the page.
  */
 import * as THREE from 'three';
 import { mulberry32 } from '../core/rng';
@@ -11,7 +9,6 @@ import { rankGate, smoothstep } from '../core/math';
 import { GROUND_SHADOW } from '../config/life';
 import { SOFT_PATCH_GLSL } from './soft-patch';
 
-/** papertrails' numbers. */
 const CLOUDS = {
   count: 5,
   size: [8, 13],
@@ -19,10 +16,10 @@ const CLOUDS = {
   speed: 0.34,
   span: 30,
   color: GROUND_SHADOW,
-  /** Its heartland density: the share of the five that are out (by rank, as its life gates them). */
+  /** The density: the share of the five that are out (by rank). */
   density: 0.8,
 } as const;
-/** Height of the page the shadows lie on (papertrails' 0.02). */
+/** Height of the page the shadows lie on. */
 const CLOUD_Y = 0.02;
 
 
@@ -32,7 +29,7 @@ export class CloudShadows {
   /** Per patch: half length, half width, outline phase, shadow strength (0: none). */
   readonly b = Array.from({ length: CLOUDS.count }, () => new THREE.Vector4());
   readonly color = new THREE.Color(CLOUDS.color);
-  /** Each patch's own six random numbers (papertrails' Q). */
+  /** Each patch's own six random numbers. */
   private readonly q: number[][];
   private time = 0;
 
@@ -41,7 +38,7 @@ export class CloudShadows {
     this.q = Array.from({ length: CLOUDS.count }, () => Array.from({ length: 6 }, rng));
   }
 
-  /** (fx, fz): the traveller; (windX, windZ): the wind's direction; night: 0..1. */
+  /** (fx, fz): the ship or the captain; (windX, windZ): the wind's direction; night: 0..1. */
   update(dt: number, fx: number, fz: number, windX: number, windZ: number, night: number): void {
     this.time += dt;
     const C = CLOUDS;
@@ -53,7 +50,7 @@ export class CloudShadows {
       dx -= W * Math.round(dx / W);
       let dz = Q[1] * W + (windZ / wl) * C.speed * this.time - fz;
       dz -= W * Math.round(dz / W);
-      // papertrails' gate: by rank as the density allows, faded at the edge of the wrapping square
+      // the gate: by rank as the density allows, faded at the edge of the wrapping square
       const rank = rankGate(amount, (j + 0.5) / C.count);
       const edge = 1 - smoothstep(0.8, 1, Math.max(Math.abs(dx), Math.abs(dz)) / (W * 0.5));
       const s = C.size[0] + (C.size[1] - C.size[0]) * Q[2];

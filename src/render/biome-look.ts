@@ -1,12 +1,12 @@
 /**
- * papertrails' per-biome light and grade (render/biomegrade.js there): each biome lights and grades the page its own
- * way, by day and by night, blended by the biomes round the traveller (smoothed in time). Its heartland keeps the
- * plain look; the blossom is peach and lilac, the pinewood a weak warm sun through the canopy, teal and misty.
+ * Per-biome light and grade: each biome lights and grades the page its own way, by day and by night, blended by the
+ * biomes round the ship or the captain (smoothed in time). The heartland keeps the plain look; the blossom is peach
+ * and lilac, the pinewood a weak warm sun through the canopy, teal and misty.
  *
- * Our plain look is the papercraft skill's, not papertrails' (config/view.ts), so a biome is ported as the change it
- * makes to papertrails' own plain look, applied to ours: colours scaled channel by channel (linear), intensities,
- * exposure, sizes and distances scaled, contrast and saturation shifted. The haze's amount stays the skill's. Our
- * meadow takes papertrails' blossom and the pine woods its pinewood (as the biome tints, render/biome-tint.ts); the
+ * The biome tables are written against a base look of their own, not our plain look (config/view.ts), so a biome is
+ * applied as the change it makes to that base look, applied to ours: colours scaled channel by channel (linear),
+ * intensities, exposure, sizes and distances scaled, contrast and saturation shifted. The haze's amount stays ours.
+ * Our meadow takes the blossom and the pine woods the pinewood (as the biome tints, render/biome-tint.ts); the
  * jungle, the rocks and the open sea keep the plain look. render/day-night.ts and render/post.ts read the two looks.
  */
 import * as THREE from 'three';
@@ -40,7 +40,7 @@ export interface Look {
   farGain: number;
 }
 
-/** A look as numbers and hex colours, as papertrails writes its tables. */
+/** A look as numbers and hex colours, as the biome tables are written. */
 type LookSpec = {
   key: { color: string; intensity: number };
   fill: { color: string; intensity: number };
@@ -64,11 +64,8 @@ type LookSpec = {
 };
 type Partial2<T> = { [K in keyof T]?: T[K] extends object ? (T[K] extends readonly number[] ? T[K] : Partial<T[K]>) : T[K] };
 
-/**
- * papertrails' plain look by day (config/render.js) and by night (render/biomegrade.js NIGHT_BASE); greenPull is its
- * greenDesat.
- */
-const PT_DAY: LookSpec = {
+/** The base look the biome tables change, by day and by night. */
+const BASE_DAY: LookSpec = {
   key: { color: '#ffd29c', intensity: 2.9 },
   fill: { color: '#f3cfa6', intensity: 0.95 },
   hemi: { sky: '#ffe9cc', ground: '#b98858', intensity: 0.42 },
@@ -89,8 +86,8 @@ const PT_DAY: LookSpec = {
   focusBand: 0.36,
   farGain: 1.0,
 };
-const PT_NIGHT: LookSpec = {
-  ...PT_DAY,
+const BASE_NIGHT: LookSpec = {
+  ...BASE_DAY,
   key: { color: '#8fb0f0', intensity: 1.05 },
   fill: { color: '#3a58ac', intensity: 0.38 },
   hemi: { sky: '#4666c8', ground: '#16285c', intensity: 0.5 },
@@ -110,8 +107,8 @@ const PT_NIGHT: LookSpec = {
   split: 0.02,
 };
 
-/** papertrails' biome tables (GRADE there), its blossom and pinewood; a night entry overrides its night base. */
-const PT_GRADE: Record<'blossom' | 'pinewood', { day: Partial2<LookSpec>; night: Partial2<LookSpec> }> = {
+/** The biome tables, the blossom and the pinewood; a night entry overrides the base look's night. */
+const BASE_GRADE: Record<'blossom' | 'pinewood', { day: Partial2<LookSpec>; night: Partial2<LookSpec> }> = {
   blossom: {
     day: {
       key: { color: '#ffe6cc', intensity: 2.9 },
@@ -166,13 +163,13 @@ const PT_GRADE: Record<'blossom' | 'pinewood', { day: Partial2<LookSpec>; night:
   },
 };
 
-/** Which of papertrails' looks each of our biomes takes (the rest: the plain look). */
-const GRADE_OF: Partial<Record<Biome, keyof typeof PT_GRADE>> = { meadow: 'blossom', pine: 'pinewood' };
-/** The looks blended: the plain one first, then papertrails' biomes. */
+/** Which biome look each of our biomes takes (the rest: the plain look). */
+const GRADE_OF: Partial<Record<Biome, keyof typeof BASE_GRADE>> = { meadow: 'blossom', pine: 'pinewood' };
+/** The looks blended: the plain one first, then the biomes'. */
 const GRADES = [null, 'blossom', 'pinewood'] as const;
-/** Where the biomes round the traveller are read: his point (counted twice) and eight round him this far away. */
+/** Where the biomes are read: the ship's or the captain's point (counted twice) and eight round it this far away. */
 const SAMPLE_RADIUS = 3;
-/** How fast the blend follows (papertrails: 1 - exp(-dt * 2.2)), and its quantum (a still traveller rewrites none). */
+/** How fast the blend follows (1 - exp(-dt * 2.2)), and its quantum (standing still rewrites none). */
 const FOLLOW = 2.2;
 const QUANTUM = 512;
 /** A colour channel scales by no more than this either way (very dark night colours make wild ratios). */
@@ -223,60 +220,57 @@ const OUR_NIGHT: LookSpec = {
 
 const colour = (hex: string) => new THREE.Color(hex);
 
-/** Our colour, scaled channel by channel as papertrails' biome scales its own (linear RGB). */
-function shiftColour(ours: string, pt: string, ptBiome: string | undefined): THREE.Color {
+/** Our colour, scaled channel by channel as the biome scales the base look's (linear RGB). */
+function shiftColour(ours: string, base: string, graded: string | undefined): THREE.Color {
   const out = colour(ours);
-  if (ptBiome === undefined) return out;
-  const a = colour(pt);
-  const b = colour(ptBiome);
+  if (graded === undefined) return out;
+  const a = colour(base);
+  const b = colour(graded);
   const k = (from: number, to: number) => (from < 1e-4 ? 1 : clamp(to / from, 1 / MAX_SCALE, MAX_SCALE));
   return out.setRGB(out.r * k(a.r, b.r), out.g * k(a.g, b.g), out.b * k(a.b, b.b));
 }
 
-/** Our value scaled (or, delta: shifted) as papertrails' biome changes its own. */
-const scale = (ours: number, pt: number, ptBiome: number | undefined) => (ptBiome === undefined ? ours : (ours * ptBiome) / pt);
-const shift = (ours: number, pt: number, ptBiome: number | undefined) => (ptBiome === undefined ? ours : ours + ptBiome - pt);
+/** Our value scaled (or, delta: shifted) as the biome changes the base look's. */
+const scale = (ours: number, base: number, graded: number | undefined) => (graded === undefined ? ours : (ours * graded) / base);
+const shift = (ours: number, base: number, graded: number | undefined) => (graded === undefined ? ours : ours + graded - base);
 
-/** Our look in a biome: our plain look changed the way papertrails' biome changes its plain look. */
-function ported(ours: LookSpec, pt: LookSpec, g: Partial2<LookSpec>): Look {
+/** Our look in a biome: our plain look changed the way the biome changes the base look. */
+function inBiome(ours: LookSpec, base: LookSpec, g: Partial2<LookSpec>): Look {
   return {
-    key: { color: shiftColour(ours.key.color, pt.key.color, g.key?.color), intensity: scale(ours.key.intensity, pt.key.intensity, g.key?.intensity) },
-    fill: { color: shiftColour(ours.fill.color, pt.fill.color, g.fill?.color), intensity: scale(ours.fill.intensity, pt.fill.intensity, g.fill?.intensity) },
+    key: { color: shiftColour(ours.key.color, base.key.color, g.key?.color), intensity: scale(ours.key.intensity, base.key.intensity, g.key?.intensity) },
+    fill: { color: shiftColour(ours.fill.color, base.fill.color, g.fill?.color), intensity: scale(ours.fill.intensity, base.fill.intensity, g.fill?.intensity) },
     hemi: {
-      sky: shiftColour(ours.hemi.sky, pt.hemi.sky, g.hemi?.sky),
-      ground: shiftColour(ours.hemi.ground, pt.hemi.ground, g.hemi?.ground),
-      intensity: scale(ours.hemi.intensity, pt.hemi.intensity, g.hemi?.intensity),
+      sky: shiftColour(ours.hemi.sky, base.hemi.sky, g.hemi?.sky),
+      ground: shiftColour(ours.hemi.ground, base.hemi.ground, g.hemi?.ground),
+      intensity: scale(ours.hemi.intensity, base.hemi.intensity, g.hemi?.intensity),
     },
-    lightSize: scale(ours.lightSize, pt.lightSize, g.lightSize),
-    leak: shiftColour(ours.leak, pt.leak, g.leak),
-    gobo: { key: scale(ours.gobo.key, pt.gobo.key, g.gobo?.key), tint: scale(ours.gobo.tint, pt.gobo.tint, g.gobo?.tint) },
+    lightSize: scale(ours.lightSize, base.lightSize, g.lightSize),
+    leak: shiftColour(ours.leak, base.leak, g.leak),
+    gobo: { key: scale(ours.gobo.key, base.gobo.key, g.gobo?.key), tint: scale(ours.gobo.tint, base.gobo.tint, g.gobo?.tint) },
     fade: {
-      color: shiftColour(ours.fade.color, pt.fade.color, g.fade?.color),
-      start: scale(ours.fade.start, pt.fade.start, g.fade?.start),
-      end: scale(ours.fade.end, pt.fade.end, g.fade?.end),
+      color: shiftColour(ours.fade.color, base.fade.color, g.fade?.color),
+      start: scale(ours.fade.start, base.fade.start, g.fade?.start),
+      end: scale(ours.fade.end, base.fade.end, g.fade?.end),
     },
-    background: shiftColour(ours.background, pt.background, g.background),
-    exposure: scale(ours.exposure, pt.exposure, g.exposure),
-    contrast: shift(ours.contrast, pt.contrast, g.contrast),
-    saturation: shift(ours.saturation, pt.saturation, g.saturation),
-    tint: [0, 1, 2].map((i) => scale(ours.tint[i], pt.tint[i], g.tint?.[i])) as [number, number, number],
-    shadowTint: shiftColour(ours.shadowTint, pt.shadowTint, g.shadowTint),
-    aoTint: shiftColour(ours.aoTint, pt.aoTint, g.aoTint),
-    greenPull: scale(ours.greenPull, pt.greenPull, g.greenPull),
-    vignette: scale(ours.vignette, pt.vignette, g.vignette),
-    split: scale(ours.split, pt.split, g.split),
-    focusBand: scale(ours.focusBand, pt.focusBand, g.focusBand),
-    farGain: scale(ours.farGain, pt.farGain, g.farGain),
+    background: shiftColour(ours.background, base.background, g.background),
+    exposure: scale(ours.exposure, base.exposure, g.exposure),
+    contrast: shift(ours.contrast, base.contrast, g.contrast),
+    saturation: shift(ours.saturation, base.saturation, g.saturation),
+    tint: [0, 1, 2].map((i) => scale(ours.tint[i], base.tint[i], g.tint?.[i])) as [number, number, number],
+    shadowTint: shiftColour(ours.shadowTint, base.shadowTint, g.shadowTint),
+    aoTint: shiftColour(ours.aoTint, base.aoTint, g.aoTint),
+    greenPull: scale(ours.greenPull, base.greenPull, g.greenPull),
+    vignette: scale(ours.vignette, base.vignette, g.vignette),
+    split: scale(ours.split, base.split, g.split),
+    focusBand: scale(ours.focusBand, base.focusBand, g.focusBand),
+    farGain: scale(ours.farGain, base.farGain, g.farGain),
   };
 }
 
-/**
- * The look of each grade (GRADES order), by day and by night (a night keeps its biome's day depth of field, as
- * papertrails).
- */
-const DAY_LOOKS = GRADES.map((g) => ported(OUR_DAY, PT_DAY, g ? PT_GRADE[g].day : {}));
+/** The look of each grade (GRADES order), by day and by night (a night keeps its biome's day depth of field). */
+const DAY_LOOKS = GRADES.map((g) => inBiome(OUR_DAY, BASE_DAY, g ? BASE_GRADE[g].day : {}));
 const NIGHT_LOOKS = GRADES.map((g, i) => {
-  const look = ported(OUR_NIGHT, PT_NIGHT, g ? PT_GRADE[g].night : {});
+  const look = inBiome(OUR_NIGHT, BASE_NIGHT, g ? BASE_GRADE[g].night : {});
   look.focusBand = DAY_LOOKS[i].focusBand;
   look.farGain = DAY_LOOKS[i].farGain;
   return look;
@@ -284,7 +278,7 @@ const NIGHT_LOOKS = GRADES.map((g, i) => {
 
 /** An empty look to blend into. */
 function blank(): Look {
-  return ported(OUR_DAY, PT_DAY, {});
+  return inBiome(OUR_DAY, BASE_DAY, {});
 }
 
 /** looks blended by the weights w into out. */
@@ -346,7 +340,7 @@ export class BiomeLook {
     blendLooks(this.night, NIGHT_LOOKS, this.weights);
   }
 
-  /** Follows the biomes round the traveller at (x, z) (dt 0: at once). */
+  /** Follows the biomes round the ship or the captain at (x, z) (dt 0: at once). */
   update(dt: number, land: LandField, x: number, z: number): void {
     const t = this.target;
     t.fill(0);
@@ -357,7 +351,7 @@ export class BiomeLook {
     };
     count(x, z, 2);
     for (let i = 0; i < 8; i++) count(x + Math.cos((i * Math.PI) / 4) * SAMPLE_RADIUS, z + Math.sin((i * Math.PI) / 4) * SAMPLE_RADIUS, 1);
-    // (out at sea, or with no land round him: the plain look)
+    // (out at sea, or with no land round it: the plain look)
     let sum = t.reduce((s, v) => s + v, 0);
     if (sum === 0) {
       t[0] = 1;

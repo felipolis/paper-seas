@@ -76,10 +76,10 @@ export function trueDistance(a: Float32Array, w: number, cell: number): Float32A
 }
 const CELL = 0.225; // 80 cells per chunk, aligned to the world
 const PPU = 44; // ground print resolution (pixels per world unit)
-/** Nodes per chunk side of the grid the ground tint is blended over (papertrails blends its biomes over one tile). */
+/** Nodes per chunk side of the grid the ground tint is blended over. */
 const TINT_GRID = 8;
 
-/** sRGB byte <-> linear (papertrails' transforms work on linear colour). */
+/** sRGB byte <-> linear (the tint transforms work on linear colour). */
 const toLinear = (v: number) => Math.pow(v / 255, 2.2);
 const toByte = (v: number) => 255 * Math.pow(Math.min(1, v), 1 / 2.2);
 
@@ -211,13 +211,13 @@ export interface Chest {
 const C = {
   sand: hexRgb('#e6cf9a'),
   wetSand: hexRgb('#cdb07a'),
-  /** papertrails' page: one ground tone for every biome (world.js there), its printed patches flattened. */
+  /** The page: one ground tone for every biome, its printed patches flattened. */
   page: hexRgb('#a8a374'),
   hill: hexRgb('#8a8a58'),
   rock: hexRgb('#8f9070'),
 };
 
-/** papertrails' crossed cards turn only this share of the camera-facing cards' jitter (world.js cardJ). */
+/** Crossed cards turn only this share of the camera-facing cards' jitter. */
 const CROSS_JITTER = 0.6;
 
 /** A chunk's walk field (world/clearance.ts): what it was made from (its piece count and revision), the pieces, how far they reach. */
@@ -284,12 +284,11 @@ const YARD = 0.35;
 
 /** Cards that stand in the shallows on purpose. */
 const SEA_CARDS = new Set(['flamingo', 'sea-arch', 'rock-spire', 'duck-float']);
-/** papertrails' watchtower vignette: an owl at this share of the top of the tower, on this share of the towers, by night. */
+/** The watchtower vignette: an owl at this share of the top of the tower, on this share of the towers, by night. */
 const TOP_K = 0.95;
 const OWL_CHANCE = 0.85;
 /**
- * papertrails' roadside props: every path tile carries one (a guidepost, a bench, a cart, barrels; its signposts stand
- * where the roads meet: SIGN_OUT).
+ * Roadside props: a guidepost, a bench, a cart, a lamp, barrels (the signposts stand where the roads meet: SIGN_OUT).
  */
 const ROADSIDE = ['guidepost', 'bench', 'handcart', 'lantern-post', 'barrel'];
 /** A junction's signpost stands in the wedge between two of its roads, this far out from where they meet. */
@@ -299,15 +298,14 @@ const CART_HAY = 0.5;
 /** One roadside prop every this many units of road, standing this far out from its edge. */
 const ROADSIDE_STEP = 3.2;
 const ROADSIDE_OUT = 0.32;
-/** Reeds stand along a stream's banks every this many points (papertrails' river tiles: 1 to 5 reeds). */
+/** Reeds stand along a stream's banks every this many points. */
 const REED_EVERY = 4;
-/** papertrails' ducks: on a river tile 0.4 chance of one or two floating; a frog on the bank 0.45 at a spring. */
+/** At each point of a stream, the chance of a duck afloat, or else of an animal on its bank. */
 const DUCK_CHANCE = 0.12;
 const BANK_ANIMAL_CHANCE = 0.08;
 
 /**
- * papertrails' rear copies (tiles.glb: tuft_a_rear, reeds_a_rear, bush_rear, boulder_a_rear, crag_a_rear, measured):
- * behind a lone tuft of grass, a reed bed, a bush, a boulder or a crag stands a copy of it, 0.75 of its tone and 1.08 of its size, 0.1-0.16 further from the camera and a little
+ * Rear copies: behind a lone tuft of grass, a reed bed, a bush, a boulder or a crag stands a copy of it, 0.75 of its tone and 1.08 of its size, 0.1-0.16 further from the camera and a little
  * to one side, so a tuft reads as a thick clump rather than one card.
  */
 const DOUBLED = /^(grass-|tuft-flowers$|cattails$|papyrus$|bush-|rock-boulder$|rock-big$|rock-slab$|crag-)/;
@@ -336,7 +334,7 @@ const SOURCE_CLEAR = 1;
 const PATH_ROOM = 0.12;
 
 /**
- * A deck's height above its ends at `along` from its middle: the skill's bridge profile (a ramp from each bank over
+ * A deck's height above its ends at `along` from its middle: the bridge profile (a ramp from each bank over
  * its share of the half span, then the crown to the middle), or level.
  */
 function deckTop(info: ModelInfo): (along: number) => number {
@@ -422,10 +420,10 @@ export class Terrain {
   }
 
   /**
-   * How much room there is round (x, z), as drawn (papertrails' walk field): the distance (REACH at most) to whatever
+   * How much room there is round (x, z), as drawn (the walk field): the distance (REACH at most) to whatever
    * stops the feet, the print of every card between the blocking heights (a trunk, the foot of a rock, a crate; the soft
-   * ground cover and the animals never block) and the footprint of every building but the piers (walked on). As in
-   * papertrails, a piece blocks standing or lying folded: round the feet the land always stands.
+   * ground cover and the animals never block) and the footprint of every building but the piers (walked on). A piece
+   * blocks standing or lying folded: round the feet the land always stands.
    */
   roomAt(x: number, z: number): number {
     let room = REACH;
@@ -486,7 +484,7 @@ export class Terrain {
         const sz = -Math.sin(yaw);
         return [card.x + cx * l, card.z + sz * l, card.x + cx * rr, card.z + sz * rr];
       });
-      // papertrails' hull fill: crossed cards block their whole footprint, or the four quadrants between them
+      // the hull fill: crossed cards block their whole footprint, or the four quadrants between them
       // would be pockets a walker gets wedged in; a footprint wider than HULL_MAX is no single prop, its cards block
       pieces.push(card.cross && rr - l <= HULL_MAX ? hullSegments(planes) : planes);
     }
@@ -501,11 +499,11 @@ export class Terrain {
 
   private clock = 0;
   private readonly flips = new WeakMap<Building, number>();
-  /** How long each still-flat building has waited for the traveller to cross its cell. */
+  /** How long each still-flat building has waited for the player to cross its cell. */
   private readonly held = new WeakMap<Building, number>();
 
   /**
-   * A building's place (0..1) in its cell's rise order, among every card of the cell: papertrails' tile order, a
+   * A building's place (0..1) in its cell's rise order, among every card of the cell: a
    * building rises in its cell's order with the cards (card-field.ts' riseOrder), so after the ground cover and before
    * the trees.
    */
@@ -525,7 +523,7 @@ export class Terrain {
   }
 
   /**
-   * papertrails' sightBlocked: true if the ray from (ox, oy, oz) along the unit (dx, dy, dz) meets a standing large
+   * True if the ray from (ox, oy, oz) along the unit (dx, dy, dz) meets a standing large
    * piece (a building, a mountain: what cannot tip aside) within len. Each is taken as its box (footprint x height).
    */
   sightBlocked(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, len: number): boolean {
@@ -651,8 +649,8 @@ export class Terrain {
     this.clock += dt;
     for (const c of this.chunks.values()) {
       for (const h of c.houses) {
-        // the same rules as the cards of the cell it stands in (papertrails' tiles, a house and all): it waits while
-        // the traveller crosses the cell, takes one of the frame's rise slots, and a rise still waiting is called off
+        // the same rules as the cards of the cell it stands in: it waits while
+        // the player crosses the cell, takes one of the frame's rise slots, and a rise still waiting is called off
         // once the cell is no longer wanted; it starts at its place in the cell's order, after what stands in front of
         // it and before what stands behind (and folds in the reverse order)
         const cx = cellCentre(h.x);
@@ -807,7 +805,7 @@ export class Terrain {
       const ctx = canvas.getContext('2d')!;
       const img = ctx.createImageData(px, px);
       const data = img.data;
-      // papertrails' ground tint, its biomes blended over one tile: the transform of the biome at every node of a coarse
+      // the ground tint, its biomes blended: the transform of the biome at every node of a coarse
       // grid, the colours they make mixed between the four nodes round a pixel
       const tints = Array.from({ length: (TINT_GRID + 1) ** 2 }, (_, k) => groundTint(land.biomeInland(x0 + ((k % (TINT_GRID + 1)) / TINT_GRID) * CHUNK, z0 + (Math.floor(k / (TINT_GRID + 1)) / TINT_GRID) * CHUNK)));
       const tinted = tints.some((t) => t !== null);
@@ -849,14 +847,14 @@ export class Terrain {
               r = r * (1 - k) + base[0] * k; g = g * (1 - k) + base[1] * k; b = b * (1 - k) + base[2] * k;
             }
           }
-          // (the beach's sand is ours, not a page papertrails tints: it keeps its colour)
+          // (the beach's sand is not tinted: it keeps its colour)
           if (tinted && t1 < 0) {
             tintAt(tints, (x - x0) / CHUNK, (z - z0) / CHUNK, r, g, b, lin, one);
             r = lin[0];
             g = lin[1];
             b = lin[2];
           }
-          // (no ink on the ground, as in papertrails: the land's cut edge is the paper's own)
+          // (no ink on the ground: the land's cut edge is the paper's own)
           const shade = 0.9 + 0.2 * grain;
           data[o] = r * shade;
           data[o + 1] = g * shade;
@@ -911,7 +909,7 @@ export class Terrain {
       const heightAt = (x: number, z: number) => {
         return (sampleAt(dist, x, z) < 0 ? LAND_TOP : 0) + POPUP.layerGap * (1 + Math.floor(rng() * 4));
       };
-      // every card faces the camera give or take yawJitter degrees (papertrails: 14)
+      // every card faces the camera give or take yawJitter degrees (14 unless given)
       // (a land card never hangs over the water: both ends of its base, on every plane, stand on the land)
       // the true shore distance, the one the feet read (distanceAt), with the shore where the ground print has it (the
       // print, and most of the checks below, read the raw estimate, dist, that it is made from): this chunk's own grid,
@@ -925,14 +923,14 @@ export class Terrain {
         }
         return true;
       };
-      // (papertrails' path strips hold no standing piece: no card's blocking foot comes within PATH_ROOM of a road's
+      // (the path strips hold no standing piece: no card's blocking foot comes within PATH_ROOM of a road's
       // or a lane's edge, so the trodden ground is always walkable end to end)
       const onPath = (sprite: string, x: number, z: number, height: number) => {
         const reach = footReach(sprite, height);
         return reach > 0 && !!chunk.paths && nearStrip(chunk.paths, x, z, reach + PATH_ROOM);
       };
-      // (a vignette, papertrails' animal tied to a piece: up on its seat, and it does not keep off the paths; tone:
-      // papertrails' clump shading; awake: an animal about by day or by night only; yaw: its own turn, set with its scene
+      // (a vignette, an animal tied to a piece: up on its seat, and it does not keep off the paths; tone:
+      // the clump shading; awake: an animal about by day or by night only; yaw: its own turn, set with its scene
       // (a pen's fences), instead of a random one; passable: too low to stop the feet)
       const stand = (sprite: string, x: number, z: number, height: number, flip: boolean, yawJitter: number, card: SetDown): boolean => {
         const { vignette, tone, awake, passable } = card;
@@ -940,12 +938,12 @@ export class Terrain {
         const yaw = card.yaw ?? (rng() - 0.5) * 2 * yawJitter * (cross ? CROSS_JITTER : 1) * DEG;
         if (!SEA_CARDS.has(sprite) && !onLand(sprite, x, z, height, yaw, cross)) return false;
         if (!vignette && !passable && onPath(sprite, x, z, height)) return false;
-        // (papertrails' animals are not tinted with the tile)
+        // (the animals are not tinted with the tile)
         const biome = Critters.is(sprite) ? undefined : land.biomeInland(x, z);
         specs.push({ sprite, x, y: heightAt(x, z) + (vignette?.seat ?? 0), z, height, yaw, flip, cross, vignette, biome, tone, awake, passable });
         return true;
       };
-      // (a tuft of grass or a reed bed stands with its darker rear copy behind it: papertrails' *_rear cards)
+      // (a tuft of grass or a reed bed stands with its darker rear copy behind it)
       const add = (sprite: string, x: number, z: number, height = heightOf(sprite, rng()), flip = rng() < 0.5, yawJitter = 14, card: SetDown = {}) => {
         // (only a lone one: a card of a clump has the clump's own cards behind it)
         if (!stand(sprite, x, z, height, flip, yawJitter, card) || !DOUBLED.test(sprite) || card.tone !== undefined) return;
@@ -1006,7 +1004,7 @@ export class Terrain {
           const t = terraceAt(x, z);
           if (t < 2) continue;
           const hl = land.highland(x, z);
-          // the heights are Blender-built card constructions like papertrails' dunes and rocks (curved dome cards in a
+          // the heights are Blender-built card constructions (curved dome cards in a
           // V, stone slabs in pairs), never a flat card with a mountain printed on it; they face the viewer like every
           // card (the camera's yaw is fixed), give or take a little
           const solid = (name: string) => {
@@ -1065,7 +1063,7 @@ export class Terrain {
         for (const [i, into] of [[0, 3], [end, end - 3]]) {
           const [sx, sz] = st.pts[i];
           if (!own(sx, sz)) continue;
-          // the river_source at both ends of a river (papertrails'): a stone mound card with the water's mouth at the
+          // the river source at both ends of a river: a stone mound card with the water's mouth at the
           // river's end, three crags in a horseshoe behind it, reeds and a stone on the pool's bank
           const [ax, az] = st.pts[into];
           const l = Math.hypot(ax - sx, az - sz) || 1;
@@ -1096,7 +1094,7 @@ export class Terrain {
         }
       }
       for (const p of ownPonds) this.dressPond(p, add, rng);
-      // papertrails' roadside props along the roads, a little off their edge
+      // the roadside props along the roads, a little off their edge
       for (const road of roads) {
         let run = rng() * ROADSIDE_STEP;
         for (let k = 1; k < road.pts.length; k++) {
@@ -1129,7 +1127,7 @@ export class Terrain {
           }
         }
       }
-      // papertrails' signposts where the roads meet: in the wedge between two of them, off every road
+      // the signposts where the roads meet: in the wedge between two of them, off every road
       for (const j of junctionsOf(roads)) {
         const [[ax, az], [bx, bz]] = j.dirs;
         const wl = Math.hypot(ax + bx, az + bz);
@@ -1163,7 +1161,7 @@ export class Terrain {
         }
       }
 
-      // a lookout tower on the heights now and then (papertrails' watchtower tile), and a camp: tents round a fire
+      // a lookout tower on the heights now and then, and a camp: tents round a fire
       for (const [kind, salt, chance] of [['watchtower', 61, 0.1], ['camp', 67, 0.12]] as const) {
         if (hash01(salt ^ SEED, i, j) >= chance) continue;
         const room = kind === 'watchtower' ? 0.7 : 1.2;
@@ -1177,7 +1175,7 @@ export class Terrain {
           if (kind === 'watchtower') {
             const tower = heightOf('watchtower', rng());
             add('watchtower', x, z, tower, rng() < 0.5, 0);
-            // papertrails' watchtower tile: an owl perched at the top of the tower (0.85 of them)
+            // an owl perched at the top of the tower (0.85 of them)
             if (rng() < OWL_CHANCE) add('owl', x, z + 0.02, undefined, rng() < 0.5, 0, { vignette: { seat: tower * spriteTop('watchtower', 0.5) * TOP_K }, awake: 'night' });
             add('woodpile', x + 0.55, z + 0.35);
           } else {
@@ -1239,7 +1237,7 @@ export class Terrain {
         chunk.chests.push(chest);
         this.chests.set(chest.id, chest);
       }
-      // papertrails' contact patch under every standing piece of the chunk (the ground cover and the animals as well),
+      // the contact patch under every standing piece of the chunk (the ground cover and the animals as well),
       // and under its buildings (a village's that stand in the next square too, where that square builds them: their
       // patch reaches over)
       if (chunk.data) {
@@ -1252,12 +1250,12 @@ export class Terrain {
         addContact(chunk.data, x0, z0, chunk.cards.map((c) => [c.x, c.z, cardWidth(c.sprite, c.height)]), feet);
       }
     }
-    // papertrails' walk field, made with the chunk (not when the feet first ask, in the middle of a walk)
+    // the walk field, made with the chunk (not when the feet first ask, in the middle of a walk)
     yield* this.makeField(chunk);
   }
 
   /**
-   * papertrails' pond tile round a pond: reeds on its bank, mostly the far side (so they never hide the water), a duck
+   * Round a pond: reeds on its bank, mostly the far side (so they never hide the water), a duck
    * afloat on it now and then, a frog or a heron at its edge.
    */
   private dressPond(p: Pond, add: (sprite: string, x: number, z: number) => void, rng: () => number): void {

@@ -1,13 +1,12 @@
 /**
- * papertrails' pen (tiles.glb fence_pad on its meadow and barn_farm tiles, measured): a diamond of low fence cards
- * turned 45 degrees either way to the camera, one left out on the near side for a gate, and the herd inside it. Its
- * fences are 0.18 tall, under papertrails' lowest blocking height (0.2), so the traveller steps over them: here they
- * are passable cards. Villages and meadows both keep one now and then.
+ * A pen: a diamond of low fence cards turned 45 degrees either way to the camera, one left out on the near side for
+ * a gate, and the herd inside it. Its fences are 0.18 tall, low enough for the captain to step over: they are
+ * passable cards. Villages and meadows both keep one now and then.
  */
 import { cardWidth } from '../art/sprites';
 
 const FENCE = 'fence-rail';
-/** papertrails' fence_pad card height (world units). */
+/** The fence cards' height (world units). */
 const FENCE_HEIGHT = 0.18;
 /** Fence cards along each side of the diamond, a little overlapped. */
 const PER_SIDE = 3;

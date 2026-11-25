@@ -1,5 +1,5 @@
 /**
- * What stops the feet ashore (after papertrails' walk field): the pieces as they are drawn, not circles round them.
+ * What stops the feet ashore (the walk field): the pieces as they are drawn, not circles round them.
  * Only geometry that stands between BAND_LO and BAND_HI above the page blocks (a trunk, a wall, the foot of a dome
  * card, a crate), projected onto the page as segments; the walker keeps WALKER_RADIUS + PADDING away from them.
  */
@@ -10,7 +10,7 @@ export const BAND_LO = 0.07;
 export const BAND_HI = 0.3;
 export const WALKER_RADIUS = 0.12;
 export const PADDING = 0.06;
-/** papertrails' hullMaxSize: crossed cards block over their hull only up to this footprint (wider, each card blocks). */
+/** Crossed cards block over their hull only up to this footprint (wider, each card blocks). */
 export const HULL_MAX = 1.1;
 /** An upright surface lower than this is the cut edge of a card, not a wall. */
 const MIN_WALL = 0.04;

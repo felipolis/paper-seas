@@ -7,7 +7,7 @@ export const hexRgb = (h: string): [number, number, number] => [parseInt(h.slice
 
 export const clamp = (v: number, lo: number, hi: number): number => (v < lo ? lo : v > hi ? hi : v);
 export const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
-/** The value t (0..1) of the way across a [min, max] range (papertrails' range tunables). */
+/** The value t (0..1) of the way across a [min, max] range. */
 export const mixRange = (r: readonly number[], t: number): number => r[0] + (r[1] - r[0]) * t;
 export const smoothstep = (e0: number, e1: number, x: number): number => {
   const t = clamp((x - e0) / (e1 - e0), 0, 1);
@@ -15,8 +15,8 @@ export const smoothstep = (e0: number, e1: number, x: number): number => {
 };
 
 /**
- * papertrails' rank gate (life/life.js there): the piece of this rank (0..1) in a pool shows once the pool's amount
- * (0..1) reaches its rank, fading in, so the pool fills and empties piece by piece in rank order.
+ * The rank gate: the piece of this rank (0..1) in a pool shows once the pool's amount (0..1) reaches its rank,
+ * fading in, so the pool fills and empties piece by piece in rank order.
  */
 export const rankGate = (amount: number, rank: number): number => smoothstep(0, 1, (amount - rank * 0.88) / 0.12);
 

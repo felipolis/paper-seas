@@ -19,7 +19,7 @@ import { blend, pair } from './colour-pair';
 import type { BiomeLook } from './biome-look';
 import { AO_FRAG, BLOOM_DOWN_FRAG, BLUR_FRAG, COMPOSITE_FRAG, FILL_FRAG, GATHER_FRAG, PRE_FRAG, TILE_FRAG, VERT } from './post-shaders';
 
-/** papertrails' reference framing: the focus 17 units from the camera (the gobo and the haze scale from it). */
+/** The normal framing: the focus 17 units from the camera (the gobo and the haze scale from it). */
 const FRAMING = 17;
 
 function vogelTaps(n: number): THREE.Vector2[] {
@@ -41,7 +41,7 @@ function target(w: number, h: number, type: THREE.TextureDataType = THREE.HalfFl
   });
 }
 
-// ---- papertrails' JS mirror of the tone curve, to pre-compensate colours that must come out exact on screen ----
+// ---- a JS mirror of the tone curve, to pre-compensate colours that must come out exact on screen ----
 interface Tone {
   exposure: number;
   contrast: number;
@@ -60,7 +60,7 @@ const _srgb = { r: 0, g: 0, b: 0 };
 const _want = new Float64Array(3);
 const _x = new Float64Array(3);
 const _got = new Float64Array(3);
-/** The linear scene colour whose tone-mapped result is the given colour (papertrails' inverseTone). */
+/** The linear scene colour whose tone-mapped result is the given colour. */
 function inverseTone(colour: THREE.Color, P: Tone, out: THREE.Color): THREE.Color {
   colour.getRGB(_srgb, THREE.SRGBColorSpace);
   _want[0] = _srgb.r;
@@ -98,7 +98,7 @@ export class PostChain {
   private readonly quadCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   private readonly quad: THREE.Mesh;
 
-  /** papertrails' cloud shadows (their uniforms are shared by the passes that grade the world). */
+  /** The cloud shadows (their uniforms are shared by the passes that grade the world). */
   private readonly clouds = new CloudShadows();
   /** Uniforms shared by every pass that reads depth (the day / night values are set by setNight()). */
   private readonly common = {
@@ -241,7 +241,7 @@ export class PostChain {
     tone.w = mix(POST.shadowLift, NIGHT.shadowLift);
     const tint = u.uTint.value as THREE.Vector3;
     tint.set(mix(D.tint[0], N.tint[0]), mix(D.tint[1], N.tint[1]), mix(D.tint[2], N.tint[2]));
-    // (papertrails adds its shadow tint after the tone curve, as an sRGB colour)
+    // (the shadow tint is added after the tone curve, as an sRGB colour)
     tween(u.uShadowTint.value as THREE.Color, D.shadowTint, N.shadowTint).convertLinearToSRGB();
     u.uLens.value.x = mix(D.vignette, N.vignette);
     u.uLens.value.y = mix(POST.grain, NIGHT.grain);
@@ -262,7 +262,7 @@ export class PostChain {
     inverseTone(blend(this._c, VIGNETTE, night), P, u.uVignetteColor.value as THREE.Color);
   }
 
-  /** Drifts the cloud shadows on with the wind round the traveller (fx, fz); they are gone at night (0..1). */
+  /** Drifts the cloud shadows on with the wind round the ship or the captain (fx, fz); they are gone at night (0..1). */
   driftClouds(dt: number, fx: number, fz: number, windX: number, windZ: number, night: number): void {
     this.clouds.update(dt, fx, fz, windX, windZ, night);
   }
@@ -289,7 +289,7 @@ export class PostChain {
     this.tileTarget.setSize(tw, th);
     (this.tileMat.uniforms.uHalfTexel.value as THREE.Vector2).set(1 / hw, 1 / hh);
     (this.gatherMat.uniforms.uTileTexel.value as THREE.Vector2).set(1 / tw, 1 / th);
-    // papertrails' bloom and spill sizes: a half and an eighth of the half-res buffers
+    // the bloom and spill sizes: a half and an eighth of the half-res buffers
     this.bloomA.setSize(Math.max(1, hw >> 1), Math.max(1, hh >> 1));
     this.bloomB.setSize(Math.max(1, hw >> 1), Math.max(1, hh >> 1));
     this.spillA.setSize(Math.max(1, hw >> 3), Math.max(1, hh >> 3));
@@ -297,13 +297,13 @@ export class PostChain {
     this.common.uTexel.value.set(1 / W, 1 / H);
     (this.bloomDownMat.uniforms.uHalfTexel.value as THREE.Vector2).set(1 / hw, 1 / hh);
     const lens = this.compositeMat.uniforms.uLens.value as THREE.Vector4;
-    // papertrails: the grain's cell grows with the picture (grainSize px at 900 px high, never under 1 px), the edge
+    // the grain's cell grows with the picture (grainSize px at 900 px high, never under 1 px), the edge
     // chroma is chroma px at 1080 px high
     lens.z = Math.max(1, (POST.grainSize * H) / 900);
     lens.w = (POST.chroma * H) / 1080;
   }
 
-  /** time: the game clock (s): the film grain is drawn from it, as papertrails draws it from state.time. */
+  /** time: the game clock (s): the film grain is drawn from it. */
   render(time: number): void {
     const r = this.renderer;
     const cam = this.camera;
@@ -315,7 +315,7 @@ export class PostChain {
     C.uProj.value.set(cam.near, cam.far, Math.tan((cam.fov * Math.PI) / 360), cam.aspect);
     cam.updateMatrixWorld();
     C.uCamWorld.value.copy(cam.matrixWorld);
-    // papertrails' focus: the focus point's view depth and screen height; kD turns a depth difference into a share of
+    // the focus: the focus point's view depth and screen height; kD turns a depth difference into a share of
     // the frame height for the camera's tilt, and a close camera keeps a taller band sharp
     const tanHalf = Math.tan((cam.fov * Math.PI) / 360);
     this._v.copy(this.focusWorld).applyMatrix4(cam.matrixWorldInverse);
@@ -331,7 +331,7 @@ export class PostChain {
     C.uDofB.value.z = blurPx;
     (this.fillMat.uniforms.uFill.value as THREE.Vector2).y = blurPx;
     C.uFocusW.value.copy(this.focusWorld);
-    // papertrails' world falloff, scaled with the focus distance: the gobo follows the camera's right and spans the
+    // the world falloff, scaled with the focus distance: the gobo follows the camera's right and spans the
     // visible width; in macro framing (closer than 8) its key falloff relaxes and the exposure stops down a little
     const closeT = clamp((8 - fz) / 4, 0, 1);
     const rl = Math.hypot(e[0], e[2]) || 1;
@@ -340,9 +340,9 @@ export class PostChain {
     C.uGobo2.value.y = this.look.fadeStart * ks;
     C.uGobo2.value.z = this.look.fadeEnd * ks;
     u.uTone.value.x = this.look.exposure * (1 + (POST.closeExposure - 1) * closeT);
-    // papertrails' die-cut edge: wider on a tall picture and in a close frame
+    // the die-cut edge: wider on a tall picture and in a close frame
     u.uFx.value.z = POST.rimPx * Math.max(1, H / 900) * (fz < 9 ? 1.5 : 1);
-    // papertrails' grain seed: a new pattern every 60th of a second of game time, 1024 of them
+    // the grain seed: a new pattern every 60th of a second of game time, 1024 of them
     u.uFx.value.w = Math.floor(time * 60) % 1024;
 
     r.setRenderTarget(this.sceneTarget);
@@ -357,7 +357,7 @@ export class PostChain {
     // bloom: quarter-res threshold, then H + V blur (B -> A)
     this.pass(this.bloomDownMat, this.bloomA);
     this.blur(this.bloomA, this.bloomB, this.bloomA, 1);
-    // spill: three ever wider blurs of the bloom at 1/16 res (papertrails: 1.7 x wider pools each step)
+    // spill: three ever wider blurs of the bloom at 1/16 res (1.7 x wider pools each step)
     if (u.uSpill.value > 0) {
       let src = this.bloomA;
       for (let i = 0; i < 3; i++) {

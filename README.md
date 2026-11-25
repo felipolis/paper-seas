@@ -105,7 +105,10 @@ Vite + TypeScript + Three.js, no framework. You need Node 22.18 or later (the ar
 npm install
 npm run dev      # http://localhost:5180
 npm run build    # typecheck + production build in dist/
+npm run check    # typecheck + dead-code check
 ```
+
+Changing the code? [AGENTS.md](AGENTS.md) has the rules every change follows (and what "done" means).
 
 The art tools (`npm run art:cut` and `tools/`) and the world QA (`node tools/qa/world-qa.mjs 1234,7,42`, against the
 running dev server) drive Microsoft Edge headless; the model builds need Blender 5.3. The screenshots above come from
@@ -113,12 +116,11 @@ running dev server) drive Microsoft Edge headless; the model builds need Blender
 
 ## How it's made
 
-Paper Seas follows the look and the rules of [papertrails](https://github.com/xikhar/papertrails): every sprite is a
-die-cut card of layered paper with its cut edge printed, the buildings, ships and mountains are real hinged paper
-models built in Blender, the ground is one flat sheet cut to the shore, and the light, shadows, haze and tilt-shift blur
-are paper's.
+Paper Seas is made to look like a real pop-up book on a table: every sprite is a die-cut card of layered paper with its
+cut edge printed, the buildings, ships and mountains are real hinged paper models built in Blender, the ground is one
+flat sheet cut to the shore, and the light, shadows, haze and tilt-shift blur are paper's.
 
-- [How it works](docs/how-it-works.md): the code's layout, every rule taken from papertrails (what stands up and when,
+- [How it works](docs/how-it-works.md): the code's layout, the rules the world follows (what stands up and when,
   biomes, collisions, light, life, the camera) and the world QA.
 - [The art pipeline](docs/art-pipeline.md): how the cards are generated and cut, and how the buildings, ships,
   captains and mountains are built.
@@ -130,15 +132,6 @@ workflow (`.github/workflows/deploy.yml`) type-checks and builds every pull requ
 deploys with `wrangler deploy`. It needs two repository secrets: `CLOUDFLARE_API_TOKEN` (a token made from the "Edit
 Cloudflare Workers" template) and `CLOUDFLARE_ACCOUNT_ID`.
 
-## Credits
-
-Inspired by [papertrails](https://github.com/xikhar/papertrails) by xikhar (MIT licence), whose look and rules it
-follows. The felt-piano voice and its hall (`src/audio/piano-synth.ts`, `src/audio/music.ts`) and the paper-flap
-synthesis and voice allocation (`src/audio/paper-synth.ts`, `src/audio/paper-voices.ts`) are ported from its
-`src/audio`, many of its shaders and tunables are ported throughout (credited where they are used), and its paper
-maps (`public/textures/paper`) are used as they are; the music played on that piano is Paper Seas' own. The printed art was generated with Google Flow and cut into cards by
-`tools/art`.
-
 ## License
 
-[MIT](LICENSE). The parts ported from papertrails keep its MIT notice, included in the same file.
+[MIT](LICENSE).

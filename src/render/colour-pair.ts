@@ -1,4 +1,4 @@
-/** A day colour and its night colour, blended in linear RGB as papertrails blends them (render/biomegrade.js there). */
+/** A day colour and its night colour, blended in linear RGB. */
 import * as THREE from 'three';
 
 export type Pair = readonly [day: THREE.Color, night: THREE.Color];

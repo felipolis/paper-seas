@@ -1,5 +1,5 @@
 /**
- * Little ponds (papertrails' pond tile: still water with reeds round it, a duck on it, lily pads), a pure function of
+ * Little ponds (still water with reeds round it, a duck on it, lily pads), a pure function of
  * the seed: one at most per SITE_CELL square, with POND_CHANCE, at a spot well inland on level meadow, pine wood or
  * jungle ground, clear of the streams, the roads and the villages (it is placed after them, and nothing routes round
  * it). Its rim is a circle wobbled by two slow waves, so no two ponds have the same shore.
@@ -13,7 +13,7 @@ const SEED = WORLD.seed;
 /** Share of the squares that hold a pond, and the spots tried in one. */
 const POND_CHANCE = 0.5;
 const TRIES = 10;
-/** Radius range (world units: papertrails' pond tile holds about 1.4 of water across). */
+/** Radius range (world units). */
 const RADIUS: [number, number] = [0.75, 1.15];
 /** The shore wobble: the two waves' largest share of the radius. */
 const WOBBLE = [0.12, 0.08];

@@ -34,7 +34,7 @@ export function distanceToSegment(px: number, pz: number, ax: number, az: number
 }
 
 /** Distance from p to the segment ab, and the parameter t (0..1) of the nearest point. */
-export function segmentDistance(px: number, pz: number, ax: number, az: number, bx: number, bz: number): [number, number] {
+function segmentDistance(px: number, pz: number, ax: number, az: number, bx: number, bz: number): [number, number] {
   const dx = bx - ax;
   const dz = bz - az;
   const l2 = dx * dx + dz * dz;

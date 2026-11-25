@@ -1,9 +1,8 @@
 /**
  * Card meshes. A painted card face (CardArt) becomes either
  *   - a thick die-cut card: the print's own silhouette (traced from its alpha) extruded into real cardstock, printed
- *     on both faces (like papertrails' cards: folded either way, a card never shows a blank back) with a cut edge of
- *     dark card core (a darker cut of the print's own tone), its face darkening just above the foot (papertrails'
- *     contact shading, baked per vertex), or
+ *     on both faces (folded either way, a card never shows a blank back) with a cut edge of dark card core (a darker
+ *     cut of the print's own tone), its face darkening just above the foot (contact shading, baked per vertex), or
  *   - a plain plane, shaded at its foot the same way (a print with no traced outline, or a card asked to stay thin).
  * Both stand upright on their hinge line (bottom edge at y = 0 in card units).
  */
@@ -14,7 +13,7 @@ import { contoursFromGrid, outlinesWithHoles } from '../world/contours';
 import type { Pt } from '../world/polyline';
 import { clamp } from '../core/math';
 
-/** Cardstock thickness (world units) of a standing card (papertrails' assets.js: 0.016). */
+/** Cardstock thickness (world units) of a standing card. */
 export const CARD_THICKNESS = 0.016;
 
 const materialCache = new WeakMap<CardArt, THREE.MeshLambertMaterial>();
@@ -30,15 +29,15 @@ export function materialFor(art: CardArt): THREE.MeshLambertMaterial {
 }
 
 /**
- * Contact shading, baked into every card's vertex colours (the skill's makeCard contact: 12 % darker at the hinge over
- * ~11 % of the hero's height): the face at its hinge (and below it), rising smoothly to full colour over this height
+ * Contact shading, baked into every card's vertex colours (12 % darker at the hinge over ~11 % of the captain's
+ * height): the face at its hinge (and below it), rising smoothly to full colour over this height
  * (world units) above it.
  */
 const FOOT_SHADE = 0.88;
 const FOOT_RAMP = 0.065;
 /**
- * The card's side (its stock's thickness), the skill's edgeColorFor: the print's own tone darkened toward a dark umber,
- * with a hint of the cream core (more darkening and less core on dark prints, so a pine never shows a pale edge).
+ * The card's side (its stock's thickness): the print's own tone darkened toward a dark umber, with a hint of the
+ * cream core (more darkening and less core on dark prints, so a pine never shows a pale edge).
  */
 const EDGE_UMBER = [0x2b, 0x1a, 0x0e].map((v) => v / 255);
 const EDGE_CORE = [0xf4, 0xe6, 0xc8].map((v) => v / 255);
@@ -65,7 +64,7 @@ function edgeColour(texture: THREE.Texture): THREE.Color {
     r += d[i]; g += d[i + 1]; b += d[i + 2]; n++;
   }
   if (!n) return fallback;
-  // (in sRGB, as the skill mixes its hex colours)
+  // (mixed in sRGB, as hex colours are)
   const mean = [r / n / 255, g / n / 255, b / n / 255];
   const dark = 0.2126 * mean[0] + 0.7152 * mean[1] + 0.0722 * mean[2] < 0.42;
   const [toUmber, toCore] = dark ? [0.5, 0.06] : [0.45, 0.1];
@@ -81,7 +80,7 @@ function edgeColour(texture: THREE.Texture): THREE.Color {
 /**
  * Every card geometry carries a vertex colour, so one material draws the face and the edge: the face is shaded from
  * its hinge (y = 0) up over ramp (card units), the walls (from index wallsFrom on) carry the edge colour (a card's own
- * tone, papertrails' clump shading, is its instance colour: world/card-field.ts).
+ * tone, the clump shading, is its instance colour: world/card-field.ts).
  */
 function paintVertices(g: THREE.BufferGeometry, ramp: number, edge: THREE.Color, wallsFrom = Infinity): void {
   const P = g.getAttribute('position');
@@ -189,7 +188,7 @@ export function prewarmSilhouettes(arts: CardArt[]): void {
  *
  * With unit = true the card is 1 unit tall (to be scaled per instance) and 1 unit deep (the instance's z scale is
  * then the thickness). half cuts the card down its middle and keeps one side (+1: x >= 0, -1: x <= 0), its cut edge
- * a wall like the rest: papertrails' half cards, the second plane of a slotted cross (world/card-field.ts).
+ * a wall like the rest: the half cards, the second plane of a slotted cross (world/card-field.ts).
  */
 export function thickCardGeometry(art: CardArt, o: { flipX?: boolean; unit?: boolean; height?: number; half?: 1 | -1 } = {}): THREE.BufferGeometry | null {
   const loops = silhouette(art.texture);

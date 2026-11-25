@@ -1,7 +1,7 @@
 /**
- * Roads between the places where people live (papertrails' road network, world/wfc.js there): every settlement is
+ * Roads between the places where people live: every settlement is
  * joined to its two nearest neighbours within MAX_LINK (and every ruin to its nearest settlement), so the roads make
- * a network that always leads somewhere. Each road is routed over the land on a 1-unit grid by A* with papertrails'
+ * a network that always leads somewhere. Each road is routed over the land on a 1-unit grid by A* with these
  * costs: a little noise so it wanders, a price on every turn so it runs in long gentle stretches, the hills dear and
  * the heights barred, other villages avoided; it never goes into the sea, and crosses a stream only straight over
  * (a bridge). The route is then rounded off (Chaikin) and resampled.
@@ -29,7 +29,7 @@ const ALONG_STREAM = 6;
 const VILLAGE = 6;
 /** Stays this far inland (shore distance), so the rounded road never touches the water. */
 const INLAND = 0.8;
-/** Road width on the print (the skill: the leading line 1.2-1.5 hero heights wide; papertrails had 0.5). */
+/** Road width on the print (the leading line, 1.2-1.5 hero heights wide). */
 export const ROAD_WIDTH = 0.75;
 
 export interface Bridge {
@@ -233,7 +233,7 @@ export interface Junction {
 }
 
 /**
- * papertrails' signposts stand where roads meet (its crossroads and forks, the path ends of world/wfc.js there): every
+ * Signposts stand where roads meet (the crossroads and the forks): every
  * fork of two roads leaving one place (where they part, out past its square) and every crossing of two roads.
  */
 export function junctionsOf(roads: readonly Road[]): Junction[] {

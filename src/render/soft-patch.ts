@@ -1,6 +1,6 @@
 /**
- * papertrails' soft patch (life/life.js there), the shape of its cloud shadows and soft blobs (render/cloud-shadows.ts,
- * life/soft-quads.ts): a wavy outline, its phase per patch, and a smooth fall from the middle.
+ * The soft patch, the shape of the cloud shadows and soft blobs (render/cloud-shadows.ts, life/soft-quads.ts): a wavy
+ * outline, its phase per patch, and a smooth fall from the middle.
  */
 
 /** GLSL: softPatch(p, phase), the patch's alpha (0..1) at p (-1..1 across it) for an outline phase of 0..1. */

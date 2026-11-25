@@ -7,8 +7,8 @@
  * bone. A building is therefore a single draw call, however many pieces it has, and its pieces unfold through the
  * same FoldGroup springs as every other card (rest * RotX(foldAngle * (1 - p)), staggered by each piece's delay).
  * The print is the paper material (cardstock grain and relief, kraft back), and its lit windows glow at night. Folded
- * flat, a model fades toward a pencil plan far from the page focus, as every folded card does (papertrails' printed
- * twin of its folded tiles): each building draws with its own copy of the material, carrying how flat it lies.
+ * flat, a model fades toward a pencil plan far from the page focus, as every folded card does: each building draws
+ * with its own copy of the material, carrying how flat it lies.
  */
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -29,7 +29,7 @@ export interface ModelInfo {
   /** A pier's / bridge's walkable deck: its height above the foot at the ends. */
   deck: number;
   /**
-   * A bridge's deck profile (the skill's bridge): a ramp rising at `ramp` (rad) over `share` of each half span from the
+   * A bridge's deck profile: a ramp rising at `ramp` (rad) over `share` of each half span from the
    * bank, then the crown at `crown` (rad) to the middle; null for a level deck.
    */
   profile: { share: number; ramp: number; crown: number } | null;
@@ -63,7 +63,7 @@ interface Prototype {
 }
 
 /**
- * Size of each model in the world, after papertrails' proportions (its traveller and our captain are 0.6 tall): a
+ * Size of each model in the world, in proportion to the captain (0.6 tall): a
  * house about 1.1 tall, a church steeple 1.55, a watchtower 1.5. The Blender build keeps its own units; the rest is 1.
  */
 const SCALE: Record<string, number> = { hut: 0.72, tavern: 0.85, chapel: 0.72, fort: 1, lighthouse: 0.8 };
@@ -177,8 +177,8 @@ function prototype(root: THREE.Object3D, scale: number, solid: boolean): Prototy
     }
     folds.push({ foldAngle: Number(o.userData.foldAngle ?? -Math.PI / 2), delay: Number(o.userData.delay ?? 0), size: 0, layer: Number(o.userData.layer ?? 0), liftSign: Number(o.userData.liftSign ?? 1) });
   });
-  // papertrails' flap size (fold.js there): the upright height of the piece with all that rides on it, in world units
-  // (its 0.05 to 1 tile), 0.3 tile for a piece without geometry; the bones come after their parents, so walking back
+  // a flap's size: the upright height of the piece with all that rides on it, in world units (0.1 to 2), 0.6 for
+  // a piece without geometry; the bones come after their parents, so walking back
   // gathers every piece's riders before the piece itself is measured
   for (let i = bones.length - 1; i > 0; i--) {
     const p = parentOf[i];
@@ -266,7 +266,7 @@ export interface Building {
 export function buildModel(name: string, x: number, y: number, z: number, yaw: number, biome: Biome): Building {
   const proto = prototypes.get(name);
   if (!proto || !material) throw new Error(`model "${name}" not loaded`);
-  // (papertrails tints a tile's pieces by its biome, render/biome-tint.ts)
+  // (a building's pieces are tinted by its biome, render/biome-tint.ts)
   const paper = paperCopy(tintMaterial(material, biome, name));
   const { mesh, fold } = rig(proto, paper, x, z);
   mesh.position.set(x, y, z);
@@ -308,12 +308,12 @@ function rig(proto: Prototype, paper: THREE.Material, x: number, z: number): { m
   mesh.add(rootBone);
   mesh.bind(new THREE.Skeleton(bones, proto.boneInverses), new THREE.Matrix4());
   mesh.scale.setScalar(proto.scale);
-  // papertrails: all the pieces of a tile start within its 0.34 s stagger span
+  // all the pieces of a building start within its cell's 0.34 s stagger span
   const fold = new FoldGroup();
   bones.forEach((b, i) => {
     if (i === 0) return;
     const f = proto.folds[i];
-    // (a piece rides on the piece it is hinged to: it follows it as it opens, papertrails' and the skill's NESTED flaps)
+    // (a piece rides on the piece it is hinged to: it follows it as it opens: NESTED flaps)
     const parent = b.parent !== rootBone ? (b.parent ?? undefined) : undefined;
     fold.add(b, { foldAngle: f.foldAngle, delay: f.delay, size: f.size, seed: i * 0.618034 + x * 0.37 + z * 0.73, lift: proto.lifts[i], stack: proto.stacks[i] ?? undefined, parent });
   });

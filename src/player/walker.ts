@@ -1,8 +1,7 @@
 /**
- * Going ashore: the captain steps off the ship and walks the island as a layered paper puppet, moved the way
- * papertrails moves its traveller (player/traveller.js there). F near a shore goes ashore, F by the ship goes back
- * aboard; WASD walks (screen directions), Shift runs, a lone tap of Ctrl toggles a slow stroll (papertrails'), and a
- * click, a tap or a drag walks him there (player/click-walk.ts).
+ * Going ashore: the captain steps off the ship and walks the island as a layered paper puppet. F near a shore goes
+ * ashore, F by the ship goes back aboard; WASD walks (screen directions), Shift runs, a lone tap of Ctrl toggles a slow
+ * stroll, and a click, a tap or a drag walks him there (player/click-walk.ts).
  *
  * Movement against what stands in the way works on a clearance field: c(x, z) is how much room there is round the
  * feet (the distance to the nearest blocker, the shore or a stream's bank; decks are free). A step is taken if it
@@ -55,7 +54,7 @@ const FAN = [0.6, 1.05, 1.45];
 /** Sub-steps held before trying the other side round an obstacle (doubles at every switch). */
 const FLIP_AFTER = 24;
 
-/** The lantern he carries (papertrails: #ffc45a, 1.1 by day, 2.3 at night, reach 6.5, 5.6 at night, 0.55 above him). */
+/** The lantern he carries: its colour, its intensity and reach by day and at night, its decay, its height above him. */
 const LANTERN = { colour: '#ffc45a', day: 1.1, night: 2.3, distance: 6.5, nightDistance: 5.6, decay: 0.62, height: 0.55 };
 
 export class Walker {
@@ -134,8 +133,8 @@ export class Walker {
   /**
    * input: the keys walking him (null: none, the chart is open); yaw: the camera's turn round the vertical (radians);
    * steer: where a click walks him when no key does (player/click-walk.ts: a direction on the page, its length the
-   * share of his speed). The keys are the screen's (papertrails' controls.js): W walks up the screen, north only while
-   * the camera looks north, and turns with it in the turned views and under the sight assist.
+   * share of his speed). The keys are the screen's: W walks up the screen, north only while the camera looks north,
+   * and turns with it in the turned views and under the sight assist.
    */
   update(dt: number, input: Input | null, world: WalkWorld, yaw: number, steer: { x: number; z: number } | null): void {
     if (!this.active) return;
@@ -205,7 +204,7 @@ export class Walker {
     this.y += (gy - this.y) * (1 - Math.exp(-HEIGHT_RATE * dt));
     this.group.position.set(this.x, this.y, this.z);
     this.puppet.root.rotation.y = this.heading;
-    // (papertrails smooths the yaw rate the roll and the lantern feel)
+    // (the yaw rate the roll and the lantern feel is smoothed)
     if (dt > 0) this.yawRate += (turn / dt - this.yawRate) * (1 - Math.exp(-YAW_SMOOTH * dt));
     const forward = this.vx * Math.sin(this.heading) + this.vz * Math.cos(this.heading);
     const foot = this.puppet.walk(dt, Math.hypot(mx, mz), Math.hypot(this.vx, this.vz), forward, this.yawRate);
@@ -241,7 +240,7 @@ export class Walker {
     return Math.min(this.clearance(x, z), R);
   }
 
-  /** papertrails' moveSlide: step, else slide along the obstacle, else go round it, else fan out; else stop. */
+  /** A move: step, else slide along the obstacle, else go round it, else fan out; else stop. */
   private moveSlide(dx: number, dz: number): void {
     if (this.tryStep(dx, dz)) {
       this.stall = 0;

@@ -1,6 +1,6 @@
 /**
- * Rain and mist in the pine woods (papertrails' rain() and mist(), life/life.js there; it has no weather clock: the
- * weather belongs to the biome and cross-fades with it, see life-frame.ts).
+ * Rain and mist in the pine woods (there is no weather clock: the weather belongs to the biome and cross-fades with
+ * it, see life-frame.ts).
  *
  *   rain   thin slanted streaks falling through the weather box round the focus, drifting with the wind, each ending
  *          in a small splash ring on the ground; slanted on screen by the wind across the view

@@ -1,6 +1,5 @@
 /**
- * Paper sounds synthesised per event in plain JS into a mono buffer (no oscillators). Ported from papertrails by
- * xikhar (MIT licence, https://github.com/xikhar/papertrails, src/audio/paper.js), typed and trimmed for Paper Seas.
+ * Paper sounds synthesised per event in plain JS into a mono buffer (no oscillators).
  *
  * A flap (a card rising or folding away) is
  *   - a "brush" bed: white noise with a lumpy decaying envelope, broad band-pass       (card moving through air)

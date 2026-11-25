@@ -2,8 +2,7 @@
  * Deterministic randomness. The world is a pure function of (seed, position): nothing in world generation
  * may use Math.random, so a place always looks the same however you sail back to it. What moves (sea life, smoke,
  * the weather, the captain's idle breath, a sound's start in its loop) draws from a seeded stream of its own (stream()),
- * so the same voyage and the same input give the same frames (the papercraft skill's motion.md: no unseeded random
- * in anything that moves). Only a new voyage's own seed is drawn at random (config/seed.ts).
+ * so the same voyage and the same input give the same frames (no unseeded random in anything that moves). Only a new voyage's own seed is drawn at random (config/seed.ts).
  */
 import { VOYAGE_SEED } from '../config/seed';
 

@@ -3,13 +3,12 @@
  * sprite, facing, biome tint and piece (a card, or a cross's front or back half card), so thousands of cards cost a few
  * dozen draw calls.
  *
- * Each card has its own paper spring, but the land rises and folds by cells, like papertrails' tiles (which cells,
- * when, and how the rise ripples outward: world/reveal.ts): the cards of one cell start one after another over STAGGER
- * seconds in its rise order (riseOrder: the low first, the tall last) and fold down in the reverse order, lying flat on
- * the page, face up, stacked so the first to rise lies on top, until they rise again. A crossed card is papertrails' slotted cross (its
- * tiles.glb: tree + tree_xf + tree_xb): the card, and two half cards hinged on its two faces down its middle, folded
- * flat against it while it lies and pulled open by it as it rises (the spring's NESTED linkage), so a lying cross is
- * one card and a standing one two planes square to each other. Nothing stands plumb: each card leans a little (LEAN),
+ * Each card has its own paper spring, but the land rises and folds by cells (which cells, when, and how the rise
+ * ripples outward: world/reveal.ts): the cards of one cell start one after another over STAGGER seconds in its rise
+ * order (riseOrder: the low first, the tall last) and fold down in the reverse order, lying flat on the page, face
+ * up, stacked so the first to rise lies on top, until they rise again. A crossed card is a slotted cross: the card,
+ * and two half cards hinged on its two faces down its middle, folded flat against it while it lies and pulled open
+ * by it as it rises (the spring's NESTED linkage), so a lying cross is one card and a standing one two planes square to each other. Nothing stands plumb: each card leans a little (LEAN),
  * only as it stands, so it still lies exactly flat. A card settled upright rocks in the wind about its hinge
  * (world/wind.ts), fading in over SWAY_FADE_IN and relaxing away over SWAY_RELEASE once it moves; the animals live and
  * take the captain as world/critters.ts has them.
@@ -33,7 +32,7 @@ import { overlaps, type Box } from './polyline';
 import type { Lamp } from '../render/lamp-pools';
 
 /**
- * papertrails' in-tile stagger span: the cards of a cell start one after another over this many seconds (and its
+ * The in-cell stagger span: the cards of a cell start one after another over this many seconds (and its
  * buildings take their place among them: world/terrain.ts).
  */
 export const STAGGER = 0.34;
@@ -41,19 +40,19 @@ export const STAGGER = 0.34;
 const RISE_STEP = 0.2;
 
 /**
- * A cell's rise order (a sort comparator: below 0 when a rises first): papertrails' usual tile order, the low first and
+ * A cell's rise order (a sort comparator: below 0 when a rises first): the low first and
  * the tall last (the ground cover, then the buildings, then the trees), and between two of a size step the nearer first
  * (the camera looks north, so the larger z).
  */
 export function riseOrder(a: { height: number; z: number }, b: { height: number; z: number }): number {
   return Math.floor(a.height / RISE_STEP) - Math.floor(b.height / RISE_STEP) || b.z - a.z;
 }
-/** Each card leans up to this far (rad) toward or away from the camera once upright (the skill: +-2.5 degrees). */
+/** Each card leans up to this far (rad) toward or away from the camera once upright (+-2.5 degrees). */
 const LEAN = 2.5 * (Math.PI / 180);
-/** Crossed cards (papertrails' crossDeg): the nearer plane stands this far off the view axis, the other square to it. */
+/** Crossed cards: the nearer plane stands this far off the view axis, the other square to it. */
 export const CROSS_PLANES = [24 * (Math.PI / 180), -66 * (Math.PI / 180)];
 /**
- * A cross's half cards (papertrails' tree_xf / tree_xb): about 40 % of a card thick, printed as the card is (folded
+ * A cross's half cards: about 40 % of a card thick, printed as the card is (folded
  * against it they read as the card itself), their mid-planes clear of the card's faces they fold against, with half a
  * millimetre of air between (so no face of a half card ever lies in the plane of one of the card's).
  */
@@ -83,17 +82,17 @@ export interface CardSpec {
   /** A slotted cross: the card and two half cards square to it (CROSS_PLANES off the view), like a pop-up tree. */
   cross?: boolean;
   /**
-   * papertrails' vignette: an animal tied to a piece beside it (sitting on it, by it, at a door, behind it), which
+   * A vignette: an animal tied to a piece beside it (sitting on it, by it, at a door, behind it), which
    * keeps its place; seat: how far above the ground it sits (on a fence, a barrel, the top of a tower).
    */
   vignette?: { seat: number };
-  /** The biome it stands in (papertrails' prop tint, render/biome-tint.ts); a heartland if not given. */
+  /** The biome it stands in (its tint, render/biome-tint.ts); a heartland if not given. */
   biome?: Biome;
-  /** papertrails' clump shading: the whole card printed this much darker (1, as drawn, if not given). */
+  /** Clump shading: the whole card printed this much darker (1, as drawn, if not given). */
   tone?: number;
-  /** An animal about by day or by night only (papertrails' d and n): out of its hours it is not there. */
+  /** An animal about by day or by night only: out of its hours it is not there. */
   awake?: Awake;
-  /** Too low to stop the feet (papertrails' pen fences, under its lowest blocking height): they step over it. */
+  /** Too low to stop the feet (a pen's fences): they step over it. */
   passable?: boolean;
 }
 
@@ -113,7 +112,7 @@ export interface Card extends CardSpec {
   order: number;
   jitter: number;
   flipAt: number;
-  /** Seconds its cell has waited to rise while the traveller crosses it (world/reveal.ts). */
+  /** Seconds its cell has waited to rise while the player crosses it (world/reveal.ts). */
   held: number;
   /** How far it leans once upright (rad, about its hinge; seeded by its place). */
   lean: number;
@@ -127,7 +126,7 @@ export interface Card extends CardSpec {
   flatBox: Box;
   /**
    * The height it lies at folded flat, on its cell's stack (layFlat); standing it stands at y, its foot on the page, and
-   * rising it comes down that far as it goes up (the skill: no stand-up floats by its stack layer).
+   * rising it comes down that far as it goes up (no stand-up floats by its stack layer).
    */
   flatY: number;
 }
@@ -157,10 +156,10 @@ function flatBounds(s: CardSpec): Box {
   return [Math.min(...xs), Math.min(...zs), Math.max(...xs), Math.max(...zs)];
 }
 
-/** The cards that are lamps (papertrails' lamp nodes: they pool light on the page at night, render/lamp-pools.ts). */
+/** The cards that are lamps (they pool light on the page at night, render/lamp-pools.ts). */
 const LAMPS = new Set(['lantern-post', 'campfire']);
 
-/** papertrails' animal cards pop up at this rate and away at this one (1/s) as the day or the night comes. */
+/** Animal cards pop up at this rate and away at this one (1/s) as the day or the night comes. */
 const POP_RATE = 4.5;
 const HIDE_RATE = 10;
 
@@ -292,7 +291,7 @@ export class CardField {
 
   /**
    * Lays a card in the flat stack (a new one, or one of a cell laid again: add). It lies above every card of its cell it
-   * overlaps that rises after it (the skill's flat stack: the top of the stack rises first, so no card swings up through
+   * overlaps that rises after it (the flat stack: the top of the stack rises first, so no card swings up through
    * one lying over it, and folding down is the same film run backward). And it keeps off the plane of every card it
    * overlaps: two faces in one plane flicker, the depth test picking either one frame by frame; it goes up in
    * POPUP.flatStep layers until it is at least that far from each of them (the lowest such height, so the flat stacks
@@ -408,8 +407,7 @@ export class CardField {
         let stirred = false;
         const d = Math.hypot(c.x - focusX, c.z - focusZ);
         const f = c.flap;
-        // (a rise still waiting for its ripple is called off once the cell is no longer wanted: papertrails' pending
-        // tile)
+        // (a rise still waiting for its ripple is called off once the cell is no longer wanted)
         if (f.target === 0 && f.pendingTarget === 1 && !reveal.wanted(c.cx, c.cz)) {
           f.setTarget(0);
           c.halves?.setTarget(0);
@@ -488,7 +486,7 @@ export class CardField {
     const flat = mesh.geometry.getAttribute(PAPER_FLAT_ATTRIBUTE) as THREE.InstancedBufferAttribute;
     for (const c of b.cards) {
       const p = c.flap.p;
-      // a folded card is not gone: it lies flat on the page, face up, like papertrails' folded flaps (it is seen
+      // a folded card is not gone: it lies flat on the page, face up (it is seen
       // from afar, and seen to fold down and to stand up again)
       if (c.hidden || c.shown <= 0) continue;
       const sw = c.sway;
@@ -516,7 +514,7 @@ export class CardField {
       _q.multiply(_qa.setFromAxisAngle(X_AXIS, (-Math.PI / 2) * (1 - p)));
       if (lean !== 0) _q.multiply(_qa.setFromAxisAngle(Z_AXIS, lean));
       if (c.flap.twist !== 0) _q.multiply(_qa.setFromAxisAngle(Y_AXIS, c.flap.twist));
-      // (an animal popping up or away: papertrails' pop, a smoothstep of its scale)
+      // (an animal popping up or away: a smoothstep of its scale)
       const pop = c.shown < 1 ? c.shown * c.shown * (3 - 2 * c.shown) : 1;
       if (b.part === 'card') {
         _m.compose(_p, _q, _s.set(c.height * pop, c.height * pop, CARD_THICKNESS));

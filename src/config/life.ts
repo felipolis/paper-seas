@@ -5,9 +5,9 @@ export const LIFE = {
   /** At most this many encounters at once. */
   maxActive: 2,
   /**
-   * The sea's environments, by the ship's distance from the nearest shore (the papercraft skill's living world: 3-5
-   * kinds of life chosen for each environment, never one list everywhere): the encounters of each, as relative chances,
-   * and whether its gulls fly there (they keep within sight of land). The last reaches out to the deep.
+   * The sea's environments, by the ship's distance from the nearest shore (a living world: 3-5 kinds of life chosen
+   * for each environment, never one list everywhere): the encounters of each, as relative chances, and whether its
+   * gulls fly there (they keep within sight of land). The last reaches out to the deep.
    */
   zones: [
     // coastal water: the shallows' small life, gulls overhead
@@ -30,23 +30,23 @@ export const LIFE = {
   gullAhead: [3, 8] as [number, number],
 } as const;
 
-/** papertrails' ground shadow colour: the soft shadows lying on the page (the birds', the clouds'). */
+/** The ground shadow colour: the soft shadows lying on the page (the birds', the clouds'). */
 export const GROUND_SHADOW = '#0b0a1c';
 
 /** The kinds of ambient life whose numbers follow the biome and the night. */
 export type LifeKind = 'leaves' | 'petals' | 'dust' | 'rain' | 'mist' | 'butterflies' | 'fireflies' | 'birds';
 
 /**
- * Ambient life and weather round the focus: papertrails' numbers (config/life.js there). Fallers: size in world units,
- * fall in units / s, sway = side-to-side amplitude, tumble = spin speed (rad / s), land = seconds a piece rests on the
- * ground while it shrinks away, wind = drift speed along the wind.
+ * Ambient life and weather round the focus. Fallers: size in world units, fall in units / s, sway = side-to-side
+ * amplitude, tumble = spin speed (rad / s), land = seconds a piece rests on the ground while it shrinks away, wind =
+ * drift speed along the wind.
  */
 export const AMBIENT = {
   /** Wrap box (world units) round the focus in which the weather lives, and the spawn height of fallers. */
   box: { w: 19, d: 17, h: 4.6 },
   /**
-   * The share of each kind's pool that is out (by rank). papertrails' pinewood row is our pine woods, cross-faded at
-   * their border as its biome weights are; everywhere else the land keeps our own shares (no rain or mist).
+   * The share of each kind's pool that is out (by rank), per row. The pinewood row is the pine woods', cross-faded at
+   * their border by the biome weights; the other rows have no rain or mist.
    */
   biomes: {
     heartland: { leaves: 0.8, petals: 0, dust: 0, rain: 0, mist: 0, butterflies: 0.5, fireflies: 0.3, birds: 1 },
@@ -54,7 +54,7 @@ export const AMBIENT = {
     blossom: { leaves: 0, petals: 1, dust: 0, rain: 0, mist: 0, butterflies: 1, fireflies: 0.75, birds: 1 },
     pinewood: { leaves: 0.12, petals: 0, dust: 0, rain: 1, mist: 1, butterflies: 0, fireflies: 1, birds: 0.6 },
   } satisfies Record<string, Record<LifeKind, number>>,
-  /** Which of papertrails' biome rows each of ours takes: the blossom meadow, the pine woods, sand as its desert. */
+  /** Which row each of our biomes takes: the blossom meadow, the pine woods, sand as the desert. */
   rows: { jungle: 'heartland', rocky: 'heartland', meadow: 'blossom', pine: 'pinewood', beach: 'desert' } as const,
   /** Multipliers at full night (day = 1); fireflies come out with the night itself. Our motes hang in the sunlight. */
   night: { butterflies: 0, birds: 0.35, fireflies: 1, mist: 1.25, dust: 0 } satisfies Partial<Record<LifeKind, number>>,
@@ -67,8 +67,8 @@ export const AMBIENT = {
   /** Soft cards drifting with the wind, in the day / night colour. */
   mist: { count: 9, size: [3.2, 4.6], height: 0.75, y: 0.46, alpha: 0.1, drift: 0.14, day: '#e3e9ea', night: '#2a3350' },
   /**
-   * flowers: over flowers they come out whatever their rank, up to this share (papertrails'); flowerReach: how far from
-   * its home one looks for a flower; flowerRoam: its loop round one, a share of roam (papertrails' 0.6).
+   * flowers: over flowers they come out whatever their rank, up to this share; flowerReach: how far from its home one
+   * looks for a flower; flowerRoam: its loop round one, a share of roam.
    */
   butterflies: { count: 18, size: 0.13, roam: 1.1, height: [0.3, 0.75], flap: 11, flowers: 0.9, flowerReach: 2.4, flowerRoam: 0.6, colors: ['#fff6e0', '#f6c64a', '#ef8a3c', '#9cc3e8', '#f3a6c0'] },
   /** water: over a bank they come out whatever their rank, up to this share; rainCut: the share the rain removes. */

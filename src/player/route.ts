@@ -1,9 +1,8 @@
 /**
- * papertrails' click-to-walk route finder (player/controls.js planRoute there): a grid A* in a square window centred
- * between the captain and the target, asked only when the straight way there is blocked. Its cells are tested lazily
- * (only those the search reaches), it never cuts a corner, and the path it finds is string-pulled into a few straight
- * legs. With no way to the target (across a river, inside a ring of props) it leads as close as the ground allows, if
- * that is a real gain.
+ * The click-to-walk route finder: a grid A* in a square window centred between the captain and the target, asked only
+ * when the straight way there is blocked. Its cells are tested lazily (only those the search reaches), it never cuts a
+ * corner, and the path it finds is string-pulled into a few straight legs. With no way to the target (across a river,
+ * inside a ring of props) it leads as close as the ground allows, if that is a real gain.
  */
 import { CLICK_WALK } from '../config/player';
 

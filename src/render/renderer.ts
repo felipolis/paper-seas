@@ -16,7 +16,7 @@ export function createRenderer(canvas: HTMLCanvasElement): THREE.WebGLRenderer {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.NoToneMapping;
   renderer.shadowMap.enabled = true;
-  // the basic filter, replaced by papertrails' PCSS (render/shadows.ts)
+  // the basic filter, replaced by the PCSS (render/shadows.ts)
   installPaperShadows();
   renderer.shadowMap.type = THREE.BasicShadowMap;
   return renderer;

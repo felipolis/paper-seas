@@ -21,12 +21,12 @@ export function launch({ gpu = false } = {}) {
  *   viewport        the page's size (default: Playwright's)
  *   seed            the world to play (default: whatever the page draws)
  *   onPageError     called with the message of every uncaught error in the page
- *   onConsoleError  called with the text of every console.error in the page
+ *   onConsoleIssue  called with the text of every console.error and console.warn in the page
  */
-export async function openGame(browser, { viewport, seed, onPageError, onConsoleError } = {}) {
+export async function openGame(browser, { viewport, seed, onPageError, onConsoleIssue } = {}) {
   const page = await browser.newPage(viewport ? { viewport } : {});
   if (onPageError) page.on('pageerror', (e) => onPageError(e.message));
-  if (onConsoleError) page.on('console', (m) => m.type() === 'error' && onConsoleError(m.text()));
+  if (onConsoleIssue) page.on('console', (m) => (m.type() === 'error' || m.type() === 'warning') && onConsoleIssue(`${m.type()}: ${m.text()}`));
   if (seed !== undefined) await page.addInitScript(([key, s]) => localStorage.setItem(key, s), [SEED_KEY, String(seed)]);
   await page.goto(GAME_URL, { waitUntil: 'networkidle' });
   await page.waitForFunction(() => window.game && window.game.frames > 2, null, { timeout: BOOT_TIMEOUT });

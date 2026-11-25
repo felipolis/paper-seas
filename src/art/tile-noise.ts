@@ -1,4 +1,4 @@
-/** papertrails' tileable value noise (render/materials.js `addValueNoise` there), shared by the paper's textures. */
+/** Tileable value noise, shared by the paper's textures. */
 
 function smooth(t: number): number {
   return t * t * (3 - 2 * t);

@@ -1,27 +1,27 @@
 /**
- * papertrails' walk field (world/world.js buildField there): what stops the feet, worked out once into a grid of
+ * The walk field: what stops the feet, worked out once into a grid of
  * distances instead of measured against every piece each frame. A field covers a square of land and the pieces it was
  * given (the blocking segments of its cards and buildings, world/blockers.ts); each point of the grid holds the
  * distance to the nearest of them, so asking how much room there is anywhere is one bilinear read, whatever stands
  * round it.
  *
- *   grid      STEP apart (papertrails' 0.05), over the square and every piece's reach past it
+ *   grid      STEP apart, over the square and every piece's reach past it
  *   distance  exact, to each segment, up to REACH (no query looks further; beyond, the room is REACH)
- *   closing   papertrails' morphological closing: the ground within CLOSE_RADIUS of the pieces is grown, then shrunk
+ *   closing   a morphological closing: the ground within CLOSE_RADIUS of the pieces is grown, then shrunk
  *             by as much; what the shrinking leaves (a nook between two pieces, the inside of a bend) is filled, so
  *             no pocket is left for the feet to be wedged in, while a convex piece stays as it is
  */
 import type { Segment } from './blockers';
 import type { Box } from './polyline';
 
-/** Grid spacing (world units): papertrails' SDF_STEP. */
+/** Grid spacing (world units). */
 const STEP = 0.05;
 /**
  * How far the field measures: no one reads further (the walker up to its radius plus padding, 0.18; the animals up to
  * their room past the padding, 0.13) and the closing grows by CLOSE_RADIUS; beyond, the room is REACH.
  */
 export const REACH = 0.3;
-/** papertrails' closeRadius. */
+/** The closing's radius (world units). */
 const CLOSE_RADIUS = 0.2;
 /** Grid points worked through between two yields while a field is made (a slice of a chunk's build). */
 const SLICE = 40000;
@@ -148,7 +148,7 @@ export class ClearanceField {
   }
 
   /**
-   * papertrails' chamfer distance transform (two passes, 8 neighbours) over the grid, in world units, in place; it
+   * A chamfer distance transform (two passes, 8 neighbours) over the grid, in world units, in place; it
    * yields every SLICE grid points.
    */
   private *chamfer(f: Float32Array): Generator<void> {

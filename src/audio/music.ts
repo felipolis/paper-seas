@@ -3,9 +3,8 @@
  * over and over with small deterministic variations (every other time through the melody sings an octave lower,
  * every third time the left hand thins out, here and there a note is left out).
  *
- * The piano voice and the way it is played (velocity-dependent low-pass, pan by pitch, a dark 4 s hall, notes
- * scheduled a little ahead of the audio clock) follow papertrails by xikhar (MIT licence). The notes are synthesised
- * in a worker (piano-worker.ts) so the frame rate never hitches.
+ * The piano is played with a velocity-dependent low-pass, panned by pitch, in a dark 4 s hall, its notes scheduled a
+ * little ahead of the audio clock. The notes are synthesised in a worker (piano-worker.ts) so the frame rate never hitches.
  *
  * Gameplay chimes are single notes of the same piano taken from the chord of the bar that is sounding, so they always
  * belong to the music.
@@ -111,7 +110,7 @@ export type ChimeKind = 'discover' | 'treasure' | 'bottle';
 
 const CHIMES: Record<ChimeKind, { lo: number; hi: number; vel: number; notes: number; gap: number }> = {
   discover: { lo: 62, hi: 79, vel: 0.17, notes: 2, gap: 0.2 }, // a two-note rising figure
-  treasure: { lo: 62, hi: 86, vel: 0.17, notes: 2, gap: 0.15 }, // a wider two-note figure (the skill: never more than two)
+  treasure: { lo: 62, hi: 86, vel: 0.17, notes: 2, gap: 0.15 }, // a wider two-note figure (never more than two)
   bottle: { lo: 74, hi: 86, vel: 0.14, notes: 1, gap: 0 }, // one high soft note
 };
 

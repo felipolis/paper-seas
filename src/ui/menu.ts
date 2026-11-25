@@ -1,6 +1,5 @@
 /**
- * Pause menu (Esc): a sheet of paper that slides up over the scene (the papercraft skill's sheet: from below, turned
- * a little) with the voyage log, sound and quality toggles, the controls and a
+ * Pause menu (Esc): a sheet of paper that slides up over the scene (from below, turned a little) with the voyage log, sound and quality toggles, the controls and a
  * fresh-voyage option. While it is open the world stops.
  */
 import './menu.css';

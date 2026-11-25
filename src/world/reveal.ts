@@ -1,19 +1,18 @@
 /**
- * Which part of the world stands up (papertrails' streaming rules, world/world.js there), shared by the cards, the
- * Blender-built models, the waves and what is adrift. Every distance is papertrails' own (its traveller is as tall as
- * our captain); the one thing that varies is papertrails' view reach: a camera further out sees past the ring, so the
- * ring and the near circle (and the fold-back radius) grow by `reach`, eased, never more than REACH_MAX.
+ * Which part of the world stands up, shared by the cards, the Blender-built models, the waves and what is adrift.
+ * Every distance is fixed but the view reach: a camera further out sees past the ring, so the ring and the near
+ * circle (and the fold-back radius) grow by `reach`, eased, never more than REACH_MAX.
  *
- *   rope      the anchor trails the traveller on a rope GRACE long: small moves and turns on the spot change nothing
+ *   rope      the anchor trails the player on a rope GRACE long: small moves and turns on the spot change nothing
  *   heading   the direction the rope is dragged in, low-passed (DIR_SMOOTH s); after a jump, the way it is moving
  *   rise      a cell rises within RADIUS + reach of a point FORWARD ahead along the heading, or within NEAR + reach
- *             of the traveller, unless it lies more than BEHIND_RISE behind; after a ripple delay of RIPPLE s per
- *             cell of distance from the traveller (plus a little jitter)
+ *             of the player, unless it lies more than BEHIND_RISE behind; after a ripple delay of RIPPLE s per
+ *             cell of distance from the player (plus a little jitter)
  *   fold      a cell folds once it is no longer wanted and either lies more than BEHIND_FOLD behind (rows behind
  *             close from the track outward, FOLD_STAGGER s per cell sideways) or is further than FOLD_BACK + reach
- *             from the traveller and outside the forward ring by HYSTERESIS
- *   flip      a cell's target flips at most once per MIN_FLIP s, except within REFLIP of the traveller
- *   hold      a still-flat cell the traveller is crossing waits up to RISE_HOLD s before it rises (its cards would swing
+ *             from the player and outside the forward ring by HYSTERESIS
+ *   flip      a cell's target flips at most once per MIN_FLIP s, except within REFLIP of the player
+ *   hold      a still-flat cell the player is crossing waits up to RISE_HOLD s before it rises (its cards would swing
  *             up through him), except right after a jump of more than JUMP
  *   cap       at most MAX_RISES cells start rising in one frame (the rest wait a frame)
  */
@@ -21,7 +20,6 @@ import { cellKey } from '../core/grid';
 import { hash01 } from '../core/rng';
 
 export const CELL = 2;
-/** papertrails, in world units (its tiles are 2 wide): 3 tiles, x1.07, 1.35 tiles ahead, 4.25 tiles... */
 const RADIUS = 6;
 const NEAR = 6.42;
 const FORWARD = 2.7;
@@ -34,31 +32,31 @@ const GRACE = 1;
 const DIR_SMOOTH = 0.3;
 const RIPPLE = 0.055;
 const JITTER = 0.035;
-/** papertrails: on the way, cells closer than the ring's radius less 0.75 tiles rise without the ripple. */
+/** On the way, cells closer than the ring's radius less this rise without the ripple. */
 const INNER = 1.5;
 /** Salt of the cells' rise jitter. */
 const JITTER_SALT = 0x6a09e667;
 const MIN_FLIP = 2;
 const FOLD_STAGGER = 0.07;
-/** papertrails' view reach: at most 1.5 tiles, eased at 0.85 tiles a second. */
+/** The view reach: at most REACH_MAX, eased at REACH_RATE a second (world units). */
 const REACH_MAX = 3;
 const REACH_RATE = 1.7;
-/** papertrails' riseHoldMax, and how near (per axis) the traveller counts as crossing a cell: half a cell + 0.15. */
+/** How long a still-flat cell holds its rise (s), and how near (per axis) the player counts as crossing a cell: half a cell + 0.15. */
 const RISE_HOLD = 0.8;
 const HOLD_REACH = CELL / 2 + 0.15;
-/** A traveller moving further than this in one frame has jumped (papertrails' fresh frame). */
+/** A player moving further than this in one frame has jumped. */
 const JUMP = 1.5;
-/** papertrails' maxRisePerFrame. */
+/** The most cells that start rising in one frame. */
 const MAX_RISES = 6;
 
 export class Reveal {
-  /** The traveller now, and whether it has just jumped (or appeared). */
+  /** The player now, and whether it has just jumped (or appeared). */
   private px = 0;
   private pz = 0;
   private fresh = true;
   /** Keys of the cells that started rising this frame. */
   private readonly risen: number[] = [];
-  /** Where the rope holds the anchor (the traveller, give or take GRACE). */
+  /** Where the rope holds the anchor (the player, give or take GRACE). */
   private tx = 0;
   private tz = 0;
   /** The low-passed direction of the rope's pull, and the heading: that direction, unit. */
@@ -75,7 +73,7 @@ export class Reveal {
     return RADIUS + this.reach;
   }
 
-  /** px, pz: the traveller (the captain, or the ship); vx, vz: its velocity; reach: the view's reach (world units). */
+  /** px, pz: the player (the captain, or the ship); vx, vz: its velocity; reach: the view's reach (world units). */
   update(dt: number, px: number, pz: number, vx: number, vz: number, reach: number): void {
     const want = Math.min(REACH_MAX, Math.max(0, reach));
     this.fresh = !this.placed || Math.hypot(px - this.px, pz - this.pz) > JUMP;
@@ -83,7 +81,7 @@ export class Reveal {
     this.pz = pz;
     this.risen.length = 0;
     if (this.fresh) {
-      // (a jump: the anchor comes along, heading the way the traveller is going, if it is going anywhere)
+      // (a jump: the anchor comes along, heading the way the player is going, if it is going anywhere)
       this.tx = px;
       this.tz = pz;
       this.reach = want;
@@ -115,12 +113,12 @@ export class Reveal {
     }
   }
 
-  /** Distance from the traveller (the rope's end). */
+  /** Distance from the player (the rope's end). */
   distance(x: number, z: number): number {
     return Math.hypot(x - this.tx, z - this.tz);
   }
 
-  /** How far (world units) the point lies behind the traveller along the heading. */
+  /** How far (world units) the point lies behind the player along the heading. */
   private behind(x: number, z: number): number {
     return -((x - this.tx) * this.dx + (z - this.tz) * this.dz);
   }
@@ -137,7 +135,7 @@ export class Reveal {
 
   /**
    * Is the cell centred at (x, z) still wanted standing (in the ring, not far behind)? A rise still waiting out its
-   * ripple delay is called off once it is not (papertrails' pending tile).
+   * ripple delay is called off once it is not.
    */
   wanted(x: number, z: number): boolean {
     return (this.forwardDistance(x, z) < RADIUS + this.reach || this.distance(x, z) < NEAR + this.reach) && this.behind(x, z) < BEHIND_FOLD;
@@ -149,7 +147,7 @@ export class Reveal {
     return this.behind(x, z) >= BEHIND_FOLD || (this.distance(x, z) > FOLD_BACK + this.reach && this.forwardDistance(x, z) >= RADIUS + this.reach + HYSTERESIS);
   }
 
-  /** Must a flat cell centred at (x, z) that has waited `held` s wait on, the traveller crossing it? */
+  /** Must a flat cell centred at (x, z) that has waited `held` s wait on, the player crossing it? */
   holds(x: number, z: number, held: number): boolean {
     return !this.fresh && held < RISE_HOLD && Math.abs(this.px - x) < HOLD_REACH && Math.abs(this.pz - z) < HOLD_REACH;
   }
@@ -193,14 +191,14 @@ export function cellCentre(v: number): number {
 }
 
 /**
- * The sound gesture of the cell holding (x, z) (papertrails' tile): its cards and buildings moving one way speak as one
+ * The sound gesture of the cell holding (x, z): its cards and buildings moving one way speak as one
  * flap (audio/paper-voices.ts).
  */
 export function cellGesture(x: number, z: number): string {
   return `c${Math.floor(x / CELL)},${Math.floor(z / CELL)}`;
 }
 
-/** The ripple jitter (s) of the cell holding (x, z): one for every card and building in it (papertrails' tiles). */
+/** The ripple jitter (s) of the cell holding (x, z): one for every card and building in it. */
 export function cellJitter(x: number, z: number): number {
   return (hash01(JITTER_SALT, Math.floor(x / CELL), Math.floor(z / CELL)) - 0.5) * 2 * JITTER;
 }

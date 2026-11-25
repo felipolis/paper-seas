@@ -1,6 +1,5 @@
 /**
- * One felt-piano note as mono samples, peak-normalised. The voice is ported from papertrails by xikhar (MIT licence,
- * https://github.com/xikhar/papertrails, src/audio/music.js): inharmonic partials (a stiff string stretches them
+ * One felt-piano note as mono samples, peak-normalised. The voice: inharmonic partials (a stiff string stretches them
  * sharp), two slightly detuned strings per partial that beat slowly, a two-stage decay with the higher partials
  * dying sooner, a felt hammer struck near 1/8 of the string, and a soft low-passed thump at the onset.
  * Pure and deterministic: it runs in the piano worker.
