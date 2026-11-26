@@ -96,6 +96,33 @@ export function resample(pts: readonly Pt[], step: number): Pt[] {
   return out;
 }
 
+/**
+ * The polyline with the points it can do without (Douglas-Peucker): none of the points dropped lies further than
+ * tolerance from the line kept. Keeps both end points.
+ */
+export function simplify(pts: readonly Pt[], tolerance: number): Pt[] {
+  if (pts.length < 3) return pts.slice();
+  const keep = new Uint8Array(pts.length);
+  keep[0] = keep[pts.length - 1] = 1;
+  const spans: Array<[number, number]> = [[0, pts.length - 1]];
+  while (spans.length) {
+    const [a, b] = spans.pop()!;
+    let far = -1;
+    let farD = tolerance;
+    for (let i = a + 1; i < b; i++) {
+      const d = distanceToSegment(pts[i][0], pts[i][1], pts[a][0], pts[a][1], pts[b][0], pts[b][1]);
+      if (d > farD) {
+        farD = d;
+        far = i;
+      }
+    }
+    if (far < 0) continue;
+    keep[far] = 1;
+    spans.push([a, far], [far, b]);
+  }
+  return pts.filter((_, i) => keep[i]);
+}
+
 /** Where the segments ab and cd cross: [t along ab, u along cd], or null. */
 export function segmentCross(a: Pt, b: Pt, c: Pt, d: Pt): [number, number] | null {
   const rx = b[0] - a[0];

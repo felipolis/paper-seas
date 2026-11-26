@@ -10,7 +10,7 @@ import * as THREE from 'three';
 import type { CardArt } from '../art/card-painter';
 import { CARD_WALL_ATTRIBUTE, createPaperMaterial } from '../render/paper-material';
 import { contoursFromGrid, outlinesWithHoles } from '../world/contours';
-import type { Pt } from '../world/polyline';
+import { simplify, type Pt } from '../world/polyline';
 import { clamp } from '../core/math';
 
 /** Cardstock thickness (world units) of a standing card. */
@@ -119,8 +119,23 @@ export function cardGeometry(art: CardArt, o: { height?: number } = {}): THREE.P
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Silhouette loops of a texture in uv space (0..1), traced at alpha 0.5 of the print shrunk by one trace pixel, so
- * the loops always run just inside the printed shape. Cached per image.
+ * The silhouette is traced at the print's own resolution (larger prints scaled down to this many pixels on their long
+ * side), so the card's edge follows the printed outline to within a pixel. A gap in a larger print narrower than one
+ * trace pixel closes in the trace: a pixel or two of the print, too fine to show.
+ */
+const TRACE_SIZE = 384;
+/**
+ * How far (trace pixels) the traced outline may stray from the alpha contour when its points are thinned: under a
+ * pixel, too little to see, and the walls far lighter than one point per pixel.
+ */
+const TRACE_TOLERANCE = 0.6;
+/** The alpha the outline is traced at: just inside the print's die cut (render/paper-material.ts CARDSTOCK.cut). */
+const TRACE_ALPHA = 0.5;
+
+/**
+ * Silhouette loops of a texture in uv space (0..1), traced at TRACE_ALPHA: the loops run along the printed outline,
+ * a hair inside the die cut (never more than TRACE_TOLERANCE off it), so the card's edge shows round the print.
+ * Cached per image.
  */
 const silhouettes = new WeakMap<object, Pt[][]>();
 
@@ -129,8 +144,7 @@ function silhouette(texture: THREE.Texture): Pt[][] | null {
   if (!image || !image.width) return null;
   let loops = silhouettes.get(image);
   if (loops) return loops;
-  const max = 72;
-  const s = Math.min(1, max / Math.max(image.width, image.height));
+  const s = Math.min(1, TRACE_SIZE / Math.max(image.width, image.height));
   const w = Math.max(4, Math.round(image.width * s));
   const h = Math.max(4, Math.round(image.height * s));
   const W = w + 2;
@@ -141,30 +155,16 @@ function silhouette(texture: THREE.Texture): Pt[][] | null {
   const ctx = c.getContext('2d', { willReadFrequently: true })!;
   ctx.drawImage(image, 1, 1, w, h);
   const data = ctx.getImageData(0, 0, W, H).data;
-  // erode: each pixel takes the least alpha of its 3 x 3 neighbourhood
-  const alpha = new Float32Array(W * H);
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      let m = 255;
-      for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++) {
-          const xx = x + dx;
-          const yy = y + dy;
-          const a = xx < 0 || yy < 0 || xx >= W || yy >= H ? 0 : data[(yy * W + xx) * 4 + 3];
-          if (a < m) m = a;
-        }
-      }
-      alpha[y * W + x] = m / 255;
-    }
-  }
   // field < 0 inside the card; rows flipped so v grows upward like the texture
   const values = new Float32Array(W * H);
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) values[(H - 1 - y) * W + x] = 0.5 - alpha[y * W + x];
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) values[(H - 1 - y) * W + x] = TRACE_ALPHA - data[(y * W + x) * 4 + 3] / 255;
   // one grid cell = one pixel (the 1 px transparent frame closes every loop); converted to uv afterwards
   const raw = contoursFromGrid({ x0: -1, z0: -1, cell: 1, nx: w + 1, nz: h + 1, values });
+  // (specks a few pixels round are left out)
   loops = raw
-    .map((loop) => loop.filter((_, i) => i % 2 === 0).map(([x, y]) => [x / w, y / h] as Pt))
-    .filter((loop) => loop.length >= 6);
+    .filter((loop) => loop.length >= 12)
+    .map((loop) => simplify(loop, TRACE_TOLERANCE).map(([x, y]) => [x / w, y / h] as Pt))
+    .filter((loop) => loop.length >= 3);
   silhouettes.set(image, loops);
   return loops;
 }
@@ -182,9 +182,9 @@ export function prewarmSilhouettes(arts: CardArt[]): void {
  *
  *   face   one quad at z = +depth/2 carrying the print; its alpha cuts the card's outline exactly (and its shadow).
  *          The face is double-sided: seen from behind it shows the same print, cut the same way.
- *   edge   the card's thickness: walls extruded from the traced outline, which runs just inside the print, so a wall
- *          never stands outside the printed shape (no pale kraft or stray wall showing through a notch of a pine or
- *          between palm fronds) and only shows as the card's depth when seen at an angle.
+ *   edge   the card's thickness: walls extruded from the traced outline, which follows the print a hair inside its die
+ *          cut, so the edge shows as the card's dark side round the print seen at an angle, and no wall strays
+ *          visibly outside the printed shape (none shows through a notch of a pine or between palm fronds).
  *
  * With unit = true the card is 1 unit tall (to be scaled per instance) and 1 unit deep (the instance's z scale is
  * then the thickness). half cuts the card down its middle and keeps one side (+1: x >= 0, -1: x <= 0), its cut edge
@@ -297,8 +297,9 @@ function keepSide(pts: THREE.Vector2[], side?: 1 | -1): THREE.Vector2[] {
 
 /**
  * The material of a thick card: the face's own print material, reading the vertex colour (the contact shading on the
- * face, the edge tint on the walls). The walls stand inside the print's outline, so the print's alpha cut leaves them
- * whole. Plane cards (cardGeometry) carry the face's shading too, so the same material serves both.
+ * face, the edge tint on the walls). The walls stand on the print's outline and are not cut by its alpha (they
+ * take the vertex colour alone). Plane cards (cardGeometry) carry the face's shading too, so the same material serves
+ * both.
  */
 export function thickMaterial<M extends THREE.Material>(print: M): M {
   if (!(print as THREE.Material & { vertexColors: boolean }).vertexColors) {

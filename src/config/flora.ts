@@ -164,6 +164,24 @@ export function heightOf(sprite: string, r: number): number {
 }
 
 /**
+ * How heavy a land card's stock is against the base card's (popup/card.ts CARD_THICKNESS): the small pieces of the
+ * ground (ferns, flowers, tufts, grass, mushrooms) and the bushes in heavier stock, so they still read as card, the
+ * props and rocks a little heavier, the trees and the reeds lighter (the base stock on a tall card reads as board).
+ */
+const STOCK: Array<[RegExp, number]> = [
+  [/^(tree-|palm-|pine|cypress$|acacia$|mangrove$|banana$|deadwood$)/, 0.86],
+  [/^(cattails|papyrus)$/, 0.8],
+  [/^bush-/, 1.22],
+  [/^(fern-|flowers-|tuft-|grass-|hibiscus$|orchids$|bird-of-paradise$|mushrooms$)/, 1.3],
+];
+const PROP_STOCK = 1.15;
+
+/** A land card's stock for its sprite: STOCK's, or the props' (animals stay in the base stock: world/card-field.ts). */
+export function stockOf(sprite: string): number {
+  return STOCK.find(([kinds]) => kinds.test(sprite))?.[1] ?? PROP_STOCK;
+}
+
+/**
  * The kinds printed in several variants (4-6 seeded variants per kind, no stamped repeats). A tile's lists name a
  * kind by any of its members; each card it plants is drawn among all of them (variantOf).
  */

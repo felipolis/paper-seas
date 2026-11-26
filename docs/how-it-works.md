@@ -86,7 +86,11 @@ What the world does and how, every size measured against the captain:
   scallops) on plants, cloth, wood and buildings, and the cut edge printed with it: a thin dark warm-brown line at the silhouette and a pale highlight just inside it on the lit
   side only, never an even cream sticker rim. The sheets are generated on a flat key colour and keyed out; pieces of
   one item cut apart by a narrow gap are joined (`merge`).
-- **Cardstock** (`popup/card.ts`, `tools/blender/build_models.py`): every card is 0.016 thick; its face
+- **Cardstock** (`popup/card.ts`, `tools/blender/build_models.py`): every card is 0.016 thick, but on the land
+  (`config/flora.ts` `stockOf`): ferns, flowers, tufts, grass and mushrooms x1.3, bushes x1.22, props and rocks
+  x1.15, trees x0.86, reeds x0.8, animals as the base (a card in other stock keeps its face where a base card's is);
+  its cut edge stands on the print's outline (traced from its alpha at the print's resolution, up to 384 px), so it
+  shows round the print at an angle; its face
   is shaded from 0.787 at the hinge to full colour 0.21 above it (contact shading, baked per vertex), the cards of a
   clump darker toward its back (0.69 to 1, its instance colour), its cut edge is the piece's own tone darkened per
   channel (0.62, 0.65, 0.78); crossed trees turn 0.6 of the others' jitter, ferns stand single.

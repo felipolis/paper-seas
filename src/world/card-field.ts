@@ -18,7 +18,7 @@ import { bus } from '../core/events';
 import { POPUP } from '../config/popup';
 import { Flap, FixedStepper, flapConstants } from '../popup/spring';
 import { CARD_THICKNESS, cardGeometry, materialFor, thickCardGeometry, thickMaterial } from '../popup/card';
-import { CROSSED, heightOf, type Awake } from '../config/flora';
+import { CROSSED, heightOf, stockOf, type Awake } from '../config/flora';
 import { cardWidth, spriteArt } from '../art/sprites';
 import { PAPER_FLAT_ATTRIBUTE, pencilPlan } from '../render/paper-material';
 import { CELL, cellGesture, cellJitter, type Reveal } from './reveal';
@@ -52,7 +52,7 @@ const LEAN = 2.5 * (Math.PI / 180);
 /** Crossed cards: the nearer plane stands this far off the view axis, the other square to it. */
 export const CROSS_PLANES = [24 * (Math.PI / 180), -66 * (Math.PI / 180)];
 /**
- * A cross's half cards: about 40 % of a card thick, printed as the card is (folded
+ * A cross's half cards: about 40 % of a base card thick, printed as the card is (folded
  * against it they read as the card itself), their mid-planes clear of the card's faces they fold against, with half a
  * millimetre of air between (so no face of a half card ever lies in the plane of one of the card's).
  */
@@ -138,6 +138,11 @@ interface Batch {
   dirty: boolean;
   /** A card batch of crosses: the batches of their half cards, which redraw when a card of this one moves. */
   halves: Batch[];
+  /**
+   * How thick its sprite's cards are (world units: their stock, config/flora.ts stockOf); a half-card batch keeps the
+   * thickness of the card its halves ride on.
+   */
+  thickness: number;
 }
 
 /**
@@ -185,6 +190,7 @@ const _mh = new THREE.Matrix4();
 const _q = new THREE.Quaternion();
 const _qa = new THREE.Quaternion();
 const _p = new THREE.Vector3();
+const _n = new THREE.Vector3();
 const _s = new THREE.Vector3();
 const _tone = new THREE.Color();
 
@@ -517,14 +523,19 @@ export class CardField {
       // (an animal popping up or away: a smoothstep of its scale)
       const pop = c.shown < 1 ? c.shown * c.shown * (3 - 2 * c.shown) : 1;
       if (b.part === 'card') {
-        _m.compose(_p, _q, _s.set(c.height * pop, c.height * pop, CARD_THICKNESS));
+        // (a card in other stock than the base keeps its face where a base card's is and grows or thins behind it, so
+        // the flat stacks, which lay faces apart, hold for every stock)
+        if (b.thickness !== CARD_THICKNESS) _p.addScaledVector(_n.set(0, 0, 1).applyQuaternion(_q), (CARD_THICKNESS - b.thickness) / 2);
+        _m.compose(_p, _q, _s.set(c.height * pop, c.height * pop, b.thickness));
       } else {
         // a half card on the card's front or back face, hinged down its middle: folded flat against the face while the
         // card lies (0), square to it standing (1); both turn the same way round, so together they make the cross's
         // second plane
         _m.compose(_p, _q, _s.set(1, 1, 1));
+        // (the card's front face stays where a base card's is, its back face moves with its stock: the back half card
+        // keeps its half millimetre of air from it)
         _mh.makeRotationY((-Math.PI / 2) * c.halves!.p).scale(_s.set(c.height, c.height, HALF_THICKNESS));
-        _m.multiply(_mh.setPosition(0, 0, HALF_SIDE[b.part] * HALF_OFFSET));
+        _m.multiply(_mh.setPosition(0, 0, b.part === 'front' ? HALF_OFFSET : CARD_THICKNESS - b.thickness - HALF_OFFSET));
       }
       mesh.setColorAt(n, _tone.setScalar(c.tone ?? 1));
       flat.setX(n, clamp(1 - p, 0, 1));
@@ -581,7 +592,8 @@ export class CardField {
       }
       const mesh = batchMesh(g, material, 64);
       this.group.add(mesh);
-      b = { mesh, part, cards: [], dirty: true, halves: [] };
+      const thickness = Critters.is(sprite) ? CARD_THICKNESS : CARD_THICKNESS * stockOf(sprite);
+      b = { mesh, part, cards: [], dirty: true, halves: [], thickness };
       this.batches.set(key, b);
     }
     return b;
