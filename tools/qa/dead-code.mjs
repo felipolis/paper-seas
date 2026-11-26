@@ -66,7 +66,7 @@ for (const [f, text] of bare) {
 }
 
 // the tools load modules too: statically, or into the dev build's page or Vite's server by a root path
-// (`const { CHUNK } = await import('/src/world/terrain.ts')`, `server.ssrLoadModule('/src/…')`)
+// (`(await import('/tools/qa/world-qa.ts')).checkWorld()`, `server.ssrLoadModule('/src/…')`)
 const toolScripts = list('tools', (n) => /\.(mjs|ts|py|sh)$/.test(n));
 const toolText = new Map(toolScripts.map((f) => [f, read(f)]));
 const toolLoads = new Set();

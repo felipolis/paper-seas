@@ -333,15 +333,18 @@ vec3 riverColour() {
   float aa = max(fwidth(across) * 1.2, 1e-4);
   // the bank wobbles a little, hand cut
   float edge = hw + (seaNoise(p * 2.0) - 0.5) * 0.06 + (seaNoise(p * 7.0 + 3.0) - 0.5) * 0.025 - across;  // > 0 on the water
+  // (one return: a value returned from inside a branch reads as maybe unset to some shader compilers)
+  vec3 col;
   if (edge < 0.0) {
     gMirror = vec3(0.0);
     gMirrorW = 0.0;
     gMirrorWater = 0.0;
     gMirrorStreak = vec3(0.0);
-    return riverBank(p, -edge, aa);
+    col = riverBank(p, -edge, aa);
+  } else {
+    col = riverWater(p, T, s, hw, across, edge, aa);
+    mirrorImage(p, ${STREAM_Y.toFixed(3)}, col, 1.0 - gRiverMarks);
   }
-  vec3 col = riverWater(p, T, s, hw, across, edge, aa);
-  mirrorImage(p, ${STREAM_Y.toFixed(3)}, col, 1.0 - gRiverMarks);
   return col;
 }
 `;

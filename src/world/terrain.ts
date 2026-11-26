@@ -402,6 +402,11 @@ export class Terrain {
     return this.chests.values();
   }
 
+  /** Chunks currently loaded (the world QA checks what stands in them: tools/qa/world-qa.ts). */
+  chunkList(): IterableIterator<Chunk> {
+    return this.chunks.values();
+  }
+
   /** A chest found: taken away for good (its card hidden, its chunk's walk field made again without it). */
   takeChest(chest: Chest): void {
     this.cards.hide(chest.card);

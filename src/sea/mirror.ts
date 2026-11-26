@@ -149,11 +149,13 @@ void mirrorImage(vec2 p, float h, vec3 col, float clear) {
   gMirror = rcol * mix(rtint * ${MIRROR_GAIN} * mix(vec3(1.0), ${NIGHT_MIRROR}, nk), vec3(${MIRROR_HOT}), rhot);
   gMirrorW = max(cover * ${MIRROR_STRENGTH}, rhot * cover);
   if (nk > 0.05) {
-    // the lit panes and lamps in the mirror pull out into warm broken streaks toward the viewer (4 taps up the image)
+    // the lit panes and lamps in the mirror pull out into warm broken streaks toward the viewer (4 taps up the image;
+    // read at its one level, render/reflection.ts makes no mipmaps: Direct3D's shader compiler warns on a sample that
+    // takes its level from screen derivatives inside a loop)
     float sk = 0.0;
     for (int i = 1; i <= 4; i++) {
       vec2 su = ruv + vec2(0.0025 * sin(gl_FragCoord.y * 0.21 + T * 2.0 + float(i)), 0.011 * float(i));
-      vec4 s4 = texture2D(uRefl, su);
+      vec4 s4 = textureLod(uRefl, su, 0.0);
       vec3 sc4 = s4.rgb / max(s4.a, 0.05);
       sk += smoothstep(0.95, 2.2, max(sc4.r, max(sc4.g, sc4.b))) * clamp(s4.a, 0.0, 1.0) * (1.0 - 0.2 * float(i));
     }

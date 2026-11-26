@@ -31,9 +31,9 @@ src/
   audio/             synthesised sound: felt-piano barcarolle (notes made in a worker), paper flaps, footsteps, sea
 tools/browser.mjs    the headless Edge every tool drives, and openGame (the dev build, opened on a seed)
 tools/qa/            world QA (plays the dev build headless and checks the world), the captains' and the models' clip
-                     checks (crew-clips, model-clips: each .mjs runs its .ts in the dev build's page), the dead-code
-                     check (dead-code: unused files, exports, assets and tools) and the rules check (rules: the rules of
-                     AGENTS.md a machine can see); npm run check runs both
+                     checks (world-qa, crew-clips, model-clips: each .mjs runs its .ts in the dev build's page), the
+                     dead-code check (dead-code: unused files, exports, assets and tools) and the rules check (rules:
+                     the rules of AGENTS.md a machine can see); npm run check runs both
 tools/media/         the README's screenshots (docs/media), taken headless from the dev build
 docs/                these pages and the screenshots
 AGENTS.md            the rules every change follows (CLAUDE.md loads them for Claude Code)
