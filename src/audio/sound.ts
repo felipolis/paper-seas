@@ -103,11 +103,12 @@ export class Sound {
     const master = ctx.createGain();
     master.gain.value = AUDIO.masterGain;
     master.connect(ctx.destination);
-    // effects: soft-knee limiter (scaled in and out of its range)
+    // effects: soft-knee limiter (its curve spans the limiter's range and keeps the level, so only the input is scaled
+    // into it), then its ceiling
     const shaper = ctx.createWaveShaper();
     shaper.curve = makeLimiterCurve();
     const ceiling = ctx.createGain();
-    ceiling.gain.value = AUDIO.limiter.ceiling * AUDIO.limiter.range;
+    ceiling.gain.value = AUDIO.limiter.ceiling;
     shaper.connect(ceiling).connect(master);
     const fx = ctx.createGain();
     fx.gain.value = 1 / AUDIO.limiter.range;
