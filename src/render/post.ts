@@ -13,7 +13,7 @@
  */
 import * as THREE from 'three';
 import { CAMERA, POST, NIGHT } from '../config/view';
-import { clamp } from '../core/math';
+import { clamp, smoothstep } from '../core/math';
 import { CloudShadows } from './cloud-shadows';
 import { blend, pair } from './colour-pair';
 import type { BiomeLook } from './biome-look';
@@ -351,7 +351,8 @@ export class PostChain {
     C.uGobo2.value.z = this.look.fadeEnd * ks;
     u.uTone.value.x = this.look.exposure * (1 + (POST.closeExposure - 1) * closeT);
     // the die-cut edge: wider on a tall picture and in a close frame
-    u.uFx.value.z = POST.rimPx * Math.max(1, H / 900) * (fz < POST.rimClose.within ? POST.rimClose.widen : 1);
+    const rc = POST.rimClose;
+    u.uFx.value.z = POST.rimPx * Math.max(1, H / 900) * (1 + (rc.widen - 1) * smoothstep(rc.from, rc.to, fz));
     // the grain seed: a new pattern every 60th of a second of game time, 1024 of them
     u.uFx.value.w = Math.floor(time * 60) % 1024;
 

@@ -14,6 +14,7 @@ import * as THREE from 'three';
 import { WATER_GLSL, waterUniforms } from './water';
 import { FAR, type DistanceMap } from './distance-map';
 import { MIRROR_APPLY, MIRROR_GLSL, mirrorUniforms } from './mirror';
+import { WATER_SHADOW_COMMON, WATER_SHADOW_LAMBERT, waterShadowUniforms } from '../render/paper-material';
 
 const SIZE = 280;
 
@@ -123,6 +124,7 @@ export class SeaSurface {
       uDist: { value: null },
       uDistInfo: { value: new THREE.Vector3(0, 0, 1) },
       ...mirrorUniforms(),
+      ...waterShadowUniforms,
     };
     const uniforms = this.uniforms;
     material.onBeforeCompile = (shader) => {
@@ -131,14 +133,15 @@ export class SeaSurface {
         .replace('#include <common>', '#include <common>\nvarying vec3 vSeaPos;')
         .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSeaPos = (modelMatrix * vec4(position, 1.0)).xyz;');
       shader.fragmentShader = shader.fragmentShader
-        .replace('#include <common>', `#include <common>\n${WATER_GLSL}\n${MIRROR_GLSL}\n${SEA_GLSL}`)
+        .replace('#include <common>', `#include <common>\n${WATER_SHADOW_COMMON}\n${WATER_GLSL}\n${MIRROR_GLSL}\n${SEA_GLSL}`)
+        .replace('#include <lights_lambert_pars_fragment>', WATER_SHADOW_LAMBERT)
         .replace('#include <color_fragment>', `#include <color_fragment>
 diffuseColor.rgb *= seaColour(vSeaPos.xz);
 ${MIRROR_APPLY.colour}`)
         .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
 ${MIRROR_APPLY.emissive}`);
     };
-    material.customProgramCacheKey = () => 'sea-v7';
+    material.customProgramCacheKey = () => 'sea-v8';
     this.mesh = new THREE.Mesh(geometry, material);
     this.mesh.receiveShadow = true;
     this.mesh.renderOrder = -1;

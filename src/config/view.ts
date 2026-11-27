@@ -54,6 +54,13 @@ export const VIEWS: ReadonlyArray<{ name: string; distance?: number; pitchDeg?: 
   { name: 'postcard', distance: 9.6, pitchDeg: 30, fov: 30, screenUp: 0.55, yawDeg: 26, reach: 0.5 },
 ];
 
+/** A view's distance, by its name in VIEWS (one that has a distance: a missing one is a bug, it throws). */
+function viewDistance(name: string): number {
+  const d = VIEWS.find((v) => v.name === name)?.distance;
+  if (d === undefined) throw new Error(`no view "${name}" with a distance`);
+  return d;
+}
+
 /**
  * A clear day: a warm key from screen-left, 45 degrees up and a little toward the camera, so shadows fall sideways and
  * behind where they are seen; a warm frontal fill from the camera side at ~0.27 of it (camera-facing cards never go
@@ -171,13 +178,14 @@ export const POST = {
   sharpen: 0.35,
   /**
    * Darker die-cut edge on depth silhouettes: strength, inner ring radius (px at 900 px frame height; the outer ring is
-   * 1.55 x), colour multiplier. In a close frame (the focus nearer than rimClose.within, world units) the rings are
-   * rimClose.widen x wider.
+   * 1.55 x), colour multiplier. In a close frame the rings widen, smoothly, from 1 x with the focus rimClose.from away
+   * (world units: the postcard view) to rimClose.widen x at rimClose.to (the low view) and nearer, so a change of view
+   * never makes them jump.
    */
   rim: 0.8,
   rimPx: 0.9,
   rimColor: '#c2aa94',
-  rimClose: { within: 9, widen: 1.5 },
+  rimClose: { from: viewDistance('postcard'), to: viewDistance('low'), widen: 1.5 },
 } as const;
 
 /**

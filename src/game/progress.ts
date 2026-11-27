@@ -5,16 +5,11 @@
  */
 import { bus } from '../core/events';
 import type { World } from '../world/world';
-import { coastName, islandName } from '../world/island-names';
-import { hash2 } from '../core/rng';
-import type { IslandKind } from '../world/island-layout';
-import { WORLD } from '../config/world';
+import { PLACE_REACH, placeAt } from '../world/island-names';
 import { forget, isNumber, isNumberArray, isRecord, isString, loadJson, saveJson } from '../core/storage';
 
-/** World hashes are salted with the voyage seed: every voyage places its own villages, ruins, chests... */
-const SEED = WORLD.seed;
-
-const STORAGE_KEY = 'paper-seas:progress:v2';
+/** Its storage key (v3: the world of every seed changed with core/rng.ts hash2, so older places are of another world). */
+const STORAGE_KEY = 'paper-seas:progress:v3';
 
 /**
  * What is kept of the voyage: lands and treasures found (ids), named places [id, name, x, z], dig spots [name, x, z].
@@ -36,10 +31,6 @@ const isKept = (v: unknown): v is Kept =>
   (v.spots === undefined || (Array.isArray(v.spots) && v.spots.every(isSpot)));
 /** The ship collects a treasure when its centre comes this close to the chest. */
 const TREASURE_REACH = 2.7;
-/** A coast counts as discovered when the ship sails this close to it. */
-const DISCOVER_REACH = 3.5;
-/** Continents are named per region of this size. */
-const REGION = 48;
 
 export class Progress {
   readonly discovered = new Set<number>();
@@ -83,21 +74,8 @@ export class Progress {
     this.checkTimer -= dt;
     if (this.checkTimer > 0) return;
     this.checkTimer = 0.4;
-    if (world.land.distance(x, z) > DISCOVER_REACH) return;
-    const island = world.land.islandsNear(x, z, DISCOVER_REACH)[0];
-    let id: number;
-    let name: string;
-    if (island) {
-      id = island.id;
-      name = islandName(island.kind, island.seed);
-    } else {
-      const ri = Math.floor(x / REGION);
-      const rj = Math.floor(z / REGION);
-      id = -((hash2((61) ^ SEED, ri, rj) >>> 1) + 1);
-      const biome = world.land.biome(x, z, -3);
-      const k: IslandKind = biome === 'jungle' ? 'jungle' : biome === 'pine' || biome === 'rocky' ? 'rocky' : biome === 'meadow' ? 'village' : 'tropical';
-      name = coastName(k, hash2((67) ^ SEED, ri, rj));
-    }
+    if (world.land.distance(x, z) > PLACE_REACH) return;
+    const { id, name, island } = placeAt(world.land, x, z, PLACE_REACH);
     if (this.discovered.has(id)) return;
     this.discovered.add(id);
     // label the land a little inland from where the ship first saw it

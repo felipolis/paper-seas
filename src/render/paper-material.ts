@@ -57,6 +57,13 @@ const BOOK = {
 /** The captain (on foot) or the ship, round which the book is painted. */
 const pageFocus = { value: new THREE.Vector2() };
 
+/**
+ * 1 while the mirror pass draws (render/reflection.ts). Its target is not multisampled, so the die cut's coverage
+ * stays in the alpha: the cut then writes its colour times that coverage, as blended pieces leave theirs, and the
+ * water reads one premultiplied image (sea/mirror.ts divides by the alpha).
+ */
+export const mirrorPass = { value: 0 };
+
 /** Where the book is painted round, every frame. */
 export function setPageFocus(x: number, z: number): void {
   pageFocus.value.set(x, z);
@@ -138,13 +145,23 @@ export const paperLighting: PaperLighting = {
   uPaperCloud: { value: PAPER.cloud },
 };
 
+/** The line of three's Lambert chunk the paper's and the water's lighting take the place of. */
+const LAMBERT_LINE =
+  'float dotNL = saturate( dot( geometryNormal, directLight.direction ) );\n\tvec3 irradiance = dotNL * directLight.color;';
+/**
+ * The key's light in its own shadow, for the paper and the water: the stock grey the shadow filter left (lightOpen: the
+ * light as if unshadowed) gives way to the warm light leaking in (uPaperShadowLeak), into lightC.
+ */
+const SHADOW_LEAK = /* glsl */ `lightOpen = directLight.color / mix( ${SHADOW.stockLeak.toFixed(4)}, 1.0, gShadowLit );
+		lightC = lightOpen * mix( uPaperShadowLeak, vec3( 1.0 ), gShadowLit );`;
+
 /**
  * Lambert direct lighting with wrap diffuse and back-lit translucency: in the key light's shadow a warm light leaks in
  * instead of the stock grey, and thin card glows from behind only where it is lit through (a card shaded by another
  * card does not), from the lit fractions the PCSS left (render/shadows.ts).
  */
 const PAPER_LAMBERT = THREE.ShaderChunk.lights_lambert_pars_fragment.replace(
-  'float dotNL = saturate( dot( geometryNormal, directLight.direction ) );\n\tvec3 irradiance = dotNL * directLight.color;',
+  LAMBERT_LINE,
   `float nl = dot( geometryNormal, directLight.direction );
 	float wrap = mix( uPaperWrap, uPaperPointWrap, gPaperPoint );
 	float dotNL = saturate( ( nl + wrap ) / ( 1.0 + wrap ) );
@@ -153,8 +170,7 @@ const PAPER_LAMBERT = THREE.ShaderChunk.lights_lambert_pars_fragment.replace(
 	float litThin = 1.0;
 	#if defined( USE_SHADOWMAP ) && defined( SHADOWMAP_TYPE_BASIC )
 	if ( gShadowSet ) {
-		lightOpen = directLight.color / mix( ${SHADOW.stockLeak.toFixed(4)}, 1.0, gShadowLit );
-		lightC = lightOpen * mix( uPaperShadowLeak, vec3( 1.0 ), gShadowLit );
+		${SHADOW_LEAK}
 		litThin = gShadowLitThin;
 		gShadowSet = false;
 	}
@@ -166,6 +182,32 @@ const PAPER_LAMBERT = THREE.ShaderChunk.lights_lambert_pars_fragment.replace(
 if (PAPER_LAMBERT === THREE.ShaderChunk.lights_lambert_pars_fragment) {
   console.warn('paper-material: Lambert chunk changed, paper lighting not applied');
 }
+
+/**
+ * The key's shadow on the water (the sea, the streams and the ponds: render/sea-surface.ts, world/stream-mesh.ts),
+ * as on the paper: the same warm light leaks into it (uPaperShadowLeak), not the stock grey, so a shadow keeps its
+ * colour from the sand onto the water. WATER_SHADOW_COMMON goes into the fragment's common chunk, WATER_SHADOW_LAMBERT
+ * in place of its Lambert chunk; the material takes waterShadowUniforms.
+ */
+export const WATER_SHADOW_COMMON = /* glsl */ `${SHADOW_GLOBALS}
+uniform vec3 uPaperShadowLeak;`;
+export const WATER_SHADOW_LAMBERT = THREE.ShaderChunk.lights_lambert_pars_fragment.replace(
+  LAMBERT_LINE,
+  `float dotNL = saturate( dot( geometryNormal, directLight.direction ) );
+	vec3 lightC = directLight.color;
+	vec3 lightOpen = directLight.color;
+	#if defined( USE_SHADOWMAP ) && defined( SHADOWMAP_TYPE_BASIC )
+	if ( gShadowSet ) {
+		${SHADOW_LEAK}
+		gShadowSet = false;
+	}
+	#endif
+	vec3 irradiance = dotNL * lightC;`,
+);
+if (WATER_SHADOW_LAMBERT === THREE.ShaderChunk.lights_lambert_pars_fragment) {
+  console.warn('paper-material: Lambert chunk changed, the water keeps the stock shadow');
+}
+export const waterShadowUniforms = { uPaperShadowLeak: paperLighting.uPaperShadowLeak };
 
 /** The lighting knows which kind of light it is adding (point lights wrap wider). */
 const PAPER_LIGHTS_BEGIN = THREE.ShaderChunk.lights_fragment_begin
@@ -201,6 +243,7 @@ export function createPaperMaterial(o: PaperOptions = {}): THREE.MeshLambertMate
     uPaperFibreScale: { value: 1 / CARDSTOCK.tile },
     uPaperRelief: { value: CARDSTOCK.relief },
     uPageFocus: pageFocus,
+    uPaperMirrorPass: mirrorPass,
   };
   // (a function, not an arrow: called on each copy of the material too (paperCopy), with its own flatness)
   mat.onBeforeCompile = function (this: THREE.Material, shader) {
@@ -216,9 +259,10 @@ export function createPaperMaterial(o: PaperOptions = {}): THREE.MeshLambertMate
       .replace('#include <alphatest_fragment>', FRAG_CUT)
       .replace('#include <normal_fragment_maps>', FRAG_NORMAL)
       .replace('#include <lights_fragment_begin>', PAPER_LIGHTS_BEGIN)
-      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${FRAG_POOL}`);
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${FRAG_POOL}`)
+      .replace('#include <dithering_fragment>', FRAG_MIRROR_CUT);
   };
-  mat.customProgramCacheKey = () => 'paper-v9';
+  mat.customProgramCacheKey = () => 'paper-v10';
   return mat;
 }
 
@@ -288,6 +332,7 @@ if ( uPaperPoolCol.w > 0.0 ) {
 
 const FRAG_COMMON = /* glsl */ `#include <common>
 ${SHADOW_GLOBALS}
+uniform float uPaperMirrorPass;
 varying vec3 vPaperPos;
 varying vec3 vPaperWorld;
 uniform vec4 uPaperPool[ ${POOL_COUNT} ];
@@ -392,6 +437,12 @@ const FRAG_CUT = /* glsl */ `
   #else
   if ( diffuseColor.a < alphaTest ) discard;
   #endif
+#endif`;
+
+/** In the mirror pass the die cut's colour is premultiplied by its coverage (see mirrorPass). */
+const FRAG_MIRROR_CUT = /* glsl */ `#include <dithering_fragment>
+#ifdef ALPHA_TO_COVERAGE
+  gl_FragColor.rgb *= mix( 1.0, gl_FragColor.a, uPaperMirrorPass );
 #endif`;
 
 /** The fibre's relief, its fine octave and the creases, on a tangent frame from screen derivatives of the fibre uv. */

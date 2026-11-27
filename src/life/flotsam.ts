@@ -19,7 +19,8 @@ const CELL = 8;
 const CHANCE = 0.3;
 const SPAWN_RADIUS = 20;
 const PICKUP_RADIUS = 1.3;
-const STORAGE_KEY = 'paper-seas:bottles:v1';
+/** Its storage key (v2: the world of every seed changed with core/rng.ts hash2). */
+const STORAGE_KEY = 'paper-seas:bottles:v2';
 
 const KINDS: ReadonlyArray<{ sprite: string; height: number; weight: number }> = [
   { sprite: 'barrel-float', height: 0.42, weight: 0.26 },

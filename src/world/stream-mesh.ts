@@ -20,6 +20,7 @@ import * as THREE from 'three';
 import { WATER_GLSL, waterUniforms } from '../sea/water';
 import { MIRROR_APPLY, MIRROR_GLSL, mirrorUniforms } from '../sea/mirror';
 import { mirrorSkip } from '../render/reflection';
+import { WATER_SHADOW_COMMON, WATER_SHADOW_LAMBERT, waterShadowUniforms } from '../render/paper-material';
 import { WATER_ROWS, WATER_TONES, waterPalettes, waterRow } from '../render/biome-tint';
 import { LAND_TOP, type Biome } from './land';
 import { Streams, type Stream } from './streams';
@@ -55,7 +56,7 @@ function streamMaterial(still = false): THREE.MeshLambertMaterial {
   const known = materials[kind];
   if (known) return known;
   const m = new THREE.MeshLambertMaterial({ color: '#ffffff', polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, alphaToCoverage: true, alphaTest: 0.02 });
-  const uniforms = (shared ??= { ...waterUniforms(), ...mirrorUniforms(), uRiverPal: { value: waterPalettes() } });
+  const uniforms = (shared ??= { ...waterUniforms(), ...mirrorUniforms(), ...waterShadowUniforms, uRiverPal: { value: waterPalettes() } });
   if (still) m.defines = { RIVER_STILL: '' };
   m.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
@@ -63,11 +64,12 @@ function streamMaterial(still = false): THREE.MeshLambertMaterial {
       .replace('#include <common>', `#include <common>\nattribute vec3 aRiver;\nattribute ${MIX_VEC} aRiverMix;\nvarying vec3 vRiver;\nvarying ${MIX_VEC} vRiverMix;\nvarying vec3 vRiverPos;`)
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvRiver = aRiver;\nvRiverMix = aRiverMix;\nvRiverPos = (modelMatrix * vec4(position, 1.0)).xyz;');
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\n${WATER_GLSL}\n${MIRROR_GLSL}\n${RIVER_GLSL}`)
+      .replace('#include <common>', `#include <common>\n${WATER_SHADOW_COMMON}\n${WATER_GLSL}\n${MIRROR_GLSL}\n${RIVER_GLSL}`)
+      .replace('#include <lights_lambert_pars_fragment>', WATER_SHADOW_LAMBERT)
       .replace('#include <color_fragment>', `#include <color_fragment>\ndiffuseColor.rgb *= riverColour();\ndiffuseColor.a = gRiverCover;\n${MIRROR_APPLY.colour}`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${MIRROR_APPLY.emissive}`);
   };
-  m.customProgramCacheKey = () => (still ? 'pond-v1' : 'river-v5');
+  m.customProgramCacheKey = () => (still ? 'pond-v2' : 'river-v6');
   // (it lies on the land's tops, which never show in the sea: render/reflection.ts)
   mirrorSkip.add(m);
   materials[kind] = m;

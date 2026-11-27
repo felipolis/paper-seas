@@ -62,11 +62,14 @@ export async function checkWorld(): Promise<WorldReport> {
   // the places: settlements with roads, then a couple of wild spots well inland
   const places: Pt[] = [];
   for (const s of P.sitesNear(0, 0, 500)) {
-    // (a layout whose ground reaches further than LAYOUT_REACH would hide from the searches that rely on it)
+    if (places.length >= 4) break;
+    if (s.kind !== 'ruins' && P.roadsOf(s).length) places.push([s.x, s.z]);
+  }
+  // (a layout whose ground reaches further than LAYOUT_REACH would hide from the searches that rely on it: the sites
+  // round the places checked, whose layouts the visits lay out anyway)
+  for (const s of new Set(places.flatMap(([px, pz]) => P.sitesNear(px, pz, 2 * LAYOUT_REACH)))) {
     const reach = Math.max(...P.layout(s).claims.map(([x, z, r]) => Math.hypot(x - s.x, z - s.z) + r));
     if (reach > LAYOUT_REACH) add('reach', s.x, s.z, `a ${s.kind} whose ground reaches ${reach.toFixed(1)}, past ${LAYOUT_REACH}`);
-    if (places.length >= 4) continue;
-    if (s.kind !== 'ruins' && P.roadsOf(s).length) places.push([s.x, s.z]);
   }
   for (let k = 0; k < 4000 && places.length < 6; k++) {
     const x = (rand() - 0.5) * 800;

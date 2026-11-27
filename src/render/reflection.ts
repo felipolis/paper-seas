@@ -10,6 +10,7 @@
  * never show in the sea, and they are most of the pixels the mirror would otherwise shade.
  */
 import * as THREE from 'three';
+import { mirrorPass } from './paper-material';
 
 /** Materials never drawn in the mirror (see above). */
 export const mirrorSkip = new Set<THREE.Material>();
@@ -69,7 +70,9 @@ export class Reflection {
     scene.background = null;
     renderer.setClearColor(0x000000, 0);
     renderer.setRenderTarget(this.target);
+    mirrorPass.value = 1;
     renderer.render(scene, cam);
+    mirrorPass.value = 0;
     renderer.setRenderTarget(null);
     renderer.setClearColor(oldClear, oldAlpha);
     scene.background = oldBg;

@@ -26,7 +26,7 @@ import { plantCover, plantShallows, type CoverEnv } from './cover';
 import { addContact, edgeWallUV, groundData, groundMaterial, landEdgeMaterial, pathTones, type Footprint } from './ground-shader';
 import { pondWater, streamRibbons } from './stream-mesh';
 import { lilyPads } from './lily-pads';
-import { pondRadius, type Pond } from './ponds';
+import { POND_FRONT, pondRadius, type Pond } from './ponds';
 import type { Chimney } from '../life/smoke';
 import { ROAD_WIDTH, junctionsOf, onRoad } from './roads';
 import { Streams } from './streams';
@@ -36,7 +36,7 @@ import { polylineDistance, type Box, type Pt } from '../core/polyline';
 import { hasTag, heightOf, sheetOf } from '../config/flora';
 import { modelSheet, type ModelRole } from '../config/models';
 import { CROSS_PLANES, riseOrder, type Card, type CardField, type CardSpec, type SetDown } from './card-field';
-import { islandName } from './island-names';
+import { PLACE_REACH, placeAt } from './island-names';
 import { buildModel, modelFoot, modelInfo, type Building, type ModelInfo } from './models';
 import type { IslandSpec } from './island-layout';
 import { CHUNK, WORLD } from '../config/world';
@@ -46,8 +46,12 @@ import { ClearanceField, REACH } from './clearance';
 
 /** World hashes are salted with the voyage seed: every voyage places its own villages, ruins, chests... */
 const SEED = WORLD.seed;
-/** The chest roll's own salt (each roll its own: one shared with the lighthouse's put a chest by every lighthouse). */
-const CHEST_SALT = 97;
+/**
+ * The chest roll's own salt and its id's (each roll its own: one shared with the lighthouse's put a chest by every
+ * lighthouse).
+ */
+const CHEST_SALT = 107;
+const CHEST_ID_SALT = 109;
 
 
 /**
@@ -74,6 +78,13 @@ export function trueDistance(a: Float32Array, w: number, cell: number): Float32A
   return out;
 }
 const CELL = 0.225; // 80 cells per chunk, aligned to the world
+
+/** trueDistance at one point, its gradient taken over a grid cell either way (the same wherever chunks are loaded). */
+function trueDistanceAt(land: LandField, x: number, z: number): number {
+  const gx = (land.distance(x + CELL, z) - land.distance(x - CELL, z)) / (2 * CELL);
+  const gz = (land.distance(x, z + CELL) - land.distance(x, z - CELL)) / (2 * CELL);
+  return land.distance(x, z) / Math.max(0.05, Math.hypot(gx, gz));
+}
 const PPU = 44; // ground print resolution (pixels per world unit)
 /** Nodes per chunk side of the grid the ground tint is blended over. */
 const TINT_GRID = 8;
@@ -299,12 +310,12 @@ const FOLDED_SIGHT = 30;
  * chance), and stands one where the shore distance lies between dMin and dMax.
  */
 const COAST_TOWERS = [
-  { name: 'lighthouse', salt: 47, chance: 0.05, dMin: -1.4, dMax: -0.75 },
-  { name: 'fort', salt: 53, chance: 0.07, dMin: -2.8, dMax: -1.3 },
+  { name: 'lighthouse', salt: 131, chance: 0.05, dMin: -1.4, dMax: -0.75 },
+  { name: 'fort', salt: 137, chance: 0.07, dMin: -2.8, dMax: -1.3 },
 ] as const;
 /**
  * The signature landmarks of a stamped island, by its kind: each a sprite or a model and the height it is planted at
- * (a model keeps its own size); the ground kept clear round a model landmark (LANDMARK_YARD).
+ * (a model keeps its own size).
  */
 const LANDMARKS: Partial<Record<IslandSpec['kind'], ReadonlyArray<readonly [string, number]>>> = {
   skull: [['skull-rock', 1.55], ['flag-pole', 1.05]],
@@ -314,7 +325,6 @@ const LANDMARKS: Partial<Record<IslandSpec['kind'], ReadonlyArray<readonly [stri
   village: [['tavern', 1.3], ['cottage', 1.1]],
   jungle: [['waterfall', 1.4]],
 };
-const LANDMARK_YARD = 1.2;
 /** What is built without a contact patch: a landform is ground itself, a deck stands over the water. */
 const BARE = new Set<ModelRole>(['landform', 'deck']);
 
@@ -352,8 +362,6 @@ const REAR_PATH = 0.12;
  * a duck floats on it and a frog or a heron waits at its edge.
  */
 const POND_CLAIM = 1.35;
-/** The ground kept clear in front of a pond: how far toward the camera (share of its radius), and how wide. */
-const POND_FRONT = [1.6, 1.1] as const;
 const POND_REEDS: [number, number] = [2, 3];
 const POND_DUCK = 0.6;
 const POND_BANK_ANIMAL = 0.4;
@@ -972,9 +980,10 @@ export class Terrain {
       // (a land card never hangs over the water: both ends of its base, on every plane, stand on the land)
       // the true shore distance, the one the feet read (distanceAt), with the shore where the ground print has it (the
       // print, and most of the checks below, read the raw estimate, dist, that it is made from): this chunk's own grid,
-      // and past its edge the neighbouring chunk's (a village or a landmark may reach beyond the chunk that builds it)
+      // and past its edge the same worked out from the land field (a village's house may reach beyond the chunk that
+      // builds it; never the neighbouring chunk's grid, which is there or not by the route sailed)
       const inGrid = (x: number, z: number) => x >= gx0 && x <= gx0 + n * CELL && z >= gz0 && z <= gz0 + n * CELL;
-      const shoreAt = (x: number, z: number) => (inGrid(x, z) ? sampleAt(shore, x, z) : this.distanceAt(x, z));
+      const shoreAt = (x: number, z: number) => (inGrid(x, z) ? sampleAt(shore, x, z) : trueDistanceAt(land, x, z));
       const onLand = (sprite: string, x: number, z: number, height: number, yaw: number, cross: boolean) => {
         const half = cardWidth(sprite, height) / 2;
         for (const a of cross ? CROSS_PLANES.map((p) => yaw + p) : [yaw]) {
@@ -1022,6 +1031,8 @@ export class Terrain {
       // whatever spans chunks and reaches this square keeps its ground clear; what stands in it is built further down
       const inBox = ([x, z]: Pt) => x >= box[0] && x <= box[2] && z >= box[1] && z <= box[3];
       const own = (x: number, z: number) => x >= x0 && x < x1 && z >= z0 && z < z1;
+      // (a piece this chunk alone places reaches no further than its square: the next square never learns of it)
+      const inside = (x: number, z: number, r: number) => x - r >= x0 && x + r <= x1 && z - r >= z0 && z + r <= z1;
       const claimLine = (pts: readonly Pt[], r: (k: number) => number) => {
         pts.forEach((p, k) => {
           if (inBox(p)) taken.push([p[0], p[1], r(k)]);
@@ -1069,13 +1080,18 @@ export class Terrain {
           const solid = (name: string) => {
             const info = modelInfo(name)!;
             const foot = Math.max(info.width, info.depth) * 0.5;
+            // (moved in from the square's edge as far as its whole footprint needs: the next square never learns of
+            // what this one stands, so nothing may reach into it)
+            const reach = footOf(info);
+            const mx = clamp(x, x0 + reach, x1 - reach);
+            const mz = clamp(z, z0 + reach, z1 - reach);
             // (mountains keep apart: a range of single ridges with ground between them, never a wall)
-            if (!free(x, z, foot * 1.4)) return false;
+            if (!free(mx, mz, foot * 1.4)) return false;
             const yaw = (rng() - 0.5) * 0.35;
-            if (!footOnLand(name, x, z, yaw)) return false;
-            taken.push([x, z, foot]);
-            this.addBuilding(chunk, name, x, heightAt(x, z), z, yaw);
-            yards.push([x, z, foot + 0.3]);
+            if (!footOnLand(name, mx, mz, yaw)) return false;
+            taken.push([mx, mz, foot]);
+            this.addBuilding(chunk, name, mx, heightAt(mx, mz), mz, yaw);
+            yards.push([mx, mz, foot + 0.3]);
             return true;
           };
           const b = land.biome(x, z);
@@ -1249,11 +1265,11 @@ export class Terrain {
       // signature landmarks of stamped islands whose centre lies in this chunk
       for (const s of land.islandsNear((x0 + x1) / 2, (z0 + z1) / 2, CHUNK)) {
         if (s.x < x0 || s.x >= x1 || s.z < z0 || s.z >= z1) continue;
-        this.landmark(s, add, shoreAt, taken, free, rng, (name, x, z) => {
+        this.landmark(s, add, shoreAt, taken, free, inside, rng, (name, x, z) => {
           const yaw = (rng() - 0.5) * 0.8;
           if (!footOnLand(name, x, z, yaw)) return false;
           this.addBuilding(chunk, name, x, heightAt(x, z), z, yaw);
-          yards.push([x, z, LANDMARK_YARD]);
+          yards.push([x, z, footOf(modelInfo(name)!) + YARD]);
           return true;
         });
       }
@@ -1291,7 +1307,7 @@ export class Terrain {
       chunk.cards.push(...cards);
       if (chestAt >= 0) {
         const card = cards[chestAt];
-        const chest: Chest = { id: hash2((53) ^ SEED, i, j), card, name: this.coastName(card.x, card.z) };
+        const chest: Chest = { id: hash2(CHEST_ID_SALT ^ SEED, i, j), card, name: placeAt(land, card.x, card.z, PLACE_REACH).name };
         chunk.chests.push(chest);
         this.chests.set(chest.id, chest);
       }
@@ -1328,20 +1344,16 @@ export class Terrain {
     if (rng() < POND_BANK_ANIMAL) add(rng() < 0.6 ? 'frog' : 'heron', ...bank(rng() * Math.PI * 2, 0.2));
   }
 
-  /** A fitting name for a coast (used by treasure messages). */
-  private coastName(x: number, z: number): string {
-    const kinds = ['tropical', 'jungle', 'rocky', 'village', 'ruins'] as const;
-    const h = hash2((59) ^ SEED, Math.floor(x / 40), Math.floor(z / 40));
-    return islandName(kinds[h % kinds.length], h);
-  }
-
+  /** The signature landmarks of a stamped island (LANDMARKS), each where it fits inside this chunk, on the land. */
   private landmark(
     s: IslandSpec,
     add: (sprite: string, x: number, z: number, height: number, flip?: boolean, yawJitter?: number) => void,
-    /** The drawn shore distance (past this chunk's own grid too: a landmark may stand beyond its centre's chunk). */
+    /** The drawn shore distance (this chunk's grid, and past it the land field's: a landmark keeps inside the chunk). */
     shoreAt: (x: number, z: number) => number,
     taken: Array<[number, number, number]>,
     free: (x: number, z: number, r: number) => boolean,
+    /** Whether a piece of this footprint radius at (x, z) stays inside this chunk's square. */
+    inside: (x: number, z: number, r: number) => boolean,
     rng: () => number,
     /** Stands a model there, unless its base would reach the sea (false). */
     place: (name: string, x: number, z: number) => boolean,
@@ -1350,11 +1362,14 @@ export class Terrain {
       for (let a = 0; a < 30; a++) {
         const x = s.x + (rng() - 0.5) * s.shape.extent;
         const z = s.z + (rng() - 0.5) * s.shape.extent - 0.5;
-        if (shoreAt(x, z) > -Math.max(0.6, h * 0.35) || !free(x, z, h * 0.5)) continue;
-        if (modelInfo(sprite)) {
+        // (a model holds its whole footprint, a card about half its height round it)
+        const info = modelInfo(sprite);
+        const room = info ? footOf(info) : h * 0.5;
+        if (!inside(x, z, room) || shoreAt(x, z) > -Math.max(0.6, h * 0.35) || !free(x, z, room)) continue;
+        if (info) {
           if (!place(sprite, x, z)) continue;
         } else add(sprite, x, z, h, rng() < 0.5, 5);
-        taken.push([x, z, h * 0.5]);
+        taken.push([x, z, room]);
         break;
       }
     }

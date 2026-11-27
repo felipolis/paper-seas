@@ -21,7 +21,8 @@ export const CELL = 4;
 /** Tile resolution (pixels per cell side). */
 export const TILE_PX = 24;
 const SIGHT = 15;
-const STORAGE_KEY = 'paper-seas:explored:v1';
+/** Its storage key (v2: the world of every seed changed with core/rng.ts hash2, so older charts are of another world). */
+const STORAGE_KEY = 'paper-seas:explored:v2';
 
 /** What is kept of the exploration: the explored cells (their keys) and the track, x and z in turn. */
 interface Explored {

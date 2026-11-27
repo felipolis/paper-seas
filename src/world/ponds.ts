@@ -16,11 +16,19 @@ const TRIES = 10;
 const RADIUS: [number, number] = [0.75, 1.15];
 /** The shore wobble: the two waves' largest share of the radius. */
 const WOBBLE = [0.12, 0.08];
-/** Kept this far (beyond its rim) inland, and from a stream, a road and a village. */
+/**
+ * Kept this far (beyond its rim) inland, and from a stream and a road; and this far beyond its widest rim from the
+ * ground a village's layout holds (its houses, props, piers, pens, lanes and street).
+ */
 const INLAND = 2;
 const STREAM_CLEAR = 2.5;
 const ROAD_CLEAR = 1.2;
-const SITE_CLEAR = 6;
+const LAYOUT_CLEAR = 1;
+/**
+ * The ground kept clear in front of a pond (world/terrain.ts claims it, and a village's layout keeps out of it too): how
+ * far toward the camera (share of its radius), and how wide.
+ */
+export const POND_FRONT = [1.6, 1.1] as const;
 /** The biomes ponds lie in. */
 const BIOMES = new Set(['meadow', 'pine', 'jungle']);
 
@@ -33,11 +41,11 @@ export interface Pond {
   wave: [number, number, number, number];
 }
 
-/** What a pond keeps clear of: a stream / a road within r, a village near. */
+/** What a pond keeps clear of: a stream, a road, or the ground of a village's layout within r. */
 export interface PondAvoid {
   stream(x: number, z: number, r: number): boolean;
   road(x: number, z: number, r: number): boolean;
-  site(x: number, z: number, r: number): boolean;
+  layout(x: number, z: number, r: number): boolean;
 }
 
 /** The pond's radius toward angle a (radians from +x toward +z). */
@@ -67,7 +75,9 @@ export function pondIn(land: LandField, avoid: PondAvoid, i: number, j: number):
     const band = land.terraceAt(x, z, d);
     let level = band <= 1;
     for (let k = 0; k < 8 && level; k++) level = land.terraceAt(x + Math.cos(k * 0.785) * (r + 0.4), z + Math.sin(k * 0.785) * (r + 0.4)) === band;
-    if (!level || avoid.stream(x, z, r + STREAM_CLEAR) || avoid.road(x, z, r + ROAD_CLEAR) || avoid.site(x, z, SITE_CLEAR)) continue;
+    if (!level || avoid.stream(x, z, r + STREAM_CLEAR) || avoid.road(x, z, r + ROAD_CLEAR) || avoid.layout(x, z, r * (1 + WOBBLE[0] + WOBBLE[1]) + LAYOUT_CLEAR)) continue;
+    // (nor may a house stand on the stretch in front of it, between the eye and the water)
+    if (avoid.layout(x, z + r * POND_FRONT[0], r * POND_FRONT[1] + LAYOUT_CLEAR)) continue;
     return { id: hash2(SEED ^ 101, i, j), x, z, r, wave };
   }
   return null;

@@ -101,9 +101,13 @@ export class LifeFrame {
    */
   gate(kind: LifeKind, dx: number, dz: number, rank: number, w: number, d: number): number {
     const g = rankGate(this.c[kind] + this.gx[kind] * dx + this.gz[kind] * dz, rank);
-    if (g <= 0) return 0;
+    return g <= 0 ? 0 : g * this.edge(dx, dz, w, d);
+  }
+
+  /** 1 inside a w x d box round the focus, fading to 0 over its outer 14 %, for a piece at (dx, dz) off the focus. */
+  edge(dx: number, dz: number, w: number, d: number): number {
     const e = Math.max(Math.abs(dx) / (w * 0.5), Math.abs(dz) / (d * 0.5));
-    return g * (e < 0.86 ? 1 : Math.max(0, (1 - e) / 0.14));
+    return e < 0.86 ? 1 : Math.max(0, (1 - e) / 0.14);
   }
 
   /** Each kind's share at a point: the rows of the biomes round it, weighted by their (sharpened) shares there. */

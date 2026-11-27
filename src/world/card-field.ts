@@ -357,14 +357,14 @@ export class CardField {
     return this.lampList;
   }
 
-  /** The standing card nearest (x, z) within r whose sprite passes test (its foot), or null. */
+  /** The card nearest (x, z) within r whose sprite passes test (its foot), standing or still folded, or null. */
   nearest(x: number, z: number, r: number, test: (sprite: string) => boolean): Card | null {
     let best: Card | null = null;
     let bestD = r;
     for (let j = Math.floor((z - r) / FLAT_CELL); j <= Math.floor((z + r) / FLAT_CELL); j++) {
       for (let i = Math.floor((x - r) / FLAT_CELL); i <= Math.floor((x + r) / FLAT_CELL); i++) {
         for (const c of this.flats.get(cellKey(i, j)) ?? []) {
-          if (c.hidden || c.flap.p < 0.9 || !test(c.sprite)) continue;
+          if (c.hidden || !test(c.sprite)) continue;
           const d = Math.hypot(c.x - x, c.z - z);
           if (d < bestD) [best, bestD] = [c, d];
         }

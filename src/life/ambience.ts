@@ -10,13 +10,13 @@
  *   weather     rain and mist in the pine woods (weather.ts)
  *   flocks      birds crossing the view in a V, their shadows on the ground (flocks.ts)
  *
- * Leaves, petals and dust are pure functions of the clock, wrapped in a weather box round the focus; a kind comes in
- * and out by rank instead of all at once, and a piece fades out where it would come between the camera and the captain
- * or near the lens (the shared clear line). What falls or drifts keeps to the land.
+ * Leaves, petals and dust are pure functions of the clock, wrapped in a weather box round the focus, and the
+ * butterflies' and fireflies' homes are fixed points of that box's tiling; a kind comes in and out by rank instead of
+ * all at once, a piece fades over the box's edge, and where it would come between the camera and the captain or near
+ * the lens (the shared clear line). What falls or drifts keeps to the land.
  */
 import * as THREE from 'three';
 import { AMBIENT } from '../config/life';
-import { stream } from '../core/rng';
 import { createPaperMaterial } from '../render/paper-material';
 import { LAND_TOP, type Biome } from '../world/land';
 import type { ClearLine } from './clear-line';
@@ -25,10 +25,7 @@ import { Flocks } from './flocks';
 import { LifeFrame, randomTable } from './life-frame';
 import { Bits } from './paper-bits';
 import { Weather } from './weather';
-import { HALF_PI, rankGate, smoothstep, TAU, mixRange } from '../core/math';
-
-/** This module's seeded randomness (core/rng.ts stream). */
-const random = stream('ambience');
+import { HALF_PI, smoothstep, TAU, mixRange } from '../core/math';
 
 export interface AmbienceWorld {
   /** Signed distance to the coast (negative inland). */
@@ -40,18 +37,22 @@ export interface AmbienceWorld {
   biome: (x: number, z: number) => Biome;
 }
 
-/** A roamer (butterfly, firefly) loops round its home; r holds its own six random numbers. */
+/**
+ * A roamer (butterfly, firefly) loops round its home, a fixed point of the weather box's tiling: the copy of it nearest
+ * the focus (ti, tk: that copy's box, so the home is looked at again only once it wraps). bx, bz: that point; land:
+ * whether it lies over land, far enough from the coast (a roamer over the sea is not drawn); hx, hz: the home, moved
+ * onto what its kind seeks near that point, if any (water for a firefly, a flower for a butterfly); drawn: whether it
+ * was (it then flies whatever its rank).
+ */
 interface Roamer {
-  home: boolean;
+  ti: number;
+  tk: number;
+  bx: number;
+  bz: number;
+  land: boolean;
   hx: number;
   hz: number;
-  /**
-   * Its home was drawn to what its kind seeks (water for a firefly, a flower for a butterfly: it then flies whatever
-   * its rank), and whether its home was searched yet.
-   */
   drawn: boolean;
-  sought: boolean;
-  r: number[];
 }
 
 /** A faller kind (leaves, petals): its pool, its six random numbers per piece and what lies where each piece lands. */
@@ -70,7 +71,6 @@ const SEA = 2;
 
 /** A falling piece's cycle, this frame (fallers.ts). */
 const _piece: FallerCycle = { u: 0, tFall: 0, dx: 0, dz: 0 };
-const RADIUS = 9;
 const _m = new THREE.Matrix4();
 const _q = new THREE.Quaternion();
 const _s = new THREE.Vector3();
@@ -137,7 +137,7 @@ const glowTex = (inner: string, outer: string) =>
   });
 
 function roamers(n: number): Roamer[] {
-  return Array.from({ length: n }, () => ({ home: false, hx: 0, hz: 0, drawn: false, sought: false, r: Array.from({ length: 6 }, random) }));
+  return Array.from({ length: n }, () => ({ ti: NaN, tk: NaN, bx: 0, bz: 0, land: false, hx: 0, hz: 0, drawn: false }));
 }
 
 export class Ambience {
@@ -149,7 +149,9 @@ export class Ambience {
   private readonly wings: THREE.InstancedMesh;
   private readonly sparks: THREE.InstancedMesh;
   private readonly butterflies = roamers(AMBIENT.butterflies.count);
+  private readonly butterflyR = randomTable(AMBIENT.butterflies.count * 6, 0xb07f);
   private readonly fireflies = roamers(AMBIENT.fireflies.count);
+  private readonly fireflyR = randomTable(AMBIENT.fireflies.count * 6, 0xf1ef);
   private readonly fireColor = new THREE.Color(AMBIENT.fireflies.color);
   private readonly camQ = new THREE.Quaternion();
   private readonly weather: Weather;
@@ -205,18 +207,6 @@ export class Ambience {
     return mesh;
   }
 
-  /** A random point over land within radius of (fx, fz), at least `inland` from the coast, or null. */
-  private spot(fx: number, fz: number, inland: number, radius = RADIUS): [number, number] | null {
-    for (let a = 0; a < 6; a++) {
-      const r = Math.sqrt(random()) * radius;
-      const ang = random() * TAU;
-      const x = fx + Math.cos(ang) * r;
-      const z = fz + Math.sin(ang) * r;
-      if (this.world.distance(x, z) < -inland) return [x, z];
-    }
-    return null;
-  }
-
   private wet(x: number, z: number): boolean {
     return this.world.distance(x, z) > -0.05 || this.world.bank(x, z) < 0;
   }
@@ -228,8 +218,8 @@ export class Ambience {
 
     for (const k of this.fallers) this.fall(k);
     this.drift();
-    this.updateButterflies(dt);
-    this.updateFireflies(dt);
+    this.updateButterflies();
+    this.updateFireflies();
     this.weather.update(f);
     this.flocks.update(f);
   }
@@ -307,20 +297,28 @@ export class Ambience {
     this.dust.commit();
   }
 
-  /** (Re)homes a roamer that has none, or whose home the focus has left behind; false if it has no home. */
-  private rehome(o: Roamer, dt: number, inland: number): boolean {
+  /**
+   * Moves the roamer j's home to the copy of its point (R: its kind's random numbers) in the weather box's tiling
+   * nearest the focus. Only when that copy changes (the roamer has wrapped, over the box's edge, where it does not
+   * show) is the new one looked at: whether it lies over land at least `inland` from the coast. So a roamer keeps its
+   * place while the focus moves, as the dust does. True when it has moved over land (its kind's seeker then looks
+   * round it).
+   */
+  private rehome(o: Roamer, R: Float32Array, j: number, inland: number): boolean {
+    const { w: W, d: D } = AMBIENT.box;
     const { fx, fz } = this.frame;
-    if (o.home && Math.hypot(o.hx - fx, o.hz - fz) <= RADIUS + 2) return true;
-    o.home = false;
+    const px = R[j * 6] * W;
+    const pz = R[j * 6 + 1] * D;
+    const ti = Math.round((fx - px) / W);
+    const tk = Math.round((fz - pz) / D);
+    if (ti === o.ti && tk === o.tk) return false;
+    o.ti = ti;
+    o.tk = tk;
+    o.bx = o.hx = px + ti * W;
+    o.bz = o.hz = pz + tk * D;
     o.drawn = false;
-    o.sought = false;
-    // staggered, so a new stretch of land fills gradually
-    if (random() > dt * 1.5) return false;
-    const s = this.spot(fx, fz, inland);
-    if (!s) return false;
-    [o.hx, o.hz] = s;
-    o.home = true;
-    return true;
+    o.land = this.world.distance(o.bx, o.bz) < -inland;
+    return o.land;
   }
 
   /**
@@ -328,38 +326,39 @@ export class Ambience {
    * flowers within reach takes its home over them, keeps closer round them and comes out whatever its rank (up to the
    * `flowers` share), so they gather over the flowers.
    */
-  private updateButterflies(dt: number): void {
+  private updateButterflies(): void {
     const B = AMBIENT.butterflies;
-    const { t } = this.frame;
-    const amount = this.frame.share('butterflies');
-    for (let j = 0; j < this.butterflies.length; j++) {
+    const { w: W, d: D } = AMBIENT.box;
+    const f = this.frame;
+    const { t, fx, fz } = f;
+    const R = this.butterflyR;
+    const amount = f.share('butterflies');
+    for (let j = 0; j < B.count; j++) {
       const o = this.butterflies[j];
-      if (amount <= 0 || !this.rehome(o, dt, 1.2)) {
-        this.hideWings(j);
-        continue;
-      }
-      if (!o.sought) this.seekFlower(o);
-      let g = rankGate(amount, (j + 0.5) / B.count);
-      if (o.drawn) g = Math.max(g, B.flowers * smoothstep(0.02, 0.2, amount));
+      if (this.rehome(o, R, j, 1.2)) this.seekFlower(o);
+      const dx = o.bx - fx;
+      const dz = o.bz - fz;
+      let g = o.land ? f.gate('butterflies', dx, dz, (j + 0.5) / B.count, W, D) : 0;
+      if (o.land && o.drawn) g = Math.max(g, B.flowers * smoothstep(0.02, 0.2, amount) * f.edge(dx, dz, W, D));
       if (g <= 0) {
         this.hideWings(j);
         continue;
       }
-      const [, , r2, r3, r4, r5] = o.r;
-      const a = t * 0.45 + r2 * TAU;
-      const b = t * 0.31 + r3 * TAU;
+      const r = j * 6;
+      const a = t * 0.45 + R[r + 2] * TAU;
+      const b = t * 0.31 + R[r + 3] * TAU;
       const roam = o.drawn ? B.roam * B.flowerRoam : B.roam;
       const x = o.hx + roam * (Math.sin(a) + 0.4 * Math.sin(2.3 * b));
       const z = o.hz + roam * (Math.cos(1.2 * b) + 0.4 * Math.sin(1.7 * a));
       const vx = 0.45 * Math.cos(a) + 0.285 * Math.cos(2.3 * b);
       const vz = -0.372 * Math.sin(1.2 * b) + 0.306 * Math.cos(1.7 * a);
-      const y = mixRange(B.height, 0.5 + 0.5 * Math.sin(t * 0.8 + r4 * TAU)) + 0.04 * Math.sin(t * B.flap);
+      const y = mixRange(B.height, 0.5 + 0.5 * Math.sin(t * 0.8 + R[r + 4] * TAU)) + 0.04 * Math.sin(t * B.flap);
       const k = g * this.clearLine.k(x, y, z);
       if (k <= 0.01) {
         this.hideWings(j);
         continue;
       }
-      const flap = 0.1 + 1.05 * Math.abs(Math.sin(t * B.flap + r5 * TAU));
+      const flap = 0.1 + 1.05 * Math.abs(Math.sin(t * B.flap + R[r + 5] * TAU));
       _yaw.setFromAxisAngle(Y_AXIS, Math.atan2(vx, vz));
       _p.set(x, y, z);
       for (let side = 1; side >= -1; side -= 2) {
@@ -376,30 +375,33 @@ export class Ambience {
    * The fireflies: each loops slowly round its home and pulses (glow 3.6, a squared sine); one whose home has
    * water within reach moves over the bank and comes out whatever its rank, so they gather over streams and shores.
    */
-  private updateFireflies(dt: number): void {
+  private updateFireflies(): void {
     const F = AMBIENT.fireflies;
-    const { t, night } = this.frame;
-    const amount = this.frame.share('fireflies');
-    for (let j = 0; j < this.fireflies.length; j++) {
+    const { w: W, d: D } = AMBIENT.box;
+    const f = this.frame;
+    const { t, fx, fz, night } = f;
+    const R = this.fireflyR;
+    const amount = f.share('fireflies');
+    for (let j = 0; j < F.count; j++) {
       const o = this.fireflies[j];
-      if (night <= 0.01 || !this.rehome(o, dt, 0.3)) {
-        this.hideSpark(j);
-        continue;
-      }
-      if (!o.sought) this.seekWater(o);
-      let g = rankGate(amount, (j + 0.5) / F.count);
-      if (o.drawn) g = Math.max(g, F.water * smoothstep(0.02, 0.2, amount));
+      if (this.rehome(o, R, j, 0.3)) this.seekWater(o, R[j * 6]);
+      const dx = o.bx - fx;
+      const dz = o.bz - fz;
+      let g = o.land && night > 0.01 ? f.gate('fireflies', dx, dz, (j + 0.5) / F.count, W, D) : 0;
+      if (o.land && o.drawn && night > 0.01) g = Math.max(g, F.water * smoothstep(0.02, 0.2, amount) * f.edge(dx, dz, W, D));
       if (g <= 0) {
         this.hideSpark(j);
         continue;
       }
-      const [, , r2, r3, r4, r5] = o.r;
+      const r = j * 6;
+      const r2 = R[r + 2];
+      const r4 = R[r + 4];
       const a = t * 0.33 + r2 * TAU;
-      const b = t * 0.21 + r3 * TAU;
+      const b = t * 0.21 + R[r + 3] * TAU;
       const x = o.hx + F.roam * (Math.sin(a) + 0.5 * Math.sin(2.1 * b));
       const z = o.hz + F.roam * (Math.cos(1.3 * b) + 0.5 * Math.sin(1.6 * a));
       const y = mixRange(F.height, 0.5 + 0.5 * Math.sin(t * 0.4 + r2 * TAU));
-      let pulse = Math.sin(t * (0.9 + r4 * 0.9) + r5 * TAU);
+      let pulse = Math.sin(t * (0.9 + r4 * 0.9) + R[r + 5] * TAU);
       pulse = pulse > 0 ? pulse * pulse : 0;
       const glow = F.glow * g * this.clearLine.k(x, y, z) * (0.12 + 0.88 * pulse);
       _s.setScalar(F.size * (0.75 + 0.5 * r4));
@@ -410,12 +412,14 @@ export class Ambience {
     this.sparks.instanceColor!.needsUpdate = true;
   }
 
-  /** The spot search: rings of 8 out to 2.4 round the home; the first water found pulls the home 0.85 there. */
-  private seekWater(o: Roamer): void {
-    o.sought = true;
+  /**
+   * The spot search: rings of 8 out to 2.4 round the home, turned by `turn` (0..1: the firefly's first random number,
+   * the one that also places its home across the box); the first water found pulls the home 0.85 there.
+   */
+  private seekWater(o: Roamer, turn: number): void {
     for (let ri = 1; ri <= 3; ri++) {
       for (let k = 0; k < 8; k++) {
-        const a = (k + o.r[0] * 8 * 0.37) * (TAU / 8);
+        const a = (k + turn * 8 * 0.37) * (TAU / 8);
         const ox = Math.cos(a) * ri * 0.8;
         const oz = Math.sin(a) * ri * 0.8;
         if (this.wet(o.hx + ox, o.hz + oz)) {
@@ -430,7 +434,6 @@ export class Ambience {
 
   /** A butterfly's home moves onto the nearest flower within reach, if any (looked up once a home). */
   private seekFlower(o: Roamer): void {
-    o.sought = true;
     const f = this.world.flower(o.hx, o.hz, AMBIENT.butterflies.flowerReach);
     if (!f) return;
     [o.hx, o.hz] = f;

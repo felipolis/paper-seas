@@ -6,9 +6,9 @@
  */
 import { MAX_LINK, MAX_RUINS_LINK, ROUTE_PAD, onRoad, routeRoad, type Road } from './roads';
 import { CHUNK } from '../config/world';
-import { laidOutBefore, layoutOf, siteIn, type Layout, type Site } from './sites';
+import { LANE_WIDTH, STREET_WIDTH, laidOutBefore, layoutOf, siteIn, type Layout, type Site } from './sites';
 import { Streams } from './streams';
-import { overlaps, type Box } from '../core/polyline';
+import { overlaps, polylineDistance, type Box } from '../core/polyline';
 import type { LandField } from './land';
 import { cellKey } from '../core/grid';
 import { BoundedCache } from '../core/bounded-cache';
@@ -153,7 +153,7 @@ export class Places {
     return this.ponds.get(cellKey(i, j), () => pondIn(this.land, {
       stream: (x, z, r) => this.streams.waterAt(x, z, r),
       road: (x, z, r) => this.roadsNear([x - r, z - r, x + r, z + r]).some((road) => onRoad(road, x, z, r)),
-      site: (x, z, r) => this.sitesNear(x, z, r).length > 0,
+      layout: (x, z, r) => this.layoutsNear([x - r, z - r, x + r, z + r]).some((l) => layoutWithin(l, x, z, r)),
     }, i, j));
   }
 
@@ -180,4 +180,11 @@ export class Places {
       return routeRoad(this.land, lo, hi, others, streams);
     });
   }
+}
+
+/** True if the ground a layout holds (its claims, its lanes, its street) comes within r of (x, z). */
+function layoutWithin(l: Layout, x: number, z: number, r: number): boolean {
+  if (l.claims.some(([cx, cz, cr]) => Math.hypot(cx - x, cz - z) < cr + r)) return true;
+  if (l.lanes.some((lane) => polylineDistance(lane, x, z)[0] < r + LANE_WIDTH / 2)) return true;
+  return !!l.street && polylineDistance(l.street, x, z)[0] < r + STREET_WIDTH / 2;
 }

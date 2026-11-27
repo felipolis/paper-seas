@@ -5,8 +5,9 @@
  * The key light's stock uniforms carry what the filter needs (lights.ts): shadow.radius the world size of the shadow
  * map, shadow.bias the light size; the real depth bias is baked in here.
  *
- * The filter leaves the lit fraction in globals, so the paper's lighting (paper-material.ts) can let a warm light leak
- * into the shadow (light bounced off the cream page) and let thin card glow from behind only where it is truly lit.
+ * The filter leaves the lit fraction in globals, so the paper's lighting and the water's (paper-material.ts) can let a
+ * warm light leak into the shadow (light bounced off the cream page), and thin card glow from behind only where it is
+ * truly lit.
  */
 import * as THREE from 'three';
 
@@ -26,7 +27,10 @@ export const SHADOW = {
   far: 70,
   /** Blocker search and filter taps. */
   taps: [12, 20] as const,
-  /** What light non-paper materials keep in the shadow (paper gets a warm colour instead: paper-material.ts). */
+  /**
+   * What light the other materials keep in the shadow (the paper and the water get a warm colour instead:
+   * paper-material.ts).
+   */
   stockLeak: 0.05,
 };
 
@@ -44,7 +48,7 @@ bool gShadowSet = false;
 
 const PCSS = /* glsl */ `	#else // SHADOWMAP_TYPE_BASIC: the PCSS (render/shadows.ts)
 
-		// (the paper material declares these earlier, before its lighting reads them: SHADOW_GLOBALS)
+		// (the paper and the water declare these earlier, before their lighting reads them: SHADOW_GLOBALS)
 		#ifndef PAPER_SHADOW_GLOBALS
 		float gShadowLit = 1.0;
 		float gShadowLitThin = 1.0;

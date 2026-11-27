@@ -7,13 +7,20 @@
  */
 import { VOYAGE_SEED } from '../config/seed';
 
-/** 32-bit integer hash of (seed, a, b). */
+/**
+ * 32-bit integer hash of (seed, a, b): the seed, then a, then b mixed in one after another (each multiplied and
+ * folded before the next comes in), so no two cells share a value by a symmetry (mixing the three at once by xor gave
+ * (i, j) and (-i, -j) the same value whenever both were odd: mirrored islands and sites). Written out in one function:
+ * the noise calls it millions of times as the land is built.
+ */
 export function hash2(seed: number, a: number, b: number): number {
-  let h = Math.imul(seed | 0, 0x27d4eb2d) ^ Math.imul(a | 0, 0x85ebca6b) ^ Math.imul(b | 0, 0xc2b2ae35);
+  let h = Math.imul((seed | 0) ^ 0x9e3779b9, 0x85ebca6b);
   h ^= h >>> 15;
+  h = Math.imul(h ^ (a | 0), 0xc2b2ae35);
+  h ^= h >>> 13;
+  h = Math.imul(h ^ (b | 0), 0x27d4eb2d);
+  h ^= h >>> 16;
   h = Math.imul(h, 0x2c1b3c6d);
-  h ^= h >>> 12;
-  h = Math.imul(h, 0x297a2d39);
   h ^= h >>> 15;
   return h >>> 0;
 }

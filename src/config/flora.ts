@@ -18,7 +18,11 @@ import type { Biome } from '../world/land';
  */
 const STOCK = { tree: 0.86, reed: 0.8, bush: 1.22, cover: 1.3, prop: 1.15, base: 1 } as const;
 
-/** How a card rocks in the wind (world/wind.ts): loose (grass, ferns, palms), plain, stiff (posts, animals), rigid. */
+/**
+ * How a card rocks in the wind (world/wind.ts): loose (grass, ferns, small flowers, palms, hanging cloth), plain (trees,
+ * bushes, flowering plants, tents), stiff (posts, wooden props, huts and towers, animals), rigid (rock and stone, a
+ * well, a boat drawn up on the beach).
+ */
 export type WindClass = 'loose' | 'plain' | 'stiff' | 'rigid';
 
 /**
@@ -94,19 +98,19 @@ const SPRITES = {
   orchids: { height: [0.28, 0.34], stock: 'cover', wind: 'plain', passable: true, tags: ['flower'] },
   'flowers-yellow': { height: [0.22, 0.28], stock: 'cover', wind: 'loose', passable: true, tags: ['flower'] },
   'flowers-white': { height: [0.22, 0.28], stock: 'cover', wind: 'loose', passable: true, tags: ['flower'] },
-  'tuft-flowers': { height: [0.2, 0.26], stock: 'cover', wind: 'plain', passable: true, tags: ['flower', 'doubled'] },
+  'tuft-flowers': { height: [0.2, 0.26], stock: 'cover', wind: 'loose', passable: true, tags: ['flower', 'doubled'] },
   'bird-of-paradise': { height: [0.36, 0.44], stock: 'cover', wind: 'plain', passable: true, tags: ['flower'] },
   cattails: { height: [0.42, 0.52], stock: 'reed', wind: 'loose', passable: true, tags: ['doubled', 'keepsTint'] },
   papyrus: { height: [0.45, 0.55], stock: 'reed', wind: 'loose', passable: true, tags: ['doubled', 'keepsTint'] },
   // small props of the wild
-  stump: { height: [0.27, 0.3], stock: 'prop', wind: 'plain', tags: ['perch', 'keepsTint'] },
-  log: { height: [0.18, 0.22], stock: 'prop', wind: 'plain', tags: ['perch', 'keepsTint'] },
+  stump: { height: [0.27, 0.3], stock: 'prop', wind: 'stiff', tags: ['perch', 'keepsTint'] },
+  log: { height: [0.18, 0.22], stock: 'prop', wind: 'stiff', tags: ['perch', 'keepsTint'] },
   mushrooms: { height: [0.36, 0.4], stock: 'cover', wind: 'plain', passable: true },
-  coconuts: { height: [0.14, 0.18], stock: 'prop', wind: 'plain' },
-  shells: { height: [0.1, 0.12], stock: 'prop', wind: 'plain', passable: true },
-  pebbles: { height: [0.1, 0.13], stock: 'prop', wind: 'plain', passable: true },
-  woodpile: { height: [0.3, 0.36], stock: 'prop', wind: 'plain', tags: ['perch', 'keepsTint'] },
-  hay: { height: [0.3, 0.36], stock: 'prop', wind: 'plain', tags: ['keepsTint'] },
+  coconuts: { height: [0.14, 0.18], stock: 'prop', wind: 'rigid' },
+  shells: { height: [0.1, 0.12], stock: 'prop', wind: 'rigid', passable: true },
+  pebbles: { height: [0.1, 0.13], stock: 'prop', wind: 'rigid', passable: true },
+  woodpile: { height: [0.3, 0.36], stock: 'prop', wind: 'stiff', tags: ['perch', 'keepsTint'] },
+  hay: { height: [0.3, 0.36], stock: 'prop', wind: 'stiff', tags: ['keepsTint'] },
   'grass-0': { height: [0.19, 0.22], stock: 'cover', wind: 'loose', passable: true, tags: ['doubled'] },
   'grass-1': { height: [0.19, 0.22], stock: 'cover', wind: 'loose', passable: true, tags: ['doubled'] },
   'grass-2': { height: [0.19, 0.22], stock: 'cover', wind: 'loose', passable: true, tags: ['doubled'] },
@@ -152,15 +156,15 @@ const SPRITES = {
   windmill: { height: [1.6, 1.66], stock: 'prop', wind: 'stiff' },
   'flag-pole': { height: [1.0, 1.1], stock: 'prop', wind: 'stiff' },
   chest: { height: [0.34, 0.38], stock: 'prop', wind: 'rigid' },
-  rowboat: { height: [0.36, 0.42], stock: 'prop', wind: 'plain' },
-  'hut-stilts': { height: [0.95, 1.05], stock: 'prop', wind: 'plain' },
-  'hut-round': { height: [0.75, 0.85], stock: 'prop', wind: 'plain' },
+  rowboat: { height: [0.36, 0.42], stock: 'prop', wind: 'rigid' },
+  'hut-stilts': { height: [0.95, 1.05], stock: 'prop', wind: 'stiff' },
+  'hut-round': { height: [0.75, 0.85], stock: 'prop', wind: 'stiff' },
   'pier-post': { height: [0.3, 0.36], stock: 'prop', wind: 'stiff' },
-  shipwreck: { height: [0.8, 0.95], stock: 'prop', wind: 'plain' },
+  shipwreck: { height: [0.8, 0.95], stock: 'prop', wind: 'rigid' },
   // structures and camp
-  watchtower: { height: [1.4, 1.5], stock: 'prop', wind: 'plain' },
-  well: { height: [0.62, 0.68], stock: 'prop', wind: 'plain' },
-  bench: { height: [0.3, 0.34], stock: 'prop', wind: 'plain' },
+  watchtower: { height: [1.4, 1.5], stock: 'prop', wind: 'stiff' },
+  well: { height: [0.62, 0.68], stock: 'prop', wind: 'rigid' },
+  bench: { height: [0.3, 0.34], stock: 'prop', wind: 'stiff' },
   'lantern-post': { height: [0.7, 0.76], stock: 'prop', wind: 'stiff', tags: ['lamp'] },
   signpost: { height: [0.62, 0.7], stock: 'prop', wind: 'stiff' },
   guidepost: { height: [0.5, 0.56], stock: 'prop', wind: 'stiff' },
@@ -168,17 +172,17 @@ const SPRITES = {
   'fence-rail': { height: [0.32, 0.36], stock: 'prop', wind: 'stiff', tags: ['keepsTint'] },
   tent: { height: [0.58, 0.64], stock: 'prop', wind: 'plain' },
   'tent-striped': { height: [0.58, 0.64], stock: 'prop', wind: 'plain' },
-  laundry: { height: [0.37, 0.41], stock: 'prop', wind: 'plain' },
-  bunting: { height: [0.94, 1.02], stock: 'prop', wind: 'plain' },
-  handcart: { height: [0.4, 0.46], stock: 'prop', wind: 'plain' },
-  beehive: { height: [0.55, 0.6], stock: 'prop', wind: 'plain', tags: ['flower'] },
-  stall: { height: [0.58, 0.64], stock: 'prop', wind: 'plain' },
-  campfire: { height: [0.3, 0.36], stock: 'prop', wind: 'plain', tags: ['lamp'] },
+  laundry: { height: [0.37, 0.41], stock: 'prop', wind: 'loose' },
+  bunting: { height: [0.94, 1.02], stock: 'prop', wind: 'loose' },
+  handcart: { height: [0.4, 0.46], stock: 'prop', wind: 'stiff' },
+  beehive: { height: [0.55, 0.6], stock: 'prop', wind: 'stiff', tags: ['flower'] },
+  stall: { height: [0.58, 0.64], stock: 'prop', wind: 'stiff' },
+  campfire: { height: [0.3, 0.36], stock: 'prop', wind: 'stiff', tags: ['lamp'] },
   // the spring of a stream and the crags round it
-  spring: { height: [0.32, 0.36], stock: 'prop', wind: 'plain' },
-  'crag-0': { height: [0.7, 0.75], stock: 'prop', wind: 'plain', tags: ['doubled', 'keepsTint'] },
-  'crag-1': { height: [0.5, 0.55], stock: 'prop', wind: 'plain', tags: ['doubled', 'keepsTint'] },
-  'crag-2': { height: [0.46, 0.5], stock: 'prop', wind: 'plain', tags: ['doubled', 'keepsTint'] },
+  spring: { height: [0.32, 0.36], stock: 'prop', wind: 'rigid' },
+  'crag-0': { height: [0.7, 0.75], stock: 'prop', wind: 'rigid', tags: ['doubled', 'keepsTint'] },
+  'crag-1': { height: [0.5, 0.55], stock: 'prop', wind: 'rigid', tags: ['doubled', 'keepsTint'] },
+  'crag-2': { height: [0.46, 0.5], stock: 'prop', wind: 'rigid', tags: ['doubled', 'keepsTint'] },
   tiki: { height: [0.75, 0.9], stock: 'prop', wind: 'stiff' },
   'ruin-arch': { height: [1.2, 1.3], stock: 'prop', wind: 'rigid' },
   pillars: { height: [1.0, 1.15], stock: 'prop', wind: 'rigid' },

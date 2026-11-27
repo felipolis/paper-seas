@@ -345,7 +345,7 @@ export function layoutOf(land: LandField, avoid: Avoid, site: Site): Layout {
     land.distance(x, z) < -0.3 && !trodden(x, z, r) && !avoid.road(x, z, r) && !avoid.water(x, z, r) && !inside(x, z, r) && props.every((p) => Math.hypot(p.x - x, p.z - z) > propFoot(p.name) + r);
   const ok = (x: number, z: number, r: number) => land.distance(x, z) < -0.3 && free(x, z, r) && !trodden(x, z, r);
   scenes(site, buildings, props, piers, rng, ok, byDoor, prop, (x, z, r) => taken.push([x, z, r]), (x, z) => land.distance(x, z));
-  vignettes(site, buildings, props, rng, (x, z) => land.distance(x, z) < -0.3 && free(x, z, 0.06));
+  vignettes(site, buildings, props, rng, (x, z) => land.distance(x, z) < -0.3 && free(x, z, 0.06), (x, z) => byDoor(x, z, 0.06));
   return finish(site, buildings, props, piers, street?.pts ?? null, lanes, taken);
 }
 
@@ -453,6 +453,9 @@ const PEN_CHANCE = 0.7;
 const PEN_RING: [number, number] = [2.4, 6.5];
 const PEN_TRIES = 40;
 
+/** The room a bale of hay by a handcart keeps. */
+const HAY_ROOM = 0.12;
+
 /**
  * Little scenes (rather than props strewn about): a bed of flowers by a door, a pen of goats (or a pig) in a diamond of
  * low fences (world/pen.ts), a handcart with its hay, a rowboat drawn up on the beach by a pier. ok(x, z, r): on the
@@ -505,9 +508,10 @@ function scenes(
   // the handcart's hay beside it
   for (const cart of props.filter((p) => p.name === 'handcart')) {
     const side = rng() < 0.5 ? -1 : 1;
-    const x = cart.x + side * (cardWidth('handcart', cart.height!) / 2 + 0.14);
+    // (just clear of the cart's own ground, which ok counts: claimed for its tallest)
+    const x = cart.x + side * (propFoot('handcart') + HAY_ROOM + 0.02);
     const z = cart.z - 0.06;
-    if (ok(x, z, 0.12)) place('hay', x, z);
+    if (ok(x, z, HAY_ROOM)) place('hay', x, z);
   }
   // a rowboat drawn up on the sand beside each pier's shore end
   for (const pier of piers) {
@@ -531,10 +535,18 @@ const VIG = { on: 1, onHamlet: 0.55, door: 0.7, doorHamlet: 1, dog: 0.7, hens: 0
 
 /**
  * Village vignettes: a cat sitting ON a fence, a barrel, the well, crates or a bench (its feet at the piece's top,
- * sunk VIG.sink), a cat asleep or sitting BY a door, a dog sitting AT the cart, a bench or the well, hens AT a fence or
- * the cart (by day).
+ * sunk VIG.sink), a cat asleep or sitting BY the door of a house or a warehouse, a dog sitting AT the cart, a bench or
+ * the well, hens AT a fence or the cart (by day). ok: on the land and clear; atDoor: the same, but a building's own
+ * ground is its door's.
  */
-function vignettes(site: Site, buildings: Placed[], props: Placed[], rng: () => number, ok: (x: number, z: number) => boolean): void {
+function vignettes(
+  site: Site,
+  buildings: Placed[],
+  props: Placed[],
+  rng: () => number,
+  ok: (x: number, z: number) => boolean,
+  atDoor: (x: number, z: number) => boolean,
+): void {
   const hamlet = site.kind === 'hamlet';
   const pick = (names: readonly Sprite[]) => {
     const list = props.filter((p) => (names as readonly string[]).includes(p.name) && !p.vignette);
@@ -564,7 +576,7 @@ function vignettes(site: Site, buildings: Placed[], props: Placed[], rng: () => 
       for (let d = 0.1; d < 0.34; d += 0.04) {
         const x = b.x + nx * (info.depth / 2 + d) + nz * along;
         const z = b.z + nz * (info.depth / 2 + d) - nx * along;
-        if (!ok(x, z)) continue;
+        if (!atDoor(x, z)) continue;
         props.push({ name: 'cat', x, z, yaw: 0, height: heightOf('cat', rng()), flip: side < 0, vignette: { seat: 0 } });
         break;
       }

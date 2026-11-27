@@ -136,12 +136,16 @@ export class ShipPhysics {
     this.resolveShores(shores, dt);
 
     // ---- heel and pitch: under-damped springs ----
+    this.heel(dt, clamp(-this.yawRate * u * S.heelGain, -0.22, 0.22), clamp(this.accel * S.pitchGain, -0.08, 0.08));
+  }
+
+  /** The heel and pitch springs, a step toward these targets (rad). */
+  private heel(dt: number, rollTarget: number, pitchTarget: number): void {
+    const S = SHIP;
     const om = 2 * Math.PI * S.heelHz;
-    const rollTarget = clamp(-this.yawRate * u * S.heelGain, -0.22, 0.22);
     let sp = springStep(this.roll, this.rollV, rollTarget, om, S.heelDamping, dt);
     this.roll = sp.x;
     this.rollV = sp.v;
-    const pitchTarget = clamp(this.accel * S.pitchGain, -0.08, 0.08);
     const omPitch = om * Math.sqrt(PITCH_STIFFNESS);
     sp = springStep(this.pitch, this.pitchV, pitchTarget, omPitch, (S.heelDamping * om * PITCH_DAMPING) / omPitch, dt);
     this.pitch = sp.x;
@@ -158,14 +162,19 @@ export class ShipPhysics {
     this.impact = 0;
   }
 
-  /** At anchor (the captain ashore): the way she still has, her turn and her rudder die away. */
+  /**
+   * At anchor (the captain ashore, she lies where he left her): the way she still has, her turn and her rudder die
+   * away, and she rights herself, her heel and pitch springing back to level.
+   */
   anchor(dt: number): void {
     const k = Math.exp(-ANCHOR_DAMPING * dt);
     this.vx *= k;
     this.vz *= k;
     this.surge *= k;
+    this.accel *= k;
     this.yawRate *= k;
     this.rudder = approach(this.rudder, 0, SHIP.rudderRate * dt);
+    this.heel(dt, 0, 0);
   }
 
   private resolveShores(shores: ShoreCollider, dt: number): void {
