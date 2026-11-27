@@ -16,6 +16,28 @@ import { FAR, type DistanceMap } from './distance-map';
 import { MIRROR_APPLY, MIRROR_GLSL, mirrorUniforms } from './mirror';
 
 const SIZE = 280;
+
+/**
+ * The sea's depth print, which the chart paints too (game/exploration.ts): the mid tone's noise edges; the lighter
+ * shelf, the shore distances it fades out over and its strength; the wobble of the shallows' edges; their three steps,
+ * each the shore distances it fades out over and its share; how far the steps go toward the shallow aqua.
+ */
+export const DEPTH_PRINT = {
+  mid: [0.25, 0.7],
+  shelf: [1.5, 7],
+  shelfLight: 0.35,
+  wobble: 0.35,
+  steps: [
+    [2.1, 2.25, 0.34],
+    [1.2, 1.32, 0.33],
+    [0.5, 0.6, 0.33],
+  ],
+  shallow: 0.85,
+} as const;
+
+const f = (v: number): string => v.toFixed(3);
+const STEPS_GLSL = DEPTH_PRINT.steps.map(([from, to, share]) => `${f(share)} * (1.0 - smoothstep(${f(from)}, ${f(to)}, dn))`).join(' + ');
+
 const SEA_GLSL = /* glsl */ `
 varying vec3 vSeaPos;
 uniform sampler2D uDist;
@@ -36,14 +58,14 @@ vec3 seaColour(vec2 p) {
   float d = shoreDist(p);
   // ---- depth tones ----
   float n = seaNoise(p * 0.045) * 0.55 + seaNoise(p * 0.13 + 7.3) * 0.3 + seaNoise(p * 0.5 + 1.1) * 0.15;
-  vec3 col = mix(uSeaDeep, uSeaMid, smoothstep(0.25, 0.7, n));
+  vec3 col = mix(uSeaDeep, uSeaMid, smoothstep(${f(DEPTH_PRINT.mid[0])}, ${f(DEPTH_PRINT.mid[1])}, n));
   col = mix(col, uSeaLight, smoothstep(0.62, 0.9, n) * 0.5);
-  float shelf = 1.0 - smoothstep(1.5, 7.0, d);
-  col = mix(col, uSeaLight, shelf * 0.35);
+  float shelf = 1.0 - smoothstep(${f(DEPTH_PRINT.shelf[0])}, ${f(DEPTH_PRINT.shelf[1])}, d);
+  col = mix(col, uSeaLight, shelf * ${f(DEPTH_PRINT.shelfLight)});
   // shallows: three printed steps with wobbling edges
-  float dn = d + 0.35 * (seaNoise(p * 0.9) - 0.5) + 0.2 * (seaNoise(p * 2.7 + 4.0) - 0.5);
-  float steps = 0.34 * (1.0 - smoothstep(2.1, 2.25, dn)) + 0.33 * (1.0 - smoothstep(1.2, 1.32, dn)) + 0.33 * (1.0 - smoothstep(0.5, 0.6, dn));
-  col = mix(col, uSeaShallow, steps * 0.85);
+  float dn = d + ${f(DEPTH_PRINT.wobble)} * (seaNoise(p * 0.9) - 0.5) + 0.2 * (seaNoise(p * 2.7 + 4.0) - 0.5);
+  float steps = ${STEPS_GLSL};
+  col = mix(col, uSeaShallow, steps * ${f(DEPTH_PRINT.shallow)});
   // ---- slow light net, strongest in the shallows ----
   float ca = sin(p.x * 3.1 + 1.4 * sin(p.y * 2.2 + T * 0.55)) * sin(p.y * 3.7 + 1.2 * sin(p.x * 2.6 - T * 0.4));
   col *= 1.0 + (0.05 + 0.1 * steps) * (smoothstep(0.3, 0.95, ca) - 0.5 * smoothstep(0.3, 0.95, -ca));

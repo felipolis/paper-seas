@@ -283,15 +283,17 @@ export class Game {
     }
     // the keys go to the helm at sea and to the captain ashore (the ship then lies at anchor); while the chart is open
     // the helm is let go and no one reads them
-    const walking = this.walker.active;
     const keys = this.chart.isOpen ? null : this.input;
+    // (F first: the frame that goes ashore or back aboard is already the captain's or the ship's, so the camera starts
+    // its glide on that frame instead of taking one plain step toward the new distance before it)
+    this.shoreLeave(keys);
+    const walking = this.walker.active;
     ship.update(dt, walking ? null : keys, this.world, this.chart.isOpen || walking);
     if (walking) p.anchor(dt);
     // (a click walks him while no key does; a key lets the click's walk go)
     this.clickWalk.enabled = walking && !this.chart.isOpen;
     this.walker.update(dt, keys, this.walkWorld, this.view.yaw, this.clickWalk.steer(dt));
     if (this.walker.keyed) this.clickWalk.drop();
-    this.shoreLeave(keys);
     const fx = walking ? this.walker.x : p.x;
     const fz = walking ? this.walker.z : p.z;
     // (with the chart open the camera lifts off the diorama and the wheel is the chart's)

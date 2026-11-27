@@ -208,14 +208,21 @@ export interface Chest {
   name: string;
 }
 
-const C = {
+/** The ground's print, which the chart paints too (game/exploration.ts). */
+export const GROUND = {
   sand: hexRgb('#e6cf9a'),
   wetSand: hexRgb('#cdb07a'),
+  /** The wet sand's band (shore distances, negative on land) and how far toward the wet tone it goes. */
+  wetBand: [-0.35, 0],
+  wetShare: 0.9,
   /** The page: one ground tone for every biome, its printed patches flattened. */
   page: hexRgb('#a8a374'),
   hill: hexRgb('#8a8a58'),
   rock: hexRgb('#8f9070'),
-};
+  /** How far the hills and the heights tint the page toward their tone. */
+  hillTint: 0.18,
+  rockTint: 0.32,
+} as const;
 
 /** Crossed cards turn only this share of the camera-facing cards' jitter. */
 const CROSS_JITTER = 0.6;
@@ -836,19 +843,19 @@ export class Terrain {
           const grain = valueNoise(7, x * 9, z * 9) * 0.5 + valueNoise(8, x * 31, z * 31) * 0.5;
           if (t1 >= 0) {
             // sand, darker and wetter at the water
-            const wet = 1 - smoothstep(-0.35, 0, d);
-            const s = 1 - wet * 0.9;
-            r = C.sand[0] * s + C.wetSand[0] * (1 - s);
-            g = C.sand[1] * s + C.wetSand[1] * (1 - s);
-            b = C.sand[2] * s + C.wetSand[2] * (1 - s);
+            const wet = 1 - smoothstep(GROUND.wetBand[0], GROUND.wetBand[1], d);
+            const s = 1 - wet * GROUND.wetShare;
+            r = GROUND.sand[0] * s + GROUND.wetSand[0] * (1 - s);
+            g = GROUND.sand[1] * s + GROUND.wetSand[1] * (1 - s);
+            b = GROUND.sand[2] * s + GROUND.wetSand[2] * (1 - s);
             const dot = valueNoise(9, x * 22, z * 22) > 0.82 ? 0.9 : 1;
             r *= dot; g *= dot; b *= dot;
           } else {
-            r = C.page[0]; g = C.page[1]; b = C.page[2];
+            r = GROUND.page[0]; g = GROUND.page[1]; b = GROUND.page[2];
             // the hills and heights only tint the page a little: the relief is the standing mountains
             if (t2 < 0) {
-              const k = smoothstep(0, 1.5, -t2) * (t3 < 0 ? 0.32 : 0.18);
-              const base = t3 < 0 ? C.rock : C.hill;
+              const k = smoothstep(0, 1.5, -t2) * (t3 < 0 ? GROUND.rockTint : GROUND.hillTint);
+              const base = t3 < 0 ? GROUND.rock : GROUND.hill;
               r = r * (1 - k) + base[0] * k; g = g * (1 - k) + base[1] * k; b = b * (1 - k) + base[2] * k;
             }
           }

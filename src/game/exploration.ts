@@ -10,6 +10,8 @@
 import { clamp, hexRgb, smoothstep } from '../core/math';
 import { PALETTE } from '../config/palette';
 import { valueNoise } from '../world/noise';
+import { GROUND } from '../world/terrain';
+import { DEPTH_PRINT } from '../sea/sea-surface';
 import type { Biome, LandField } from '../world/land';
 import type { IslandKind } from '../world/island-layout';
 import { cellKey, keyI, keyJ } from '../core/grid';
@@ -48,7 +50,7 @@ export interface CellInfo {
 }
 
 type Rgb = [number, number, number];
-/** The sea as the sea surface paints it (sea/sea-surface.ts), the land as the ground print does (world/terrain.ts). */
+/** The sea in the sea surface's tones (sea/sea-surface.ts); the land is the ground's print (world/terrain.ts GROUND). */
 const COL = {
   deep: hexRgb(PALETTE.seaDeep),
   sea: hexRgb(PALETTE.sea),
@@ -56,15 +58,9 @@ const COL = {
   shallow: hexRgb(PALETTE.seaShallow),
   foam: hexRgb(PALETTE.foam),
   ink: hexRgb(PALETTE.ink),
-  sand: hexRgb('#e6cf9a'),
-  wet: hexRgb('#cdb07a'),
-  page: hexRgb('#a8a374'),
-  hill: hexRgb('#8a8a58'),
-  rock: hexRgb('#8f9070'),
 };
-/** The heights only tint the page a little (world/terrain.ts): the relief is the standing mountains. */
-const HILL_TINT = 0.18;
-const ROCK_TINT = 0.32;
+/** Where each shallow step prints on the chart, crisp: halfway across the shore distances the sea fades it over. */
+const STEP_EDGES = DEPTH_PRINT.steps.map(([from, to, share]) => [(from + to) / 2, share] as const);
 
 export class Exploration {
   readonly cells = new Set<number>();
@@ -236,19 +232,20 @@ export class Exploration {
 /** The sea dd from the shore: deep and mid tones in broad patches, lighter over the shelf, three shallow steps, foam. */
 function seaColour(x: number, z: number, dd: number): Rgb {
   const n = valueNoise(31, x * 0.045, z * 0.045) * 0.65 + valueNoise(32, x * 0.13, z * 0.13) * 0.35;
-  let col = mix(COL.deep, COL.sea, smoothstep(0.25, 0.7, n));
-  col = mix(col, COL.light, (1 - smoothstep(1.5, 7, dd)) * 0.35);
-  const dn = dd + 0.35 * (valueNoise(33, x * 0.9, z * 0.9) - 0.5);
-  const steps = 0.34 * (dn < 2.2 ? 1 : 0) + 0.33 * (dn < 1.26 ? 1 : 0) + 0.33 * (dn < 0.55 ? 1 : 0);
-  col = mix(col, COL.shallow, steps * 0.85);
+  let col = mix(COL.deep, COL.sea, smoothstep(DEPTH_PRINT.mid[0], DEPTH_PRINT.mid[1], n));
+  col = mix(col, COL.light, (1 - smoothstep(DEPTH_PRINT.shelf[0], DEPTH_PRINT.shelf[1], dd)) * DEPTH_PRINT.shelfLight);
+  const dn = dd + DEPTH_PRINT.wobble * (valueNoise(33, x * 0.9, z * 0.9) - 0.5);
+  let steps = 0;
+  for (const [edge, share] of STEP_EDGES) if (dn < edge) steps += share;
+  col = mix(col, COL.shallow, steps * DEPTH_PRINT.shallow);
   return dd < 0.2 ? mix(col, COL.foam, 0.7) : col;
 }
 
 /** The ground of a terrace dd from the shore (dd <= 0): wet sand to dry, the page tone, tinted on the heights. */
 function landColour(terrace: number, dd: number): Rgb {
-  if (terrace <= 0) return mix(COL.sand, COL.wet, 0.9 * (1 - smoothstep(-0.35, 0, dd)));
-  if (terrace === 1) return COL.page;
-  return mix(COL.page, terrace === 2 ? COL.hill : COL.rock, terrace === 2 ? HILL_TINT : ROCK_TINT);
+  if (terrace <= 0) return mix(GROUND.sand, GROUND.wetSand, GROUND.wetShare * (1 - smoothstep(GROUND.wetBand[0], GROUND.wetBand[1], dd)));
+  if (terrace === 1) return GROUND.page;
+  return mix(GROUND.page, terrace === 2 ? GROUND.hill : GROUND.rock, terrace === 2 ? GROUND.hillTint : GROUND.rockTint);
 }
 
 function mix(a: Rgb, b: Rgb, t: number): Rgb {
