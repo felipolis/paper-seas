@@ -5,6 +5,7 @@
  * holding S with the sails furled back-paddles slowly.
  */
 import { SHIP } from '../config/ship';
+import { SEA_WIND } from '../config/world';
 import { activeShip } from '../config/ships';
 import { clamp } from '../core/math';
 import type { Input } from '../core/input';
@@ -13,14 +14,6 @@ import { ShipPhysics, type ShoreCollider } from './ship-physics';
 import type { WakeSource } from '../sea/wave-field';
 import { HULL_LENGTH, planHalfBeam } from './hull-shape';
 import { bus } from '../core/events';
-
-/** The wind blows toward this direction (unit), a steady trade wind toward the north-north-east. */
-const WIND_DIR = (() => {
-  const x = 0.35;
-  const z = -0.94;
-  const l = Math.hypot(x, z);
-  return { x: x / l, z: z / l };
-})();
 
 export class Ship {
   readonly model = new ShipModel();
@@ -38,7 +31,7 @@ export class Ship {
   }
 
   get wind(): { x: number; z: number } {
-    return WIND_DIR;
+    return SEA_WIND;
   }
 
   /** Sets the sails: 0 furled .. the last of SHIP.sailLevels, all sails. */
@@ -72,18 +65,18 @@ export class Ship {
 
     const p = this.physics;
     const impactBefore = p.impact;
-    if (!frozen) p.step(dt, { steer, reverse }, this.model.sailArea, WIND_DIR.x, WIND_DIR.z, shores);
+    if (!frozen) p.step(dt, { steer, reverse }, this.model.sailArea, SEA_WIND.x, SEA_WIND.z, shores);
     if (p.impact > 0.35 && p.impact > impactBefore + 0.2) bus.emit('bump', { strength: p.impact });
 
     // wind in the ship's frame: fill of the square sails, side of the head sails, flag direction
     const fx = p.forwardX;
     const fz = p.forwardZ;
-    const along = WIND_DIR.x * fx + WIND_DIR.z * fz; // + = from astern
-    const across = WIND_DIR.x * -fz + WIND_DIR.z * fx; // + = toward starboard
+    const along = SEA_WIND.x * fx + SEA_WIND.z * fz; // + = from astern
+    const across = SEA_WIND.x * -fz + SEA_WIND.z * fx; // + = toward starboard
     const fill = clamp(0.35 + 0.65 * (along * 0.5 + 0.5), 0, 1) * clamp(0.25 + Math.abs(p.surge) / SHIP.maxSpeed, 0, 1);
     // apparent wind ~ true wind minus the boat's own motion; the flag streams along it (ship-local)
-    const appX = WIND_DIR.x * 2.2 - p.vx;
-    const appZ = WIND_DIR.z * 2.2 - p.vz;
+    const appX = SEA_WIND.x * 2.2 - p.vx;
+    const appZ = SEA_WIND.z * 2.2 - p.vz;
     const lx = appX * Math.cos(p.heading) - appZ * Math.sin(p.heading);
     const lz = appX * Math.sin(p.heading) + appZ * Math.cos(p.heading);
 

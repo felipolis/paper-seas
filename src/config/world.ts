@@ -32,3 +32,18 @@ export const WORLD = {
   focusLead: 0.5,
   focusLeadMax: 1.6,
 } as const;
+
+/**
+ * The sea wind, the way it blows (unit, x east, z south): a steady trade wind toward the north-north-east. The ship
+ * sails by it (a following wind gives the sails their whole thrust, a head wind less), the sails fill and the flag
+ * streams with it, and the sea's dashes, the clouds, the chimney smoke, the falling leaves and petals, the dust, the
+ * mist and the rain drift on it. The land's breeze in the standing cards (world/wind.ts) has its own heading on
+ * purpose: its gust fronts cross the screen sideways, where they read best (sent the sea wind's way they would run
+ * into the screen and flatten).
+ */
+export const SEA_WIND = (() => {
+  const x = 0.35;
+  const z = -0.94;
+  const l = Math.hypot(x, z);
+  return { x: x / l, z: z / l } as const;
+})();

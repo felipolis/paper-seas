@@ -5,6 +5,7 @@
  */
 import * as THREE from 'three';
 import { PALETTE } from '../config/palette';
+import { SEA_WIND } from '../config/world';
 import { paperDetail } from '../art/paper-maps';
 
 let shared: Record<string, THREE.IUniform> | null = null;
@@ -19,7 +20,7 @@ export function waterUniforms(): Record<string, THREE.IUniform> {
     uSeaShallow: { value: new THREE.Color(PALETTE.seaShallow) },
     uSeaFibre: { value: paperDetail() },
     uTime: { value: 0 },
-    uWind: { value: new THREE.Vector2(0.35, -0.94).normalize() },
+    uWind: { value: new THREE.Vector2(SEA_WIND.x, SEA_WIND.z) },
   };
   return shared;
 }

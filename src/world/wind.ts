@@ -22,7 +22,11 @@ const HZ_SMALL = 0.8;
 const HZ_TALL = 0.42;
 /** Twist about the card's long axis per rad of sway. */
 const TWIST = 0.5;
-/** Gust fronts: direction (from +x toward +z), wavelengths (world units), periods (s), strengths, sideways bend (rad). */
+/**
+ * Gust fronts: direction (from +x toward +z), wavelengths (world units), periods (s), strengths, sideways bend (rad).
+ * The land's breeze keeps its own heading, not the sea wind's (config/world.ts SEA_WIND), on purpose: it sends the
+ * fronts across the screen.
+ */
 const DIR = 30 * DEG;
 const D1X = Math.cos(DIR);
 const D1Z = Math.sin(DIR);

@@ -153,7 +153,10 @@ What the world does and how, every size measured against the captain:
   warm broken streaks toward the viewer, and every lamp pool lays a warm streak on the water before it.
 - **Wind** (`world/wind.ts`): every standing card rocks by its height, thinness and kind, in travelling gusts, as
   strongly as the wind blows in its biome (the meadow 0.85 of the jungle's, the pine woods all but still at
-  0.32).
+  0.32). There are two winds, both steady in direction: the sea wind (`config/world.ts` SEA_WIND, toward the
+  north-north-east), which the ship sails by and the sails, flag, sea dashes, clouds, smoke, falling leaves, dust, mist and rain follow;
+  and the land's breeze in the standing cards, on its own heading on purpose, so its gust fronts cross the screen
+  sideways where they read best.
 - **Collisions as drawn** (`world/blockers.ts`, `world/clearance.ts`, `player/walker.ts`): only what stands between
   0.07 and 0.3 above the page stops the feet; crossed cards and mountains block their whole footprint. What
   stops the feet is baked once into a walk field: a grid of distances every 0.05 over each chunk, made the first time
