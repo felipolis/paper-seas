@@ -11,7 +11,6 @@
   --page-lit: #f4ead6;
   --core: #fbf6ea;
   --accent: #a4512f;
-  --light: #ffc45a;
   /* a card's thickness: a darker copy of its face, never white */
   --edge: #d6bf94;
   --cut: inset 1px 1px 0 rgb(251 246 234 / 0.75), 0 0 0 1px rgb(74 44 34 / 0.8), 1px 1px 0 1px rgb(74 44 34 / 0.8);

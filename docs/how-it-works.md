@@ -14,7 +14,7 @@ src/
   art/               canvas card painter, sprites (cut cards), the stern lantern painter
   sea/               sea page shader, standing wave cards
   world/             the land field and islands, terrain chunks (one flat sheet cut to the shore; the ground's shader
-                     draws the roads, grass and flowers: ground-shader.ts; streams are ribbons of the sea's water:
+                     draws the roads, grass and flowers: ground-shader.ts; streams are ribbons of water:
                      stream-mesh.ts), the card field and its animals (critters.ts), the
                      Blender-built models (models.ts); what stands up when (reveal.ts) and how it sways (wind.ts);
                      ground cover by tiles (cover.ts); streams, sites, roads and bridges (places.ts); what stops the
@@ -141,9 +141,12 @@ What the world does and how, every size measured against the captain:
   (`render/reflection.ts`, `sea/mirror.ts`), swaying on its broad wave and tinted toward the water; the wave is sized on
   screen for the 10.8 framing, and a finer wave (which split a dark hull over the pale sea into
   striped rows) is left out. Dolphins and fish leap on arms turning about an axle under the page, a paper mover.
-- **Streams are sea water** (`world/stream-mesh.ts`, `sea/water.ts`): the same colours and fibre as the sea,
-  in depth steps, with current dashes flowing down, floating leaves (with their shadow and midrib) and
-  faint current lines riding the same flow, and a sandy cut bank; each begins and ends in a round pool. They mirror
+- **Streams and ponds** (`world/stream-mesh.ts`, `sea/water.ts`): the sea's fibre in the water of the biome they
+  run through (`render/biome-tint.ts`: shallow, deep, rim and floater per biome, blended along a stream where it
+  crosses from one biome to the next), in depth steps, with current dashes flowing down, floating leaves (petals in the
+  blossom, with their shadow and midrib) and
+  faint current lines riding the same flow, and a sandy cut bank; each begins and ends in a round pool. A pond is the
+  same water as a still disc: its dashes and floaters lie where they are printed instead of riding a current. They mirror
   the world as the sea does, reading the sea's mirror image at their own height on the
   land: no second pass, and off by less than the image's own ripple. At night (the sea and the streams alike) the water
   sinks into a deep blue, the mirrored paper into a paler blue while the mirrored lights stay bright and pull out into

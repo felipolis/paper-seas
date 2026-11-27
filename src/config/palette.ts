@@ -28,5 +28,6 @@ export const PALETTE = {
   sailShade: '#dccaa3',
 
   // light
+  /** The lantern cards' glass, the captain's lantern glass and light, and the lit windows' glow. */
   lantern: '#ffc45a',
 } as const;

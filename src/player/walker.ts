@@ -12,6 +12,7 @@
  */
 import * as THREE from 'three';
 import { Puppet } from './puppet';
+import { PALETTE } from '../config/palette';
 import { PLAYER } from '../config/player';
 import { bus } from '../core/events';
 import type { Input } from '../core/input';
@@ -55,7 +56,7 @@ const FAN = [0.6, 1.05, 1.45];
 const FLIP_AFTER = 24;
 
 /** The lantern he carries: its colour, its intensity and reach by day and at night, its decay, its height above him. */
-const LANTERN = { colour: '#ffc45a', day: 1.1, night: 2.3, distance: 6.5, nightDistance: 5.6, decay: 0.62, height: 0.55 };
+const LANTERN = { colour: PALETTE.lantern, day: 1.1, night: 2.3, distance: 6.5, nightDistance: 5.6, decay: 0.62, height: 0.55 };
 
 export class Walker {
   readonly group = new THREE.Group();

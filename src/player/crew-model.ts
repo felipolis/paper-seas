@@ -19,6 +19,7 @@
  */
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { PALETTE } from '../config/palette';
 import type { Outfit } from '../config/ships';
 import { createPaperMaterial } from '../render/paper-material';
 import { mix, tone } from '../art/paper-colour';
@@ -46,11 +47,13 @@ export interface CaptainModel {
 
 // ---- the palette and the card -------------------------------------------------------------------------------------
 
-/** The cut edge, the boot cuff, the lantern's frame and glow; the warm dark of an eye, of a skull's hollows. */
+/**
+ * The cut edge, the boot cuff, the lantern's frame (its glow is the palette's lantern); the warm dark of an eye, of a
+ * skull's hollows.
+ */
 const CREAM = '#fbf6ea';
 const CUFF = '#e8d3ac';
 const FRAME = '#513424';
-const GLOW = '#ffc35a';
 const EYE = '#2a1a10';
 const HOLLOW = '#2a1e16';
 /** Gold braid and buckles; linen (lace, an apron, gloves); a sash and red lips; leather; a wooden peg; a tin ladle. */
@@ -113,7 +116,7 @@ function paperMaterial(): THREE.MeshLambertMaterial {
 let glow: THREE.MeshBasicMaterial | null = null;
 /** The lantern's warm pane. */
 function glowMaterial(): THREE.MeshBasicMaterial {
-  return (glow ??= new THREE.MeshBasicMaterial({ color: new THREE.Color(GLOW).multiplyScalar(3), side: THREE.DoubleSide }));
+  return (glow ??= new THREE.MeshBasicMaterial({ color: new THREE.Color(PALETTE.lantern).multiplyScalar(3), side: THREE.DoubleSide }));
 }
 
 /** A die-cut slab: the outline pts (and holes) extruded by t round z = 0, coloured front, back and edge. */
