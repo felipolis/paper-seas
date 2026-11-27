@@ -431,7 +431,7 @@ export class ShipModel {
     wind.time = pose.time;
     for (const m of this.masts) for (const s of m.sails) s.update(steps, alpha, dt, wind);
     for (const s of this.headSails) s.update(steps, alpha, dt, wind);
-    this.flag.update(dt, pose.time, pose.flagAngle, Math.max(0.3, pose.fill));
+    this.flag.update(dt, pose.flagAngle, Math.max(0.3, pose.fill));
     this.updateRigging();
   }
 

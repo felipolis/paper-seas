@@ -244,6 +244,11 @@ export class Flag {
   private readonly baseX: Float32Array;
   private readonly baseY: Float32Array;
   private readonly width: number;
+  /**
+   * The ripple's phase (rad), advanced every frame at the speed the wind gives it now: a phase of time times speed
+   * would leap whenever the speed changes (in a turn, a bump), the further into the voyage the more.
+   */
+  private phase = 0;
 
   constructor(art: CardArt) {
     this.width = art.right - art.left;
@@ -267,7 +272,7 @@ export class Flag {
   }
 
   /** windAngle: direction the flag streams to, in the parent's frame (rad about +y, 0 = +x). */
-  update(dt: number, time: number, windAngle: number, strength: number): void {
+  update(dt: number, windAngle: number, strength: number): void {
     // the flag swings round to the wind with a little lag
     const cur = this.group.rotation.y;
     let diff = windAngle - cur;
@@ -275,11 +280,12 @@ export class Flag {
     this.group.rotation.y = cur + diff * (1 - Math.exp(-dt * 3));
     const pos = this.mesh.geometry.getAttribute('position') as THREE.BufferAttribute;
     const amp = 0.03 + 0.03 * strength;
+    this.phase = (this.phase + dt * (8 + 4 * strength)) % (2 * Math.PI);
     for (let k = 0; k < this.baseX.length; k++) {
       const x = this.baseX[k];
       const y = this.baseY[k];
       const f = Math.max(0, x) / this.width;
-      const z = Math.sin(x * 11 - time * (8 + 4 * strength) + y * 3) * amp * f;
+      const z = Math.sin(x * 11 - this.phase + y * 3) * amp * f;
       pos.setXYZ(k, x * (1 - 0.06 * f * f), y - 0.05 * f * f * (1 - strength), z);
     }
     pos.needsUpdate = true;
