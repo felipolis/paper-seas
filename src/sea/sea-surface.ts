@@ -35,8 +35,13 @@ export const DEPTH_PRINT = {
   shallow: 0.85,
 } as const;
 
+// (printedSteps, water.ts, takes the steps as the three components of a vec3 each: a fourth would be dropped)
+if (DEPTH_PRINT.steps.length !== 3) throw new Error('sea-surface: the depth print must have exactly three steps');
+
 const f = (v: number): string => v.toFixed(3);
-const STEPS_GLSL = DEPTH_PRINT.steps.map(([from, to, share]) => `${f(share)} * (1.0 - smoothstep(${f(from)}, ${f(to)}, dn))`).join(' + ');
+/** The shallows: the sum of the steps' shares less those dn has risen past (water.ts printedSteps). */
+const vec = (k: number): string => `vec3(${DEPTH_PRINT.steps.map((s) => f(s[k])).join(', ')})`;
+const STEPS_GLSL = `${f(DEPTH_PRINT.steps.reduce((sum, s) => sum + s[2], 0))} - printedSteps(dn, ${vec(0)}, ${vec(1)}, ${vec(2)})`;
 
 const SEA_GLSL = /* glsl */ `
 varying vec3 vSeaPos;
@@ -48,7 +53,9 @@ float shoreDist(vec2 p) {
   // (open sea past the window's edge, eased in over its last 10 units so its edge never shows as a seam)
   float edge = min(min(uv.x, uv.y), min(1.0 - uv.x, 1.0 - uv.y)) * uDistInfo.z;
   if (edge <= 0.0) return ${FAR.toFixed(1)};
-  return mix(${FAR.toFixed(1)}, texture2D(uDist, uv).r, smoothstep(0.0, 10.0, edge));
+  // (read at its one level: after a return some pixels skip, the screen derivatives a filtered read takes its level
+  // from are undefined)
+  return mix(${FAR.toFixed(1)}, textureLod(uDist, uv, 0.0).r, smoothstep(0.0, 10.0, edge));
 }
 
 vec3 seaColour(vec2 p) {
@@ -67,8 +74,7 @@ vec3 seaColour(vec2 p) {
   float steps = ${STEPS_GLSL};
   col = mix(col, uSeaShallow, steps * ${f(DEPTH_PRINT.shallow)});
   // ---- slow light net, strongest in the shallows ----
-  float ca = sin(p.x * 3.1 + 1.4 * sin(p.y * 2.2 + T * 0.55)) * sin(p.y * 3.7 + 1.2 * sin(p.x * 2.6 - T * 0.4));
-  col *= 1.0 + (0.05 + 0.1 * steps) * (smoothstep(0.3, 0.95, ca) - 0.5 * smoothstep(0.3, 0.95, -ca));
+  col = waterLight(col, p, T, 0.05 + 0.1 * steps);
   // ---- drifting cream dashes (screen-horizontal, like cut paper), gathering toward the coasts ----
   vec2 q = vec2(p.x - uWind.x * T * 0.18, p.y - uWind.y * T * 0.06) / vec2(0.55, 0.16);
   vec2 id = floor(q);
@@ -95,9 +101,9 @@ vec3 seaColour(vec2 p) {
   float foam = (1.0 - smoothstep(0.03, 0.03 + aa * 2.0, fd1)) * (0.55 + 0.45 * broken)
              + (1.0 - smoothstep(0.02, 0.02 + aa * 2.0, fd2)) * broken * 0.55 * (1.0 - smoothstep(0.4, 1.2, dn));
   col = mix(col, uSeaFoam, clamp(foam, 0.0, 1.0) * (1.0 - smoothstep(1.2, 1.6, d)));
-  col *= 1.0 - 0.28 * (1.0 - smoothstep(0.0, 0.14, d));
+  col = waterline(col, d, 0.14, 0.28);
   // ---- paper fibre ----
-  col *= 1.0 + (seaFibre(p) - 0.5) * 1.1;
+  col = waterFibre(col, p);
   // ---- mirror image ----
   mirrorImage(p, 0.0, col, 1.0 - clamp(dash + foam, 0.0, 1.0));
   return col;

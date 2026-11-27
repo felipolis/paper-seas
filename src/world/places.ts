@@ -1,12 +1,14 @@
 /**
  * Everything on the land that spans more than one chunk, worked out once and shared (all pure functions of the seed,
- * cached): the streams, the sites where people live, the roads between them with their bridges, each site's layout,
- * and the ponds (laid after all of them, clear of them). A chunk asks for what reaches its square; whichever chunk asks first, the answer is the same.
+ * cached): the streams, the sites where people live, the roads between them with their bridges, each site's layout, and
+ * the ponds (laid after all of them, clear of them). A chunk asks for what reaches its square; whichever chunk asks
+ * first, the answer is the same.
  */
 import { MAX_LINK, MAX_RUINS_LINK, ROUTE_PAD, onRoad, routeRoad, type Road } from './roads';
-import { SITE_CELL, laidOutBefore, layoutOf, siteIn, type Layout, type Site } from './sites';
+import { CHUNK } from '../config/world';
+import { laidOutBefore, layoutOf, siteIn, type Layout, type Site } from './sites';
 import { Streams } from './streams';
-import { overlaps, type Box } from './polyline';
+import { overlaps, type Box } from '../core/polyline';
 import type { LandField } from './land';
 import { cellKey } from '../core/grid';
 import { BoundedCache } from '../core/bounded-cache';
@@ -14,8 +16,8 @@ import { pondDistance, pondIn, type Pond } from './ponds';
 
 /** How many nearest settlements each one is joined to. */
 const LINKS = 2;
-/** How far a site's layout reaches from its square (its buildings, props, piers). */
-const LAYOUT_REACH = 10;
+/** How far a site's layout reaches from its square (its buildings, props, piers): the world QA checks it holds. */
+export const LAYOUT_REACH = 10;
 /** A search for the sites whose layouts may reach a place looks this much further than LAYOUT_REACH, to be safe. */
 const SEARCH_MARGIN = 2;
 /** The farthest a pond's water reaches from its centre (its largest radius and wobble). */
@@ -41,9 +43,9 @@ export class Places {
   /** Sites within r of (x, z). */
   sitesNear(x: number, z: number, r: number): Site[] {
     const out: Site[] = [];
-    const n = Math.ceil(r / SITE_CELL);
-    const ci = Math.floor(x / SITE_CELL);
-    const cj = Math.floor(z / SITE_CELL);
+    const n = Math.ceil(r / CHUNK);
+    const ci = Math.floor(x / CHUNK);
+    const cj = Math.floor(z / CHUNK);
     for (let j = cj - n; j <= cj + n; j++) {
       for (let i = ci - n; i <= ci + n; i++) {
         const s = this.siteIn(i, j);
@@ -58,7 +60,7 @@ export class Places {
    * its nearest settlement within MAX_RUINS_LINK; a link counts if either end chose the other (so both agree).
    */
   private chosen(s: Site): Site[] {
-    const settled = (o: Site) => o.kind !== 'ruins' && o.id !== s.id;
+    const settled = (o: Site) => o.kind !== 'ruins' && o.key !== s.key;
     const reach = s.kind === 'ruins' ? MAX_RUINS_LINK : MAX_LINK;
     const near = this.sitesNear(s.x, s.z, reach).filter(settled);
     near.sort((a, b) => Math.hypot(a.x - s.x, a.z - s.z) - Math.hypot(b.x - s.x, b.z - s.z));
@@ -66,13 +68,13 @@ export class Places {
   }
 
   private linksOf(s: Site): Site[] {
-    return this.links.get(s.id, () => {
+    return this.links.get(s.key, () => {
       const out = this.chosen(s);
       // ... and every site that chose this one (ruins included)
       if (s.kind !== 'ruins') {
         for (const o of this.sitesNear(s.x, s.z, MAX_LINK)) {
-          if (o.id === s.id || out.some((c) => c.id === o.id)) continue;
-          if (this.chosen(o).some((c) => c.id === s.id)) out.push(o);
+          if (o.key === s.key || out.some((c) => c.key === o.key)) continue;
+          if (this.chosen(o).some((c) => c.key === s.key)) out.push(o);
         }
       }
       return out;
@@ -112,7 +114,7 @@ export class Places {
    * the neighbouring sites laid out before it, so two villages close together never build on the same spot).
    */
   layout(s: Site): Layout {
-    return this.layouts.get(s.id, () => {
+    return this.layouts.get(s.key, () => {
       const roads = this.roadsNear([s.x - LAYOUT_REACH, s.z - LAYOUT_REACH, s.x + LAYOUT_REACH, s.z + LAYOUT_REACH]);
       // (the order is strict, so this never comes back round to s)
       const claimed = this.sitesNear(s.x, s.z, 2 * LAYOUT_REACH).filter((o) => laidOutBefore(o, s)).flatMap((o) => this.layout(o).claims);
@@ -124,8 +126,8 @@ export class Places {
   pondsNear(box: Box): Pond[] {
     const out: Pond[] = [];
     // (a pond lies inside its square, give or take its rim)
-    for (let j = Math.floor((box[1] - POND_REACH) / SITE_CELL); j <= Math.floor((box[3] + POND_REACH) / SITE_CELL); j++) {
-      for (let i = Math.floor((box[0] - POND_REACH) / SITE_CELL); i <= Math.floor((box[2] + POND_REACH) / SITE_CELL); i++) {
+    for (let j = Math.floor((box[1] - POND_REACH) / CHUNK); j <= Math.floor((box[3] + POND_REACH) / CHUNK); j++) {
+      for (let i = Math.floor((box[0] - POND_REACH) / CHUNK); i <= Math.floor((box[2] + POND_REACH) / CHUNK); i++) {
         const p = this.pondOf(i, j);
         if (p && p.x + POND_REACH > box[0] && p.x - POND_REACH < box[2] && p.z + POND_REACH > box[1] && p.z - POND_REACH < box[3]) out.push(p);
       }
@@ -133,7 +135,9 @@ export class Places {
     return out;
   }
 
-  /** Distance from (x, z) to the nearest bank of a stream or a pond (negative on the water; large when none is near). */
+  /**
+   * Distance from (x, z) to the nearest bank of a stream or a pond (negative on the water; large when none is near).
+   */
   waterDistance(x: number, z: number): number {
     let d = this.streams.bankDistance(x, z);
     for (const p of this.pondsNear([x - 1, z - 1, x + 1, z + 1])) d = Math.min(d, pondDistance(p, x, z));
@@ -162,14 +166,16 @@ export class Places {
   }
 
   private road(a: Site, b: Site): Road | null {
-    const id = a.id < b.id ? `${a.id}-${b.id}` : `${b.id}-${a.id}`;
+    const id = a.key < b.key ? `${a.key}-${b.key}` : `${b.key}-${a.key}`;
     return this.roads.get(id, () => {
-      const lo = a.id < b.id ? a : b;
-      const hi = a.id < b.id ? b : a;
+      // (routed from the site laid out first by id: two far squares can share an id, so their keys break the tie)
+      const aFirst = a.id < b.id || (a.id === b.id && a.key < b.key);
+      const lo = aFirst ? a : b;
+      const hi = aFirst ? b : a;
       const mx = (a.x + b.x) / 2;
       const mz = (a.z + b.z) / 2;
       const span = Math.hypot(a.x - b.x, a.z - b.z) / 2 + LAYOUT_REACH + SEARCH_MARGIN;
-      const others = this.sitesNear(mx, mz, span).filter((s) => s.id !== a.id && s.id !== b.id && s.kind !== 'ruins');
+      const others = this.sitesNear(mx, mz, span).filter((s) => s.key !== a.key && s.key !== b.key && s.kind !== 'ruins');
       const streams = this.streams.near([mx - span, mz - span, mx + span, mz + span]);
       return routeRoad(this.land, lo, hi, others, streams);
     });

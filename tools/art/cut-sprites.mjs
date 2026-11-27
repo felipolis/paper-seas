@@ -160,8 +160,8 @@ async function cutSheet({ dataUrl, merge, key, tears }) {
     // reddened by the key's hue smeared into it)
     const lineColour = [74, 40, 18].map((v, k) => (lineN ? 0.3 * (line[k] / lineN) + 0.7 * v : v));
     const lineSum = lineColour[0] + lineColour[1] + lineColour[2];
-    // a two-channel key (magenta) is a hue the prompt keeps out of every piece, so even a faint tint of it is the key's;
-    // a one-channel key (green) is natural in leaves, so only a strong tint away from the cut is
+    // a two-channel key (magenta) is a hue the prompt keeps out of every piece, so even a faint tint of it is the
+    // key's; a one-channel key (green) is natural in leaves, so only a strong tint away from the cut is
     const STRONG = (hi.length === 2 ? 0.12 : 0.3) * span;
     for (let i = 0; i < N; i++) {
       if (label[i] === BG) continue;
@@ -332,8 +332,8 @@ async function cutSheet({ dataUrl, merge, key, tears }) {
     }
     return pale / Math.max(1, n);
   };
-  // (a keyed sheet has no loose margin, and its pale pieces, a gull or a sail, are pale all through; but a generator may
-  // rule lines between its pieces: thin strips, or a lattice that fills little of its box)
+  // (a keyed sheet has no loose margin, and its pale pieces, a gull or a sail, are pale all through; but a generator
+  // may rule lines between its pieces: thin strips, or a lattice that fills little of its box)
   const ruled = (b) => Math.min(b.maxX - b.minX, b.maxY - b.minY) < 0.02 * Math.min(W, H) || b.area < 0.05 * (b.maxX - b.minX + 1) * (b.maxY - b.minY + 1);
   const solid = (b) => (keyed ? !ruled(b) : paleShare(b) < PALE_MAX);
   let cards = boxes.filter((b) => b.area > N * 0.002 && solid(b));
@@ -410,8 +410,8 @@ async function cutSheet({ dataUrl, merge, key, tears }) {
 
 /**
  * Runs in the page ("clean": "open"): makes transparent the flat cream (its margin's) the generator left inside a cut
- * piece where it opens onto the outside (an arch's opening), then feathers the new edges. The cream die-cut border round
- * the outside is never touched (it is not one flat patch reaching into the piece).
+ * piece where it opens onto the outside (an arch's opening), then feathers the new edges. The cream die-cut border
+ * round the outside is never touched (it is not one flat patch reaching into the piece).
  */
 async function clearCream({ dataUrl }) {
   const img = new Image();

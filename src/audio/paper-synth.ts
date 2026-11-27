@@ -4,7 +4,7 @@
  * A flap (a card rising or folding away) is
  *   - a "brush" bed: white noise with a lumpy decaying envelope, broad band-pass       (card moving through air)
  *   - crackle grains: dozens of 0.1-1.5 ms noise bursts, denser at the start, fed through three short card-body
- *     resonances (1-6 kHz)                                                              (fibres in the crease giving way)
+ *     resonances (1-6 kHz) (fibres in the crease giving way)
  *   - an onset snap, a smaller tick when the card meets its stop, and for large cards a faint low body thump
  *   - an air "whoosh": a 0.6-2 kHz noise swell
  * A knock (the hull touching a shore) is a short bed + a few grains + a hollow low resonance.
@@ -61,7 +61,8 @@ interface ShapeParams {
 
 /**
  * The whole filter stage in one fused pass:
- *   out = HP( LP( LP( tilt( gBed * BP_bed(bed) + gDirect * gr + sum gRes[k] * BP_res[k](gr) ) ) ) ) + gLow * BP_low(low)
+ *   out = HP( LP( LP( tilt( gBed * BP_bed(bed) + gDirect * gr + sum gRes[k] * BP_res[k](gr) ) ) ) )
+ *         + gLow * BP_low(low)
  */
 function shape(out: Float32Array, n: number, bed: Float32Array, gr: Float32Array, low: Float32Array | null, K: ShapeParams, sr: number): void {
   const cb = K.bed;

@@ -4,21 +4,22 @@
  * dozen draw calls.
  *
  * Each card has its own paper spring, but the land rises and folds by cells (which cells, when, and how the rise
- * ripples outward: world/reveal.ts): the cards of one cell start one after another over STAGGER seconds in its rise
- * order (riseOrder: the low first, the tall last) and fold down in the reverse order, lying flat on the page, face
- * up, stacked so the first to rise lies on top, until they rise again. A crossed card is a slotted cross: the card,
- * and two half cards hinged on its two faces down its middle, folded flat against it while it lies and pulled open
- * by it as it rises (the spring's NESTED linkage), so a lying cross is one card and a standing one two planes square to each other. Nothing stands plumb: each card leans a little (LEAN),
- * only as it stands, so it still lies exactly flat. A card settled upright rocks in the wind about its hinge
- * (world/wind.ts), fading in over SWAY_FADE_IN and relaxing away over SWAY_RELEASE once it moves; the animals live and
- * take the captain as world/critters.ts has them.
+ * ripples outward: world/reveal.ts): the cards of one cell start one after another over POPUP.staggerSpan seconds in
+ * its rise order (riseOrder: the low first, the tall last) and fold down in the reverse order, lying flat on the page,
+ * face up, stacked so the first to rise lies on top, until they rise again. A crossed card is a slotted cross: the
+ * card, and two half cards hinged on its two faces down its middle, folded flat against it while it lies and pulled
+ * open by it as it rises (the spring's NESTED linkage), so a lying cross is one card and a standing one two planes
+ * square to each other. Nothing stands plumb: each card leans a little (LEAN), only as it stands, so it still lies
+ * exactly flat. A card settled upright rocks in the wind about its hinge (world/wind.ts), fading in over SWAY_FADE_IN
+ * and relaxing away over SWAY_RELEASE once it moves; the animals live and take the captain as world/critters.ts has
+ * them.
  */
 import * as THREE from 'three';
 import { bus } from '../core/events';
 import { POPUP } from '../config/popup';
 import { Flap, FixedStepper, flapConstants } from '../popup/spring';
 import { CARD_THICKNESS, cardGeometry, materialFor, thickCardGeometry, thickMaterial } from '../popup/card';
-import { CROSSED, heightOf, stockOf, type Awake } from '../config/flora';
+import { hasTag, heightOf, stockOf, type Awake } from '../config/flora';
 import { cardWidth, spriteArt } from '../art/sprites';
 import { PAPER_FLAT_ATTRIBUTE, pencilPlan } from '../render/paper-material';
 import { CELL, cellGesture, cellJitter, type Reveal } from './reveal';
@@ -28,14 +29,8 @@ import { tintMaterial } from '../render/biome-tint';
 import { BIOMES, type Biome } from './land';
 import { clamp } from '../core/math';
 import { cellKey } from '../core/grid';
-import { overlaps, type Box } from './polyline';
-import type { Lamp } from '../render/lamp-pools';
+import { overlaps, type Box } from '../core/polyline';
 
-/**
- * The in-cell stagger span: the cards of a cell start one after another over this many seconds (and its
- * buildings take their place among them: world/terrain.ts).
- */
-export const STAGGER = 0.34;
 /** The size steps of a cell's rise order (world units): a card rises after every card of a lower step. */
 const RISE_STEP = 0.2;
 
@@ -69,7 +64,6 @@ const HALF_SIDE = { front: 1, back: -1 } as const;
 const X_AXIS = new THREE.Vector3(1, 0, 0);
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
-
 
 export interface CardSpec {
   sprite: string;
@@ -125,8 +119,8 @@ export interface Card extends CardSpec {
   /** The page it covers lying folded flat (see flatBounds). */
   flatBox: Box;
   /**
-   * The height it lies at folded flat, on its cell's stack (layFlat); standing it stands at y, its foot on the page, and
-   * rising it comes down that far as it goes up (no stand-up floats by its stack layer).
+   * The height it lies at folded flat, on its cell's stack (layFlat); standing it stands at y, its foot on the page,
+   * and rising it comes down that far as it goes up (no stand-up floats by its stack layer).
    */
   flatY: number;
 }
@@ -143,11 +137,14 @@ interface Batch {
    * thickness of the card its halves ride on.
    */
   thickness: number;
+  /** Its sprite is an animal (its cards move every frame while near), read once from the sprite's sheet. */
+  animal: boolean;
 }
 
 /**
  * The bounds of the page a card covers lying folded flat: it folds back (away from the camera) about its hinge, so it
- * lies from its foot back by its height, as wide as it is drawn (a cross lies as its card, the half cards folded on it).
+ * lies from its foot back by its height, as wide as it is drawn (a cross lies as its card, the half cards folded on
+ * it).
  */
 function flatBounds(s: CardSpec): Box {
   const half = cardWidth(s.sprite, s.height) / 2;
@@ -160,9 +157,6 @@ function flatBounds(s: CardSpec): Box {
   const zs = [s.z - az, s.z + az, s.z - az + bz, s.z + az + bz];
   return [Math.min(...xs), Math.min(...zs), Math.max(...xs), Math.max(...zs)];
 }
-
-/** The cards that are lamps (they pool light on the page at night, render/lamp-pools.ts). */
-const LAMPS = new Set(['lantern-post', 'campfire']);
 
 /** Animal cards pop up at this rate and away at this one (1/s) as the day or the night comes. */
 const POP_RATE = 4.5;
@@ -194,7 +188,6 @@ const _n = new THREE.Vector3();
 const _s = new THREE.Vector3();
 const _tone = new THREE.Color();
 
-
 export class CardField {
   readonly group = new THREE.Group();
   private readonly batches = new Map<string, Batch>();
@@ -206,8 +199,8 @@ export class CardField {
   /** Every card filed under its cell (cellOf), in the cell's rise order. */
   private readonly cells = new Map<number, Card[]>();
   private readonly critters: Critters;
-  /** The lamp cards (see LAMPS). */
-  private lampCards: Card[] = [];
+  /** The lamp cards (their sprite's 'lamp' tag: they pool light on the page at night, render/lamp-pools.ts). */
+  private lampList: Card[] = [];
   /** This frame's step and focus, for the animals. */
   private dt = 0;
   private focusX = 0;
@@ -266,7 +259,7 @@ export class CardField {
         b.dirty = true;
       }
       out.push(card);
-      if (LAMPS.has(s.sprite)) this.lampCards.push(card);
+      if (hasTag(s.sprite, 'lamp')) this.lampList.push(card);
     }
     // the rise order inside each cell, ranked whole: a card stands where it stands, now and then past the square of the
     // chunk that adds it, so one cell's cards may come from several adds; a cell that held cards already has its flat
@@ -296,9 +289,9 @@ export class CardField {
   }
 
   /**
-   * Lays a card in the flat stack (a new one, or one of a cell laid again: add). It lies above every card of its cell it
-   * overlaps that rises after it (the flat stack: the top of the stack rises first, so no card swings up through
-   * one lying over it, and folding down is the same film run backward). And it keeps off the plane of every card it
+   * Lays a card in the flat stack (a new one, or one of a cell laid again: add). It lies above every card of its cell
+   * it overlaps that rises after it (the flat stack: the top of the stack rises first, so no card swings up through one
+   * lying over it, and folding down is the same film run backward). And it keeps off the plane of every card it
    * overlaps: two faces in one plane flicker, the depth test picking either one frame by frame; it goes up in
    * POPUP.flatStep layers until it is at least that far from each of them (the lowest such height, so the flat stacks
    * stay a few hundredths thin).
@@ -333,7 +326,7 @@ export class CardField {
 
   remove(cards: Card[]): void {
     const dead = new Set(cards);
-    this.lampCards = this.lampCards.filter((c) => !dead.has(c));
+    this.lampList = this.lampList.filter((c) => !dead.has(c));
     this.unfile(cards);
     for (const key of new Set(cards.map((c) => cellOf(c.x, c.z)))) {
       const kept = this.cells.get(key)!.filter((c) => !dead.has(c));
@@ -354,16 +347,14 @@ export class CardField {
    */
   prewarm(sprites: string[]): void {
     for (const sprite of sprites) {
-      for (const flip of [false, true]) this.batchesOf({ sprite, flip, cross: CROSSED.has(sprite) });
+      for (const flip of [false, true]) this.batchesOf({ sprite, flip, cross: hasTag(sprite, 'crossed') });
     }
     for (const biome of BIOMES) this.batch(sprites[0], false, biome);
   }
 
-  /** The lamps standing or rising (their cards' feet, heights and progress), for the night's pools. */
-  lamps(): Lamp[] {
-    return this.lampCards
-      .filter((c) => !c.hidden && c.flap.p > 0)
-      .map((c) => ({ x: c.x, y: c.y, z: c.z, height: c.height, risen: c.flap.p }));
+  /** The lamp cards loaded (the night's pools light those standing or rising: render/lamp-pools.ts). */
+  get lamps(): readonly Card[] {
+    return this.lampList;
   }
 
   /** The standing card nearest (x, z) within r whose sprite passes test (its foot), or null. */
@@ -425,7 +416,7 @@ export class CardField {
           if (may && reveal.wantsUp(c.cx, c.cz)) {
             if (reveal.holds(c.cx, c.cz, c.held)) c.held += dt;
             else if (reveal.claimRise(c.cx, c.cz)) {
-              const delay = reveal.riseDelay(c.cx, c.cz, c.jitter) + c.order * STAGGER;
+              const delay = reveal.riseDelay(c.cx, c.cz, c.jitter) + c.order * POPUP.staggerSpan;
               f.setTarget(1, delay);
               c.halves?.setTarget(1, delay + POPUP.nested.lag);
               c.flipAt = this.time;
@@ -435,7 +426,7 @@ export class CardField {
           } else c.held = 0;
         } else if (may && reveal.wantsDown(c.cx, c.cz)) {
           // folding, the cell closes in the reverse order: the farthest first
-          const delay = reveal.foldDelay(c.cx, c.cz, c.jitter) + (1 - c.order) * STAGGER;
+          const delay = reveal.foldDelay(c.cx, c.cz, c.jitter) + (1 - c.order) * POPUP.staggerSpan;
           f.setTarget(0, delay);
           c.halves?.setTarget(0, delay);
           c.flipAt = this.time;
@@ -467,7 +458,7 @@ export class CardField {
           if (c.swayLevel < 1e-4) c.swayLevel = c.sway = 0;
           stirred = true;
         }
-        if (Critters.is(c.sprite) && f.p > 0.5 && d < SWAY_RADIUS) stirred = true;
+        if (b.animal && f.p > 0.5 && d < SWAY_RADIUS) stirred = true;
         if (c.awake) {
           const want = this.awakeNow(c.awake);
           if (c.shown !== want) {
@@ -499,7 +490,7 @@ export class CardField {
       _p.set(c.x, c.y + (c.flatY - c.y) * clamp(1 - p, 0, 1), c.z);
       let lean = 0;
       let turn = 0;
-      if (Critters.is(c.sprite)) {
+      if (b.animal) {
         // an animal lives while its card stands; rising or folding, the card lies where it last stood
         const pose = p > 0.9 ? this.critters.pose(c, this.dt, this.time, this.focusX, this.focusZ) : this.critters.still(c);
         _p.x += pose.dx;
@@ -579,7 +570,7 @@ export class CardField {
       let material: THREE.Material | THREE.Material[];
       if (thick) {
         g = thick;
-        material = tintMaterial(thickMaterial(print), biome, sprite);
+        material = tintMaterial(thickMaterial(print), biome, hasTag(sprite, 'keepsTint'));
       } else {
         // (a plane card has no outline to cut in half)
         if (part !== 'card') throw new Error(`no outline for the half cards of "${sprite}"`);
@@ -588,12 +579,12 @@ export class CardField {
           const uv = g.getAttribute('uv') as THREE.BufferAttribute;
           for (let i = 0; i < uv.count; i++) uv.setX(i, 1 - uv.getX(i));
         }
-        material = tintMaterial(print, biome, sprite);
+        material = tintMaterial(print, biome, hasTag(sprite, 'keepsTint'));
       }
       const mesh = batchMesh(g, material, 64);
       this.group.add(mesh);
-      const thickness = Critters.is(sprite) ? CARD_THICKNESS : CARD_THICKNESS * stockOf(sprite);
-      b = { mesh, part, cards: [], dirty: true, halves: [], thickness };
+      const thickness = CARD_THICKNESS * stockOf(sprite);
+      b = { mesh, part, cards: [], dirty: true, halves: [], thickness, animal: hasTag(sprite, 'animal') };
       this.batches.set(key, b);
     }
     return b;

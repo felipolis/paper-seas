@@ -1,16 +1,12 @@
 /**
- * Ship dimensions, handling and the feel of its inertia. World units are metres-ish (ship ~2.6 long). The hull size
- * and the handling come from the ship chosen in the shipyard (config/ships.ts).
+ * Ship handling and the feel of its inertia. World units are metres-ish (ship ~2.6 long). The handling comes from the
+ * ship chosen in the shipyard (config/ships.ts), as does the hull's size (ship/hull-shape.ts).
  */
 import { activeShip } from './ships';
 
 const TYPE = activeShip();
 
 export const SHIP = {
-  // ---- hull ----
-  length: TYPE.length,
-  halfBeam: TYPE.halfBeam,
-
   // ---- sailing ----
   /** Sail settings the player steps through with W / S (0 = sails furled). */
   sailLevels: [0, 0.5, 1] as const,

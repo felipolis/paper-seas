@@ -1,8 +1,8 @@
 // The cut outline of a printed piece, traced from its print's alpha, for the Blender builds (a card or a glued-on
 // detail cut to its drawing, with its thickness along that edge): the models' cut-out faces (tools/art/pack-atlas.mjs)
-// and the ships' printed details (tools/ship/trace-details.mjs). The tracing is the game's own (src/world/contours.ts),
+// and the ships' printed details (tools/ship/trace-details.mjs). The tracing is the game's own (src/core/contours.ts),
 // on the print eroded by one cell, as the sprites' silhouettes (src/popup/card.ts), so the outline runs just inside it.
-import { contoursFromGrid, outlinesWithHoles } from '../../src/world/contours.ts';
+import { contoursFromGrid, outlinesWithHoles } from '../../src/core/contours.ts';
 
 /** The print is traced on a grid at most this many cells across (fine enough for a sign's scrolls). */
 export const OUTLINE_GRID = 160;

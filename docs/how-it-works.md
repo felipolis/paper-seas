@@ -8,8 +8,10 @@ The code's layout, the rules the world follows and the world QA. Back to the [RE
 src/
   main.ts            entry point
   app/               game wiring and frame loop
-  config/            all tunables (palette, pop-up springs, ship, world, camera/lights/post)
-  core/              seeded randomness (rng), math, input, events, grid keys, browser storage, bounded caches
+  config/            all tunables (palette, pop-up springs, ship, world, camera/lights/post), the sheet of every land
+                     sprite (flora.ts) and Blender model (models.ts), each biome's look, life and wind (biomes.ts)
+  core/              seeded randomness (rng), math, input, events, grid keys, browser storage, bounded caches, value
+                     noise, polylines and the contour tracer (marching squares) the land, the prints and the chart share
   popup/             pop-up physics (springs), hinge groups, card meshes
   art/               canvas card painter, sprites (cut cards), the stern lantern painter
   sea/               sea page shader, standing wave cards
@@ -46,6 +48,8 @@ tools/art/           sheet cutter (cut-sprites: keys the game's sprites out of t
                      contact sheet; audit-pages: large pages)
 public/art/          cut sprites + manifest (loaded at startup)
 public/models/       Blender-built models (models.glb, ship-*.glb), their printed atlas and textures
+public/textures/paper/  the paper maps every piece is printed on (art/paper-maps.ts): the card and page stock's fibre
+                     and relief, the strip of stacked sheets on the land's cut edge
 tools/blender/       Blender build scripts (buildings, mountains, the pier and the bridge: ramps and a crown
                      between sides leaning out; the ships)
 tools/ship/          the ships' build (build-ships.sh): exports the hull shapes (export-shape), traces the printed
@@ -63,100 +67,105 @@ voyage draws a new seed (or takes the one typed in the pause menu).
 What the world does and how, every size measured against the captain:
 
 - **What stands up** (`world/reveal.ts`): the land rises by 2 x 2 cells within 6 units of a point 2.7 ahead of the
-  captain or the ship, rippling outward 0.055 s per cell; as the camera pulls back the ring grows by the view's reach
-  (0 at the 10.8 framing, 0.9 tiles at the 14.5 wide view, at most 1.5 tiles), the rest unchanged; the land, the
-  waves and what is adrift all keep to it, and whatever it has not raised lies folded flat, face up, in view;
-  the rows behind fold from the track outward; a cell flips at most once per 2 s; the anchor trails on a 1-unit rope.
-  A cell's cards start over 0.34 s from the low to the tall (the grass, flowers and stones, then the bushes, the
-  trees last; within a 0.2 size step the nearest first), and fold in the reverse order, the first to rise lying on top of the flat stack; each leans up to 2.5 degrees once it stands, and lies exactly flat when folded.
-  A building opens as one (every piece of one construction shares its start): only a piece
-  standing on the page starts on its own, and a piece that rides on another (a wall on the front, a roof on its wall)
-  is pulled up by it as it opens, 0.02 s behind it (popup/spring.ts NESTED), so the planes of one construction never
-  scissor. It takes its place in its cell's order by its height (world/terrain.ts): after the ground cover and before the
-  trees, and folds in the reverse order. Folded flat, no two pieces lie over each
-  other closer than 0.001 (config/popup.ts flatStep), so no face flickers between two: the cards step up from those
-  they cover (world/card-field.ts), and the pieces of a building that would meet (its two walls, its two roof slopes)
-  are moved apart once per model, measured on its faces folded flat (world/models.ts separateFlat).
+  captain or the ship, rippling outward 0.055 s per cell; as the camera pulls back the ring grows by the view's reach (0
+  at the 10.8 framing, 0.9 tiles at the 14.5 wide view, at most 1.5 tiles), the rest unchanged; the land, the waves and
+  what is adrift all keep to it, and whatever it has not raised lies folded flat, face up, in view; the rows behind fold
+  from the track outward; a cell flips at most once per 2 s; the anchor trails on a 1-unit rope. A cell's cards start
+  over 0.34 s from the low to the tall (the grass, flowers and stones, then the bushes, the trees last; within a 0.2
+  size step the nearest first), and fold in the reverse order, the first to rise lying on top of the flat stack; each
+  leans up to 2.5 degrees once it stands, and lies exactly flat when folded. A building opens as one (every piece of one
+  construction shares its start): only a piece standing on the page starts on its own, and a piece that rides on another
+  (a wall on the front, a roof on its wall) is pulled up by it as it opens, 0.02 s behind it (popup/spring.ts NESTED),
+  so the planes of one construction never scissor. It takes its place in its cell's order by its height
+  (world/terrain.ts): after the ground cover and before the trees, and folds in the reverse order. Folded flat, no two
+  pieces lie over each other closer than 0.001 (config/popup.ts flatStep), so no face flickers between two: the cards
+  step up from those they cover (world/card-field.ts), and the pieces of a building that would meet (its two walls, its
+  two roof slopes) are moved apart once per model, measured on its faces folded flat (world/models.ts separateFlat).
   Folded flat, every piece (cards, buildings, mountains, piers and bridges alike) fades with its distance from the
-  captain or the ship into a pencil plan of the unpainted book: full colour within 6.8, beyond 9.6 a pale
-  cream wash keeping a quarter of its colour, pencil outlines and a little hatching (render/paper-material.ts).
+  captain or the ship into a pencil plan of the unpainted book: full colour within 6.8, beyond 9.6 a pale cream wash
+  keeping a quarter of its colour, pencil outlines and a little hatching (render/paper-material.ts).
 - **Never a blank back**: cards and model pieces are printed on both faces, so whatever way they fold, a print lies up.
-- **The art** (`assets-src/prompts`, `tools/art/cut-sprites.mjs`): every sprite is a printed layered paper
-  collage in a warm palette, its layers with pale lips on their lit side, bold ornaments (chevrons, zigzags, dots,
-  scallops) on plants, cloth, wood and buildings, and the cut edge printed with it: a thin dark warm-brown line at the silhouette and a pale highlight just inside it on the lit
-  side only, never an even cream sticker rim. The sheets are generated on a flat key colour and keyed out; pieces of
-  one item cut apart by a narrow gap are joined (`merge`).
-- **Cardstock** (`popup/card.ts`, `tools/blender/build_models.py`): every card is 0.016 thick, but on the land
-  (`config/flora.ts` `stockOf`): ferns, flowers, tufts, grass and mushrooms x1.3, bushes x1.22, props and rocks
-  x1.15, trees x0.86, reeds x0.8, animals as the base (a card in other stock keeps its face where a base card's is);
-  its cut edge stands on the print's outline (traced from its alpha at the print's resolution, up to 384 px), so it
-  shows round the print at an angle; its face
-  is shaded from 0.787 at the hinge to full colour 0.21 above it (contact shading, baked per vertex), the cards of a
-  clump darker toward its back (0.69 to 1, its instance colour), its cut edge is the piece's own tone darkened per
-  channel (0.62, 0.65, 0.78); crossed trees turn 0.6 of the others' jitter, ferns stand single.
-  A crossed card (the trees in `config/flora.ts` `CROSSED`) is a slotted cross: the card, and two half cards 40 % as
-  thick hinged on its two faces down its middle, folded flat against it while it lies and pulled open by it as it rises (the spring's nested linkage), so a lying cross reads as one card;
-  the chimneys and the pier's posts (`tools/blender/build_models.py` `cross_halves`) are built the same way.
+- **The art** (`assets-src/prompts`, `tools/art/cut-sprites.mjs`): every sprite is a printed layered paper collage in a
+  warm palette, its layers with pale lips on their lit side, bold ornaments (chevrons, zigzags, dots, scallops) on
+  plants, cloth, wood and buildings, and the cut edge printed with it: a thin dark warm-brown line at the silhouette and
+  a pale highlight just inside it on the lit side only, never an even cream sticker rim. The sheets are generated on a
+  flat key colour and keyed out; pieces of one item cut apart by a narrow gap are joined (`merge`).
+- **Cardstock** (`popup/card.ts`, `tools/blender/build_models.py`): every card is 0.016 thick, but on the land (each
+  sprite's sheet, `config/flora.ts`): ferns, flowers, tufts, grass and mushrooms x1.3, bushes x1.22, props and rocks
+  x1.15, trees x0.86, reeds x0.8, animals as the base (a card in other stock keeps its face where a base card's is); its
+  cut edge stands on the print's outline (traced from its alpha at the print's resolution, up to 384 px), so it shows
+  round the print at an angle; its face is shaded from 0.88 at the hinge to full colour 0.065 above it (contact shading,
+  baked per vertex), the cards of a clump darker toward its back (0.69 to 1, its instance colour); its cut edge is the
+  print's mean tone taken 0.45 of the way to a dark umber and 0.1 toward the cream core (0.5 and 0.06 on a dark print,
+  so a pine never shows a pale edge); crossed trees turn 0.6 of the others' jitter, ferns stand single. A crossed card
+  (a tree whose sheet is tagged `crossed`, `config/flora.ts`) is a slotted cross: the card, and two half cards 40 % as
+  thick hinged on its two faces down its middle, half a millimetre of air off them, folded flat against it while it lies
+  and pulled open by it as it rises (the spring's nested linkage), so a lying cross reads as one card; the chimneys and
+  the pier's posts (`tools/blender/build_models.py` `cross_halves`) are built the same way, with 2 mm of air.
 - **Biome tints** (`render/biome-tint.ts`): a colour transform per biome on the printed ground (blended over a tile),
   on every card and model standing there and on the roads: the meadow takes a blossom tint, the pine woods a pinewood
   one (a teal wood, a pine-needle track, darker streams), the jungle and the rocks none (unchanged); the streams take
   the water of their biome (shallow, deep, rim, floater), petals in the blossom.
-- **Sizes and density** (`config/flora.ts`, `world/cover.ts`): trees about 1.1, pines 1.3, bushes 0.4, flowers and
-  grass 0.3, houses 1.1, animals at most half the captain, every kind varied +-15 % (and under everything that stands, a soft darker contact
-  patch on the ground: a disc under a card, the footprint under a building); the ground is planted by 2 x 2 tiles, each one composition
-  mixing a few tall species near its corners with clumps of ground cover and flowers, a small prop or two (a stump, a
-  log, mushrooms, coconuts, shells, a woodpile) and about one row of animals (goats and pigs
-  in herds, hens and songbirds in flocks by day, monkeys and lizards by day, a boar behind a tree by day and in the
-  open at night, the tortoise by night, the owl by night up on a stump or a log; out of its hours an animal pops away
-  and comes back when they return), now and then (one a square at most) a pen of goats in the meadow, the woods massing where a low-frequency field is
-  high and clearings left where another is low (open ground between the groups, a low clump or two on it); no more than
-  three of one prop or animal stand in any 9 x 9 square, about one on-foot view. A tile hands out its species before repeating one (four pines, three broadleaf trees, two blossoms to draw from), and a clump is one to
-  four cards of different species, the tallest at the back; the low cover is drawn as wide low drifts (about 2.4 x as
-  wide as tall), the ferns as compact clumps; a lone tuft of grass, a reed bed, a bush, a boulder or a crag stands with
-  a rear copy behind it (0.75 of its tone, 1.08 its size, about 0.13 further back), so it reads as a thick clump. Villages ring
-  their square or, half of them, line a street through it (the far side's houses face the
-  camera and the street, the rest face it from the near side, the low props mostly on the near side so the street
-  stays in sight); they have a well, stalls, laundry, bunting, carts, benches, lamps, hives and fences, flocks of hens
-  and chicks by day, a few goats and a pig or two, and little scenes: a bed of flowers by a door, a pen of goats (or a
-  pig), a handcart with its hay, a rowboat drawn up on the sand by the pier. A pen is a diamond
-  of low fence cards turned 45 degrees to the camera with a gate on the near side, too low to stop the feet. Every few units of road a
-  guidepost, bench, cart (with its hay, often), lamp or barrel stands by it, and a signpost where roads meet (a fork
-  past a village's square, a crossing);
-  now and then a lookout tower or a camp of tents round a fire stands in the wild.
-- **Roads and streams** (`world/places.ts`): rivers wind a long way across the land and never reach the sea, each in its own stretch of country so no two meet; villages, ports, inland hamlets and ruins are joined by roads routed over the land (noise, turn cost, hills
-  dear), crossing the rivers on bridges, and every river has footbridges of its own along it; lanes lead to every door and pier.
-  Both ends of a river are a spring: a stone mound card with the water's mouth, three crags in a
-  horseshoe behind it, reeds and a frog on the pool's bank; reeds stand along its banks, ducks float on it, frogs and herons wait at the
-  edge. Here and there a pond (`world/ponds.ts`) lies on level meadow, pine wood or jungle
-  ground clear of the roads and villages, the ground in front of it kept clear: the streams' water, still (its marks
-  printed where they lie), with giant lily pads on it (sheet 49, a pink lily open on some), reeds on its far bank, a duck afloat, a frog or a heron at its edge.
+- **Sizes and density** (`config/flora.ts`, `world/cover.ts`): trees about 1.1, pines 1.3, bushes 0.4, flowers 0.25-0.4,
+  grass 0.2, houses 1.1, animals at most half the captain, every kind varied +-15 % (and under everything that stands, a
+  soft darker contact patch on the ground: a disc under a card, the footprint under a building); the ground is planted
+  by 2 x 2 tiles, each one composition mixing a few tall species near its corners with clumps of ground cover and
+  flowers, a small prop or two (a stump, a log, mushrooms, coconuts, shells, a woodpile) and about one row of animals
+  (goats and pigs in herds, hens and songbirds in flocks by day, monkeys and lizards by day, a boar behind a tree by day
+  and in the open at night, the tortoise by night, the owl by night up on a stump or a log; out of its hours an animal
+  pops away and comes back when they return), now and then (one a square at most) a pen of goats in the meadow, the
+  woods massing where a low-frequency field is high and clearings left where another is low (open ground between the
+  groups, a low clump or two on it); no more than three of one prop or animal stand in any 9 x 9 square, about one
+  on-foot view. A tile hands out its species before repeating one (four pines; the broadleaf and blossom trees each
+  drawn among their 5 and 4 printed variants), and a clump is one to four cards of different species, the tallest at the
+  back; the low cover is drawn as wide low drifts (about 2.4 x as wide as tall), the ferns as compact clumps; a lone
+  tuft of grass, a reed bed, a bush, a boulder or a crag stands with a rear copy behind it (0.75 of its tone, 1.08 its
+  size, about 0.13 further back), so it reads as a thick clump. Villages ring their square or, half of them, line a
+  street through it (the far side's houses face the camera and the street, the rest face it from the near side, the low
+  props mostly on the near side so the street stays in sight); they have a well, stalls, laundry, bunting, carts,
+  benches, lamps, hives and fences, flocks of hens and chicks by day, a few goats and a pig or two, and little scenes: a
+  bed of flowers by a door, a pen of goats (or a pig), a handcart with its hay, a rowboat drawn up on the sand by the
+  pier. A pen is a diamond of low fence cards turned 45 degrees to the camera with a gate on the near side, too low to
+  stop the feet. Every few units of road a guidepost, bench, cart (with its hay, often), lamp or barrel stands by it,
+  and a signpost where roads meet (a fork past a village's square, a crossing); now and then a lookout tower or a camp
+  of tents round a fire stands in the wild.
+- **Roads and streams** (`world/places.ts`): rivers wind a long way across the land and never reach the sea, each in its
+  own stretch of country so no two meet; villages, ports, inland hamlets and ruins are joined by roads routed over the
+  land (noise, turn cost, hills dear), crossing the rivers on bridges, and every river has footbridges of its own along
+  it; lanes lead to every door and pier. Both ends of a river are a spring: a stone mound card with the water's mouth,
+  three crags in a horseshoe behind it, reeds and a frog on the pool's bank; reeds stand along its banks, ducks float on
+  it, frogs and herons wait at the edge. Here and there a pond (`world/ponds.ts`) lies on level meadow, pine wood or
+  jungle ground clear of the roads and villages, the ground in front of it kept clear: the streams' water, still (its
+  marks printed where they lie), with giant lily pads on it (sheet 49, a pink lily open on some), reeds on its far bank,
+  a duck afloat, a frog or a heron at its edge.
 - **A flat page**: the land is one sheet of paper cut to the shore; relief comes only from what stands on it. The world
   is mostly sea (the land is under a third of it).
-- **Paths as printed** (`world/ground-shader.ts`): roads 0.75 wide (a leading line, 1.3 captains), lanes and squares are drawn into
-  the ground (soft edge, halo, fringe, worn middle, pebbles), with grass tufts and flowers; lanes branch from the square
-  and from one another like trodden paths. No standing card's blocking foot comes within 0.12 of a path's edge.
+- **Paths as printed** (`world/ground-shader.ts`): roads 0.75 wide (a leading line, 1.3 captains), lanes and squares are
+  drawn into the ground (soft edge, halo, fringe, worn middle, pebbles), with grass tufts and flowers; lanes branch from
+  the square and from one another like trodden paths. No standing card's blocking foot comes within 0.12 of a path's
+  edge.
 - **The sea** (`sea/sea-surface.ts`, `config/palette.ts`): the world's floor printed pale
   (paler and less saturated than the pieces on it, authored a step bluer than it lands under the warm grade), in
   mottled depth tones with printed shallows, foam and drifting dashes. Its reflection is a real mirror
   (`render/reflection.ts`, `sea/mirror.ts`), swaying on its broad wave and tinted toward the water; the wave is sized on
   screen for the 10.8 framing, and a finer wave (which split a dark hull over the pale sea into
   striped rows) is left out. Dolphins and fish leap on arms turning about an axle under the page, a paper mover.
-- **Streams and ponds** (`world/stream-mesh.ts`, `sea/water.ts`): the sea's fibre in the water of the biome they
-  run through (`render/biome-tint.ts`: shallow, deep, rim and floater per biome, blended along a stream where it
-  crosses from one biome to the next), in depth steps, with current dashes flowing down, floating leaves (petals in the
-  blossom, with their shadow and midrib) and
-  faint current lines riding the same flow, and a sandy cut bank; each begins and ends in a round pool. A pond is the
-  same water as a still disc: its dashes and floaters lie where they are printed instead of riding a current. They mirror
-  the world as the sea does, reading the sea's mirror image at their own height on the
-  land: no second pass, and off by less than the image's own ripple. At night (the sea and the streams alike) the water
-  sinks into a deep blue, the mirrored paper into a paler blue while the mirrored lights stay bright and pull out into
-  warm broken streaks toward the viewer, and every lamp pool lays a warm streak on the water before it.
+- **Streams and ponds** (`world/stream-mesh.ts`, `sea/water.ts`): one water with the sea (its fibre, printed depth
+  steps, light net and waterline are `sea/water.ts`'s), in the colours of the biome they run through
+  (`render/biome-tint.ts`: shallow, deep, rim and floater per biome, blended along a stream where it crosses from one
+  biome to the next), with current dashes flowing down, floating leaves (petals in the blossom, with their shadow and
+  midrib) and faint current lines riding the same flow, and a sandy cut bank; each begins and ends in a round pool. A
+  pond is the same water as a still disc: its dashes and floaters lie where they are printed instead of riding a
+  current. They mirror the world as the sea does, reading the sea's mirror image at their own height on the land: no
+  second pass, and off by less than the image's own ripple. At night (the sea and the streams alike) the water sinks
+  into a deep blue, the mirrored paper into a paler blue while the mirrored lights stay bright and pull out into warm
+  broken streaks toward the viewer, and every lamp pool lays a warm streak on the water before it.
 - **Wind** (`world/wind.ts`): every standing card rocks by its height, thinness and kind, in travelling gusts, as
-  strongly as the wind blows in its biome (the meadow 0.85 of the jungle's, the pine woods all but still at
-  0.32). There are two winds, both steady in direction: the sea wind (`config/world.ts` SEA_WIND, toward the
-  north-north-east), which the ship sails by and the sails, flag, sea dashes, clouds, smoke, falling leaves, dust, mist and rain follow;
-  and the land's breeze in the standing cards, on its own heading on purpose, so its gust fronts cross the screen
-  sideways where they read best.
+  strongly as the wind blows in its biome (the meadow 0.85 of the jungle's, the pine woods all but still at 0.32). There
+  are two winds, both steady in direction: the sea wind (`config/world.ts` SEA_WIND, toward the north-north-east), which
+  the ship sails by and the sails, flag, sea dashes, clouds, smoke, falling leaves, dust, mist and rain follow; and the
+  land's breeze in the standing cards, on its own heading on purpose, so its gust fronts cross the screen sideways where
+  they read best.
 - **Collisions as drawn** (`world/blockers.ts`, `world/clearance.ts`, `player/walker.ts`): only what stands between
   0.07 and 0.3 above the page stops the feet; crossed cards and mountains block their whole footprint. What
   stops the feet is baked once into a walk field: a grid of distances every 0.05 over each chunk, made the first time
@@ -183,23 +192,22 @@ What the world does and how, every size measured against the captain:
   pinewood look (a weak warm sun through the canopy, teal, misty); each is laid over the plain look as a change to it,
   the haze's amount staying the plain look's.
 - **Life** (`life/`, `world/critters.ts`): densities set per biome (the meadow, the pine woods, the jungle and rocks,
-  and sand each have their own): falling leaves in five
-  autumn colours and blossom petals that settle and fade, drifting dust, butterflies with hinged wings (gathering over the flowers: one
-  with a flower near its home takes its home over it and flies whatever its rank), fireflies over
-  the banks at night, rain with splash rings and soft mist in the pine woods, flocks of birds crossing in a V with their
-  shadows on the ground, chimney smoke by day, gulls circling spots of their own (nothing follows the ship: left behind, a gull shrinks
-  away and comes back over a spot ahead), sea encounters now and then (9-18 s apart, two at most), each environment of the
-  sea with its own few kinds (3-5 per environment, config/life.ts zones: turtles, jellyfish, fish and
-  octopuses in coastal water; dolphins, flying fish, mantas and passing ships on the open sea; whales, sharks, the
-  kraken and the serpent in the deep, where no gull flies); every bit fades where it would cross the camera's
-  line to the captain. Animals have lives of their own: they idle and walk about their home (a paper hop and roll per
-  step), hens peck, goats graze, cats nap, ducks float in slow arcs on the streams; near the captain they freeze, then
-  bound, dart, flutter or shuffle off and make a new home there; at night grazers stand still and pets doze. They
-  walk on the captain's clearance field (keeping 0.07 clear), so they go round trees, rocks, fences and houses.
-  Vignettes tie some to a piece: a cat sitting on a fence, a barrel, the well or a bench, a cat by a door,
-  a dog by the cart or the well, hens by a fence, an owl at the top of a watchtower, a gecko at a tree's trunk, a boar
-  half hidden behind one; they mostly keep their place, and leave a seat with a paper leap down. Turning round, an
-  animal's card flips with its edge-on middle cut out, so it never shows as a sliver.
+  and sand each have their own): falling leaves in five autumn colours and blossom petals that settle and fade, drifting
+  dust, butterflies with hinged wings (gathering over the flowers: one with a flower near its home takes its home over
+  it and flies whatever its rank), fireflies over the banks at night, rain with splash rings and soft mist in the pine
+  woods, flocks of birds crossing in a V with their shadows on the ground, chimney smoke by day, gulls circling spots of
+  their own (nothing follows the ship: left behind, a gull shrinks away and comes back over a spot ahead), sea
+  encounters now and then (9-18 s apart, two at most), each environment of the sea with its own few kinds (3-5 per
+  environment, config/life.ts zones: turtles, jellyfish, fish and octopuses in coastal water; dolphins, flying fish,
+  mantas and passing ships on the open sea; whales, sharks, the kraken and the serpent in the deep, where no gull
+  flies); every bit fades where it would cross the camera's line to the captain. Animals have lives of their own: they
+  idle and walk about their home (a paper hop and roll per step), hens peck, goats graze, cats nap, ducks float in slow
+  arcs on the streams; near the captain they freeze, then bound, dart, flutter or shuffle off and make a new home there;
+  at night grazers stand still and pets doze. They walk on the captain's clearance field (keeping 0.07 clear), so they
+  go round trees, rocks, fences and houses. Vignettes tie some to a piece: a cat sitting on a fence, a barrel, the well
+  or a bench, a cat by a door, a dog by the cart or the well, hens by a fence, an owl at the top of a watchtower, a
+  gecko at a tree's trunk, a boar half hidden behind one; they mostly keep their place, and leave a seat with a paper
+  leap down. Turning round, an animal's card flips with its edge-on middle cut out, so it never shows as a sliver.
 - **Footsteps** (`audio/paper-synth.ts`): a synthesised paper step on every footfall, its timbre set by the ground
   (grass, path, a deck). His legs walk with planted feet: each planted foot holds still under the moving hip (its
   stance angle covers the stride exactly), the other swings forward on a smoothstep.
@@ -218,18 +226,18 @@ What the world does and how, every size measured against the captain:
   close, wide, low, postcard) over the same 0.9 s glide, at sea too, the far ones seeing a little past the ring; a
   paper slip names the view for a moment. Ashore the keys are the screen's: W walks up the screen,
   turning with the camera in the turned views and under the sight assist.
-- **No chrome**: no HUD panel; the sails, the flag and the wake show what the
-  ship is doing, and one line of hints fades once you get under way. What must be a screen is paper: every panel is a
-  card of the page's stock with its fibre (ui/paper-sheet.ts), the cut edge printed on it and a contact and a cast
-  shadow (ui/paper.css), buttons press like card, the menu, the shipyard and the chart slide up like a sheet, a discovery card slides down from above, the chart's explored print ends in a
-  torn edge, the cursor is hidden over the scene, and reduced motion makes every slide instant.
+- **No chrome**: no HUD panel; the sails, the flag and the wake show what the ship is doing, and one line of hints fades
+  once you get under way. What must be a screen is paper: every panel is a card of the page's stock with its fibre
+  (ui/paper-sheet.ts), the cut edge printed on it and a contact and a cast shadow (ui/paper.css), buttons press like
+  card, the menu, the shipyard and the chart slide up like a sheet, a discovery card slides down from above, the chart's
+  explored print ends in a torn edge, the cursor is hidden over the scene, and reduced motion makes every slide instant.
 - **Haze and depth of field** (`render/post.ts`): a subtle haze of one mid-tone colour, only far away (from 6.7 to 18.7
-  units from the focus at a 17-unit framing, scaled with the focus distance; on foot ~9 to ~26 hero heights). The blur is a
-  tilt-shift whose sharp band measures ~0.65 of the frame: each pixel blurred by a mix of its
-  height on screen and its depth (0.8 depth: the pieces blur in layers), a sharp band round the focus that grows with a
-  close camera, a near-field tile pass so the foreground blurs over the sharp band, a near / far aware bokeh gather and a
-  fill pass. A scene pixel that is not a number (a speck lit into one) is read as the mean of its neighbours, so it
-  never spreads through the blur into a white disc ringed with black (HDRP's "Stop NaNs").
+  units from the focus at a 17-unit framing, scaled with the focus distance; on foot ~9 to ~26 hero heights). The blur
+  is a tilt-shift whose sharp band measures ~0.65 of the frame: each pixel blurred by a mix of its height on screen and
+  its depth (0.8 depth: the pieces blur in layers), a sharp band round the focus that grows with a close camera, a
+  near-field tile pass so the foreground blurs over the sharp band, a near / far aware bokeh gather and a fill pass. A
+  scene pixel that is not a number (a speck lit into one) is read as the mean of its neighbours, so it never spreads
+  through the blur into a white disc ringed with black (HDRP's "Stop NaNs").
 
 ## World QA
 

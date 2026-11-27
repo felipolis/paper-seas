@@ -12,7 +12,7 @@ import { POPUP } from '../config/popup';
 import { PALETTE } from '../config/palette';
 import { hash01 } from '../core/rng';
 import { DEG, clamp } from '../core/math';
-import { distanceToSegment } from '../world/polyline';
+import { distanceToSegment } from '../core/polyline';
 import { Flap, FixedStepper, flapConstants } from '../popup/spring';
 import { bus } from '../core/events';
 import { cardGeometry, thickCardGeometry, thickMaterial } from '../popup/card';

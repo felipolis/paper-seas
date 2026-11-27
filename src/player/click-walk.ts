@@ -288,6 +288,6 @@ export class ClickWalk {
       this.routeFor = null;
       this.replanAt = 0;
     }
-    this.mark.stamp(x, this.ground(x, z), z);
+    this.mark.stamp(x, this.ground(x, z), z, !drag);
   }
 }

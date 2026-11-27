@@ -1,19 +1,21 @@
 /**
- * The world mirrored in the water (a real planar mirror), shared by the sea and the streams: each water material projects its own pixel into the planar mirror image (render/reflection.ts) and shows
- * it rippled sideways and tinted toward the water under it.
+ * The world mirrored in the water (a real planar mirror), shared by the sea and the streams: each water material
+ * projects its own pixel into the planar mirror image (render/reflection.ts) and shows it rippled sideways and tinted
+ * toward the water under it.
  *
  * The image is the sea's, mirrored in the plane y = 0; the streams lie on the land, h above it, and read the same
  * image at their own point. Mirrored in their plane the world would stand 2h higher, which is the same as looking
  * from 2h lower: the ray they read instead parts from the true one by 2h x (how far past the water the mirrored
  * thing is) / (how far the camera is), about 0.03 for a tree on the bank seen on foot, below the image's own ripple.
  *
- * At night the water sinks into a deep blue, the mirrored paper sinks into the blue while the mirrored lights stay bright and pull out into warm broken
- * streaks toward the viewer, and every lamp pool (render/lamp-pools.ts) lays a warm streak on the water before it. The
- * night comes in with the pools.
+ * At night the water sinks into a deep blue, the mirrored paper sinks into the blue while the mirrored lights stay
+ * bright and pull out into warm broken streaks toward the viewer, and every lamp pool (render/lamp-pools.ts) lays a
+ * warm streak on the water before it. The night comes in with the pools.
  */
 import * as THREE from 'three';
 import type { Reflection } from '../render/reflection';
-import { POOL_COUNT, poolUniforms } from '../render/lamp-pools';
+import { POOL_COUNT, poolNight, poolUniforms } from '../render/lamp-pools';
+import { ON_FOOT } from '../config/view';
 
 /**
  * The mirror: its sideways ripple (world units), its strength, how far its image is tinted toward the water, its
@@ -33,14 +35,19 @@ const NIGHT_MIRROR = 'vec3(0.55, 0.66, 0.82)';
 const POOL_STREAK = '0.55';
 const LIGHT_STREAK = '0.42';
 /**
- * The ripple's wave trains and displacement are sized for a framing with the focus 10.8 from the camera. Seen from
- * further (the ship's 18), the same world sizes would shrink to ~5 px rows that read as scanlines, so they keep the
- * size on screen they have at that framing: they grow with the camera's distance beyond MIRROR_FRAMING. The wave is
- * laid out from an anchor that moves to the focus whenever the size changes (keeping the wave at the focus where it
- * was), so a zoom stretches it about the middle of the
- * picture instead of sliding it by the world's far-off coordinates; at a steady size it stays put in the world.
+ * The water's night is the night amount times this, clamped at 1: the water has sunk fully into its blue a little
+ * before the night is complete.
  */
-const MIRROR_FRAMING = 10.8;
+const WATER_NIGHT_GAIN = '1.2';
+/**
+ * The ripple's wave trains and displacement are sized for the framing on foot (ON_FOOT.distance from the focus). Seen
+ * from further (the ship's CAMERA.distance), the same world sizes would shrink to ~5 px rows that read as scanlines, so
+ * they keep the size on screen they have at that framing: they grow with the camera's distance beyond MIRROR_FRAMING.
+ * The wave is laid out from an anchor that moves to the focus whenever the size changes (keeping the wave at the focus
+ * where it was), so a zoom stretches it about the middle of the picture instead of sliding it by the world's far-off
+ * coordinates; at a steady size it stays put in the world.
+ */
+const MIRROR_FRAMING = ON_FOOT.distance;
 /** The wave's frequencies are multiples of 2 pi / MIRROR_WRAP (wkf), so its offset wraps at MIRROR_WRAP exactly. */
 const MIRROR_WRAP = 256;
 /** wkf(n): n whole waves over MIRROR_WRAP, as a GLSL literal written out in full so the wrap stays exact. */
@@ -56,8 +63,9 @@ const uniforms = {
   uReflOn: { value: 0 },
   uReflScale: { value: 1 },
   uReflAnchor: { value: new THREE.Vector4(0, 0, 0, 0) },
-  // the lamp pools (their lamps for the streaks, their colour for how far into the night it is)
+  // the lamp pools (their lamps and colour for the streaks, their night amount for the water's)
   ...poolUniforms,
+  uPoolNight: poolNight,
 };
 
 /** The mirror's uniforms, shared by every water material (spread them into its own). */
@@ -74,8 +82,8 @@ export function setMirror(r: Reflection | null): void {
 }
 
 /**
- * Keeps the ripple the size on screen it has at MIRROR_FRAMING. cameraDistance: how far the camera stands from its focus (fx, fz);
- * the wave is re-anchored at the focus when its size changes (see MIRROR_FRAMING).
+ * Keeps the ripple the size on screen it has at MIRROR_FRAMING. cameraDistance: how far the camera stands from its
+ * focus (fx, fz); the wave is re-anchored at the focus when its size changes (see MIRROR_FRAMING).
  */
 export function frameMirrorRipple(cameraDistance: number, fx: number, fz: number): void {
   const scale = Math.max(1, cameraDistance / MIRROR_FRAMING);
@@ -103,13 +111,14 @@ uniform float uReflScale;    // the ripple's size relative to its size at MIRROR
 uniform vec4 uReflAnchor;    // the wave laid out as (p - xy) / uReflScale + zw
 uniform vec4 uPaperPool[ ${POOL_COUNT} ];
 uniform vec4 uPaperPoolCol;
+uniform float uPoolNight;    // the night amount the lamp pools are lit for (0 while they are off)
 vec3 gMirror;
 float gMirrorW;
 float gMirrorWater;
 vec3 gMirrorStreak;
-/** How far into the night the water is (read from the lamp pools' colour). */
+/** How far into the night the water is (see WATER_NIGHT_GAIN). */
 float waterNight() {
-  return uPaperPoolCol.w > 0.0 ? clamp(uPaperPoolCol.r * 1.2, 0.0, 1.0) : 0.0;
+  return clamp(uPoolNight * ${WATER_NIGHT_GAIN}, 0.0, 1.0);
 }
 void mirrorImage(vec2 p, float h, vec3 col, float clear) {
   gMirror = vec3(0.0);

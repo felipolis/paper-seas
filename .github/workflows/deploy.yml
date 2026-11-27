@@ -23,7 +23,7 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      # (typecheck + dead-code check: nothing unused gets in)
+      # (typecheck + dead-code check + rules check: nothing unused and no broken rule gets in)
       - run: npm run check
       # (production build into dist/)
       - run: npm run build

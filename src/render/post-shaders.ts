@@ -13,10 +13,34 @@
  */
 import { CLOUD_GLSL } from './cloud-shadows';
 
+/**
+ * The tone curve, shared by the composite and post.ts's mirror of it: the ACES filmic fit
+ * x (a x + b) / (x (c x + d) + e); the sRGB transfer (x slope below cut, scale x^(1 / gamma) - offset above it); the
+ * pivot the contrast turns about; the Rec. 709 luma weights.
+ */
+export const TONE_CURVE = {
+  aces: { a: 2.51, b: 0.03, c: 2.43, d: 0.59, e: 0.14 },
+  srgb: { cut: 0.0031308, slope: 12.92, scale: 1.055, offset: 0.055, gamma: 2.4 },
+  pivot: 0.42,
+  luma: [0.2126, 0.7152, 0.0722],
+} as const;
+/** The scene's brightest colour going into the half-res buffers, so one hot texel never fills a bokeh disc. */
+const PRE_MAX = 24;
+/** The bloom's brightest colour. */
+const BLOOM_MAX = 8;
+/** The aspect the vignette is drawn for (16:9); a wider or narrower frame stretches it with its width. */
+const VIGNETTE_ASPECT = 16 / 9;
+
+/** A number as a GLSL float literal, every digit kept. */
+const float = (v: number): string => (Number.isInteger(v) ? v.toFixed(1) : String(v));
+const ACES = TONE_CURVE.aces;
+const SRGB = TONE_CURVE.srgb;
+const PIVOT = float(TONE_CURVE.pivot);
+
 /** Interleaved gradient noise (per-pixel rotation of a tap pattern) and Rec. 709 luma. */
 const HELPERS = /* glsl */ `
 float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
-float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
+float luma(vec3 c) { return dot(c, vec3(${TONE_CURVE.luma.map(float).join(', ')})); }
 `;
 
 export const VERT = /* glsl */ `
@@ -142,7 +166,7 @@ void main() {
     float c = cocAt(uv, zz);
     // favour the blurrier samples so a sharp foreground edge never leaks its colour into the blur buffer
     float w = 0.02 + abs(c);
-    acc += gradeWorld(min(sceneAt(tScene, uv), vec3(24.0)), uv, zz, dr) * w;
+    acc += gradeWorld(min(sceneAt(tScene, uv), vec3(${float(PRE_MAX)})), uv, zz, dr) * w;
     wsum += w;
     if (abs(c) > abs(coc)) coc = c;
   }
@@ -155,7 +179,9 @@ void main() {
 }
 `;
 
-/** The largest near-field CoC over a block of 4 x 4 half-res texels (foreground blur may spread over its neighbours). */
+/**
+ * The largest near-field CoC over a block of 4 x 4 half-res texels (foreground blur may spread over its neighbours).
+ */
 export const TILE_FRAG = /* glsl */ `
 precision highp float;
 varying vec2 vUv;
@@ -256,7 +282,7 @@ vec3 bright(vec2 uv) {
 void main() {
   vec3 c = bright(vUv + uHalfTexel * vec2(1.0, 1.0)) + bright(vUv + uHalfTexel * vec2(-1.0, 1.0))
     + bright(vUv + uHalfTexel * vec2(1.0, -1.0)) + bright(vUv + uHalfTexel * vec2(-1.0, -1.0));
-  gl_FragColor = vec4(min(c * 0.25, vec3(8.0)), 1.0);
+  gl_FragColor = vec4(min(c * 0.25, vec3(${float(BLOOM_MAX)})), 1.0);
 }
 `;
 
@@ -291,8 +317,8 @@ uniform float uSharpen;
 uniform float uSpill;
 uniform vec3 uAoTint;
 uniform vec3 uRimColor;   // multiplier on the piece's own colour (a darker card edge)
-vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
-vec3 toSRGB(vec3 c) { return mix(c * 12.92, 1.055 * pow(max(c, vec3(0.0)), vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c)); }
+vec3 aces(vec3 x) { return clamp((x * (${float(ACES.a)} * x + ${float(ACES.b)})) / (x * (${float(ACES.c)} * x + ${float(ACES.d)}) + ${float(ACES.e)}), 0.0, 1.0); }
+vec3 toSRGB(vec3 c) { return mix(c * ${float(SRGB.slope)}, ${float(SRGB.scale)} * pow(max(c, vec3(0.0)), vec3(1.0 / ${float(SRGB.gamma)})) - ${float(SRGB.offset)}, step(${float(SRGB.cut)}, c)); }
 float hash12(vec2 p) {
   vec3 p3 = fract(vec3(p.xyx) * 0.1031);
   p3 += dot(p3, p3.yzx + 33.33);
@@ -355,14 +381,14 @@ void main() {
   }
 
   // --- lens + film -----------------------------------------------------------------------------------
-  vec2 vc = (vUv - 0.5) * vec2(uProj.w / 1.7778, 1.0) * vec2(1.0, 1.12);
+  vec2 vc = (vUv - 0.5) * vec2(uProj.w / ${VIGNETTE_ASPECT.toFixed(4)}, 1.0) * vec2(1.0, 1.12);
   float vr = dot(vc, vc) * 2.4;
   col = mix(col, uVignetteColor, uLens.x * smoothstep(0.12, 1.25, vr) * 1.25);
   col = aces(col * uTone.x * uTint);
   float l = luma(col);
   col = mix(vec3(l), col, uTone.z);
   col = toSRGB(max(col, 0.0));
-  col = (col - 0.42) * uTone.y + 0.42;
+  col = (col - ${PIVOT}) * uTone.y + ${PIVOT};
   // yellow-green grass under the warm key reads as a video game: pull only those hues toward sage
   // (cream, ochre, terracotta and the teal sea are outside the mask)
   float gm = smoothstep(0.1, 0.3, col.g - col.b) * smoothstep(-0.2, -0.05, col.g - col.r) * uDofC.y;

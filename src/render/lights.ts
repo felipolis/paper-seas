@@ -1,7 +1,8 @@
 /**
- * The light rig: a key light from screen-left that casts the soft PCSS shadows, a fill from the right and a
- * hemisphere ambient. Key and fill are aimed relative to the camera, and the key's shadow frustum is fitted to the
- * camera's footprint on the page every frame (its centre snapped to shadow texels, so the shadows do not shimmer). Colours, intensities and angles are set by the day / night look (render/day-night.ts).
+ * The light rig: a key light from screen-left that casts the soft PCSS shadows, a fill from the right and a hemisphere
+ * ambient. Key and fill are aimed relative to the camera, and the key's shadow frustum is fitted to the camera's
+ * footprint on the page every frame (its centre snapped to shadow texels, so the shadows do not shimmer). Colours,
+ * intensities and angles are set by the day / night look (render/day-night.ts).
  */
 import * as THREE from 'three';
 import { LIGHTS } from '../config/view';
@@ -9,6 +10,8 @@ import { DEG } from '../core/math';
 import { SHADOW } from './shadows';
 
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
+/** How far the fill stands from the ground point it lights (a directional light: only its direction counts). */
+const FILL_DISTANCE = 30;
 
 export class Lights {
   readonly group = new THREE.Group();
@@ -41,7 +44,7 @@ export class Lights {
     s.camera.near = SHADOW.near;
     s.camera.far = SHADOW.far;
     // the PCSS reads these stock uniforms as: radius = the shadow map's world size (follow()), bias = the light size
-    s.bias = SHADOW.lightSize;
+    s.bias = L.lightSize;
     s.normalBias = L.shadow.normalBias;
     this.fill = new THREE.DirectionalLight(L.fill.color, L.fill.intensity);
     this.hemi = new THREE.HemisphereLight(L.hemi.sky, L.hemi.ground, L.hemi.intensity);
@@ -110,7 +113,7 @@ export class Lights {
     this.key.position.copy(this.key.target.position).addScaledVector(this.keyDir, S.distance);
 
     this.fill.target.position.copy(this.centre);
-    this.fill.position.copy(this.centre).addScaledVector(this.fillDir, 30);
+    this.fill.position.copy(this.centre).addScaledVector(this.fillDir, FILL_DISTANCE);
   }
 
   /** Direction toward a light at this azimuth / elevation (deg) in the camera's ground frame. */

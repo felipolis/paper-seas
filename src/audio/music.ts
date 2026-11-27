@@ -4,7 +4,8 @@
  * every third time the left hand thins out, here and there a note is left out).
  *
  * The piano is played with a velocity-dependent low-pass, panned by pitch, in a dark 4 s hall, its notes scheduled a
- * little ahead of the audio clock. The notes are synthesised in a worker (piano-worker.ts) so the frame rate never hitches.
+ * little ahead of the audio clock. The notes are synthesised in a worker (piano-worker.ts) so the frame rate never
+ * hitches.
  *
  * Gameplay chimes are single notes of the same piano taken from the chord of the bar that is sounding, so they always
  * belong to the music.
@@ -147,6 +148,13 @@ export class Music {
       b.copyToChannel(samples, 0);
       this.buffers.set(midi, b);
       if (this.buffers.size === ALL_NOTES.length) worker.terminate();
+    };
+    // The worker failing to load or to voice a note is a broken assumption the voyage survives: the score never
+    // starts (it waits for every note), the rest of the sound plays on, and the failure is told once.
+    worker.onerror = (e: ErrorEvent) => {
+      e.preventDefault();
+      worker.terminate();
+      console.warn(`The piano could not be voiced (${e.message || 'its worker failed to load'}): the voyage sails on without music.`);
     };
     worker.postMessage(ALL_NOTES);
     // (the score is scheduled a little ahead of the audio clock, for the whole session)

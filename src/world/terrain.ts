@@ -3,8 +3,8 @@
  * generator), so sailing never stutters:
  *
  *   1. sample the land field and the terrace thresholds on a grid aligned to the world
- *   2. print the ground texture pixel by pixel from those grids (sand, wet sand, biome-tinted grass, hills, rock): every
- *      term is a function of world position, so chunks meet without seams
+ *   2. print the ground texture pixel by pixel from those grids (sand, wet sand, biome-tinted grass, hills, rock):
+ *      every term is a function of world position, so chunks meet without seams
  *   3. extrude the land into one paper sheet, clipped to the chunk square
  *   4. place the standing cards: vegetation by biome, big scenery on the high ground, villages on the coast,
  *      ruins, signature landmarks of the stamped islands, chests on beaches, animals, sea arches in the shallows
@@ -19,9 +19,9 @@ import { toTexture } from '../art/card-painter';
 import { cardWidth, spriteSpan, spriteTop } from '../art/sprites';
 import { BAND_HI, BAND_LO, HULL_MAX, hullSegments, placeSegments, type Segment } from './blockers';
 import { cellCentre, cellGesture, cellJitter, type Reveal } from './reveal';
-import { contoursFromGrid, outlinesWithHoles, type Grid } from './contours';
+import { contoursFromGrid, outlinesWithHoles, type Grid } from '../core/contours';
 import { LAND_TOP, type LandField } from './land';
-import { valueNoise } from './noise';
+import { valueNoise } from '../core/noise';
 import { plantCover, plantShallows, type CoverEnv } from './cover';
 import { addContact, edgeWallUV, groundData, groundMaterial, landEdgeMaterial, pathTones, type Footprint } from './ground-shader';
 import { pondWater, streamRibbons } from './stream-mesh';
@@ -32,16 +32,16 @@ import { ROAD_WIDTH, junctionsOf, onRoad } from './roads';
 import { Streams } from './streams';
 import type { Places } from './places';
 import { LANE_WIDTH, SQUARE_RADIUS, STREET_WIDTH, footOf } from './sites';
-import { polylineDistance, type Box, type Pt } from './polyline';
-import { CROSSED, heightOf } from '../config/flora';
-import { CROSS_PLANES, STAGGER, riseOrder, type Card, type CardField, type CardSpec, type SetDown } from './card-field';
+import { polylineDistance, type Box, type Pt } from '../core/polyline';
+import { hasTag, heightOf, sheetOf } from '../config/flora';
+import { modelSheet, type ModelRole } from '../config/models';
+import { CROSS_PLANES, riseOrder, type Card, type CardField, type CardSpec, type SetDown } from './card-field';
 import { islandName } from './island-names';
 import { buildModel, modelFoot, modelInfo, type Building, type ModelInfo } from './models';
 import type { IslandSpec } from './island-layout';
-import { WORLD } from '../config/world';
-import { Critters } from './critters';
+import { CHUNK, WORLD } from '../config/world';
 import { applyTint, groundTint, pathTone, type TintRows } from '../render/biome-tint';
-import { cellKey } from '../core/grid';
+import { cellKey, keyI, keyJ } from '../core/grid';
 import { ClearanceField, REACH } from './clearance';
 
 /** World hashes are salted with the voyage seed: every voyage places its own villages, ruins, chests... */
@@ -49,7 +49,6 @@ const SEED = WORLD.seed;
 /** The chest roll's own salt (each roll its own: one shared with the lighthouse's put a chest by every lighthouse). */
 const CHEST_SALT = 97;
 
-export const CHUNK = 18;
 
 /**
  * The land field is a distance *estimate*: where its noise flattens out it can read "0.3 from the shore" over open
@@ -140,7 +139,6 @@ function gridSample(a: Float32Array, gx0: number, gz0: number, x: number, z: num
   return a[k] * (1 - u) * (1 - v) + a[k + 1] * u * (1 - v) + a[k + GRID_W] * (1 - u) * v + a[k + GRID_W + 1] * u * v;
 }
 
-
 interface Chunk {
   key: number;
   i: number;
@@ -230,7 +228,10 @@ export const GROUND = {
 /** Crossed cards turn only this share of the camera-facing cards' jitter. */
 const CROSS_JITTER = 0.6;
 
-/** A chunk's walk field (world/clearance.ts): what it was made from (its piece count and revision), the pieces, how far they reach. */
+/**
+ * A chunk's walk field (world/clearance.ts): what it was made from (its piece count and revision), the pieces, how far
+ * they reach.
+ */
 interface FieldEntry {
   count: number;
   revision: number;
@@ -243,7 +244,7 @@ interface FieldEntry {
 const SEAM_EPS = 1e-4;
 
 /**
- * Leaves out the cut-edge walls a layer's outline has where it was cut back onto its chunk's square (world/contours.ts
+ * Leaves out the cut-edge walls a layer's outline has where it was cut back onto its chunk's square (core/contours.ts
  * clip): the land runs on into the next chunk there, so they are no shore, only walls back to back with the next
  * chunk's; the mirror, which leaves the land's tops out (render/reflection.ts), showed them as straight cream lines
  * across the streams. The extruded layer has no index; its kept triangles become one, its groups (caps 0, walls 1, per
@@ -286,14 +287,37 @@ function piecesBox(pieces: Segment[][], pad: number): Box | null {
   return box;
 }
 
-/** What is built without a contact patch: a mountain is ground itself, a pier or a bridge stands over the water. */
-const BARE = /^(ridge-|outcrop-|pier$|bridge$)/;
-
 /** Clear ground kept round a building (beyond its own footprint): the ground cover grows close to the walls. */
 const YARD = 0.35;
+/** Ground kept clear round a site's square (a ruin's is small), and round each of a layout's props and piers. */
+const SQUARE_ROOM = { ruins: 0.3, other: 1.0 } as const;
+const LAYOUT_PIECE_ROOM = 0.4;
+/** A building folded flat is drawn while within this much past the risen ring (it lies on the page, seen from afar). */
+const FOLDED_SIGHT = 30;
+/**
+ * A lighthouse on the shore now and then, a fort tower a little inland: each chunk rolls for them (its own salt, the
+ * chance), and stands one where the shore distance lies between dMin and dMax.
+ */
+const COAST_TOWERS = [
+  { name: 'lighthouse', salt: 47, chance: 0.05, dMin: -1.4, dMax: -0.75 },
+  { name: 'fort', salt: 53, chance: 0.07, dMin: -2.8, dMax: -1.3 },
+] as const;
+/**
+ * The signature landmarks of a stamped island, by its kind: each a sprite or a model and the height it is planted at
+ * (a model keeps its own size); the ground kept clear round a model landmark (LANDMARK_YARD).
+ */
+const LANDMARKS: Partial<Record<IslandSpec['kind'], ReadonlyArray<readonly [string, number]>>> = {
+  skull: [['skull-rock', 1.55], ['flag-pole', 1.05]],
+  rocky: [['lighthouse', 2.1]],
+  volcano: [['ridge-volcano', 2.8]],
+  ruins: [['ruin-arch', 1.25], ['pillars', 1.1]],
+  village: [['tavern', 1.3], ['cottage', 1.1]],
+  jungle: [['waterfall', 1.4]],
+};
+const LANDMARK_YARD = 1.2;
+/** What is built without a contact patch: a landform is ground itself, a deck stands over the water. */
+const BARE = new Set<ModelRole>(['landform', 'deck']);
 
-/** Cards that stand in the shallows on purpose. */
-const SEA_CARDS = new Set(['flamingo', 'sea-arch', 'rock-spire', 'duck-float']);
 /** The watchtower vignette: an owl at this share of the top of the tower, on this share of the towers, by night. */
 const TOP_K = 0.95;
 const OWL_CHANCE = 0.85;
@@ -315,16 +339,14 @@ const DUCK_CHANCE = 0.12;
 const BANK_ANIMAL_CHANCE = 0.08;
 
 /**
- * Rear copies: behind a lone tuft of grass, a reed bed, a bush, a boulder or a crag stands a copy of it, 0.75 of its tone and 1.08 of its size, 0.1-0.16 further from the camera and a little
- * to one side, so a tuft reads as a thick clump rather than one card.
+ * Rear copies: behind a lone card whose sprite is 'doubled' (a tuft of grass, a reed bed, a bush, a boulder, a crag)
+ * stands a copy of it, 0.75 of its tone and 1.08 of its size, 0.1-0.16 further from the camera and a little to one
+ * side, so a tuft reads as a thick clump rather than one card.
  */
-const DOUBLED = /^(grass-|tuft-flowers$|cattails$|papyrus$|bush-|rock-boulder$|rock-big$|rock-slab$|crag-)/;
 const REAR = { tone: 0.75, scale: 1.08, back: [0.1, 0.16], side: [0.05, 0.18] } as const;
 /** ...and stands no nearer a path's or a square's edge than this. */
 const REAR_PATH = 0.12;
 
-/** Ground cover and animals: the feet go through (or past) them. */
-const SOFT = /^(grass|fern|bush|flower|tuft|hibiscus|orchids|bird-of-paradise|cattails|papyrus|mushrooms|shells|pebbles|monkey|parrot|toucan|crab|iguana|pelican|flamingo|duck|hen|chick|goat|pig|cat|dog|frog|rabbit|owl|hummingbird|tortoise|boar|gecko|heron)/;
 /**
  * A pond's ground kept clear round it (shares of its radius: its wobble and its bank), the reeds on its bank, how often
  * a duck floats on it and a frog or a heron waits at its edge.
@@ -335,7 +357,10 @@ const POND_FRONT = [1.6, 1.1] as const;
 const POND_REEDS: [number, number] = [2, 3];
 const POND_DUCK = 0.6;
 const POND_BANK_ANIMAL = 0.4;
-/** A river's footbridge gives way to a road's bridge this near; the way on and off it is kept clear this far past its ends. */
+/**
+ * A river's footbridge gives way to a road's bridge this near; the way on and off it is kept clear this far past its
+ * ends.
+ */
 const BRIDGE_ROAD = 4;
 const BRIDGE_CLEAR = 1.2;
 /** The ground round each end of a river (its pool, mound and crags) is kept clear this far. */
@@ -361,7 +386,7 @@ function deckTop(info: ModelInfo): (along: number) => number {
 
 /** The part of a card's width (0..1 across its face) that stops the feet: its print in the blocking height band. */
 function blockingSpan(sprite: string, height: number): [number, number] | null {
-  return SOFT.test(sprite) ? null : spriteSpan(sprite, BAND_LO / height, BAND_HI / height);
+  return sheetOf(sprite).passable ? null : spriteSpan(sprite, BAND_LO / height, BAND_HI / height);
 }
 
 /** How far a card's blocking foot reaches from its centre (0 if nothing of it blocks). */
@@ -371,10 +396,12 @@ function footReach(sprite: string, height: number): number {
   return Math.max(0.5 - span[0], span[1] - 0.5) * cardWidth(sprite, height);
 }
 
-
 export class Terrain {
   readonly group = new THREE.Group();
   private readonly chunks = new Map<number, Chunk>();
+  /** chimneysNear's list, and each house's chimney entry in it. */
+  private readonly chimneyList: Chimney[] = [];
+  private readonly chimneyOf = new WeakMap<Building, Chimney>();
   /** The land sheet's cut edge: the card's own colour. */
   private readonly edgeMaterial = landEdgeMaterial();
   private job: { key: number; it: Iterator<void> } | null = null;
@@ -426,19 +453,18 @@ export class Terrain {
 
   /** Builds every chunk around a point right away (start of the voyage). */
   prime(x: number, z: number): void {
-    for (const [i, j] of this.wanted(x, z)) {
-      const key = cellKey(i, j);
-      if (this.chunks.has(key)) continue;
-      const it = this.build(i, j);
+    // (nearest first, as the streaming builds them)
+    for (let key = this.nearestMissing(x, z); key >= 0; key = this.nearestMissing(x, z)) {
+      const it = this.build(keyI(key), keyJ(key));
       while (!it.next().done) { /* run to completion */ }
     }
   }
 
   /**
-   * How much room there is round (x, z), as drawn (the walk field): the distance (REACH at most) to whatever
-   * stops the feet, the print of every card between the blocking heights (a trunk, the foot of a rock, a crate; the soft
-   * ground cover and the animals never block) and the footprint of every building but the piers (walked on). A piece
-   * blocks standing or lying folded: round the feet the land always stands.
+   * How much room there is round (x, z), as drawn (the walk field): the distance (REACH at most) to whatever stops the
+   * feet, the print of every card between the blocking heights (a trunk, the foot of a rock, a crate; the soft ground
+   * cover and the animals never block) and the footprint of every building but the piers (walked on). A piece blocks
+   * standing or lying folded: round the feet the land always stands.
    */
   roomAt(x: number, z: number): number {
     let room = REACH;
@@ -544,7 +570,7 @@ export class Terrain {
   sightBlocked(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, len: number): boolean {
     for (const c of this.chunks.values()) {
       for (const h of c.houses) {
-        if (h.name === 'pier' || h.name === 'bridge' || h.fold.progress < 0.6) continue;
+        if (modelSheet(h.name).role === 'deck' || h.fold.progress < 0.6) continue;
         const info = modelInfo(h.name)!;
         const reach = Math.hypot(info.width, info.depth) / 2;
         if (Math.hypot(h.x - ox, h.z - oz) > len + reach) continue;
@@ -576,7 +602,9 @@ export class Terrain {
     return false;
   }
 
-  /** The height of a standing deck (pier, bridge) under (x, z), or null when there is none (it must be up to be walked). */
+  /**
+   * The height of a standing deck (pier, bridge) under (x, z), or null when there is none (it must be up to be walked).
+   */
   deckAt(x: number, z: number): number | null {
     for (const c of this.chunks.values()) {
       for (const p of c.decks) {
@@ -591,12 +619,19 @@ export class Terrain {
     return null;
   }
 
-  /** The chimneys of the standing houses within r of (x, z) (for their smoke). */
+  /**
+   * The chimneys of the standing houses within r of (x, z) (for their smoke), asked every frame: the list and its
+   * entries are kept and refilled, so read it before the next call.
+   */
   chimneysNear(x: number, z: number, r: number): Chimney[] {
-    const out: Chimney[] = [];
+    const out = this.chimneyList;
+    out.length = 0;
     for (const c of this.chunks.values()) {
       for (const h of c.houses) {
-        if (h.smoke && h.fold.progress > 0.95 && Math.hypot(h.x - x, h.z - z) < r) out.push({ key: h, at: h.smoke });
+        if (!h.smoke || h.fold.progress <= 0.95 || Math.hypot(h.x - x, h.z - z) >= r) continue;
+        let chimney = this.chimneyOf.get(h);
+        if (!chimney) this.chimneyOf.set(h, (chimney = { key: h, at: h.smoke }));
+        out.push(chimney);
       }
     }
     return out;
@@ -678,16 +713,16 @@ export class Terrain {
         else if (fold.target !== 1 && reveal.mayFlip(cx, cz, this.flips.get(h) ?? -99, this.clock) && reveal.wantsUp(cx, cz)) {
           const held = this.held.get(h) ?? 0;
           if (reveal.holds(cx, cz, held)) this.held.set(h, held + dt);
-          else if (reveal.claimRise(cx, cz)) this.flip(h, 1, reveal.riseDelay(cx, cz, cellJitter(h.x, h.z)) + this.rank(h) * STAGGER);
+          else if (reveal.claimRise(cx, cz)) this.flip(h, 1, reveal.riseDelay(cx, cz, cellJitter(h.x, h.z)) + this.rank(h) * POPUP.staggerSpan);
         } else {
           this.held.delete(h);
           if (fold.target !== 0 && reveal.mayFlip(cx, cz, this.flips.get(h) ?? -99, this.clock) && reveal.wantsDown(cx, cz)) {
-            this.flip(h, 0, reveal.foldDelay(cx, cz, cellJitter(h.x, h.z)) + (1 - this.rank(h)) * STAGGER);
+            this.flip(h, 0, reveal.foldDelay(cx, cz, cellJitter(h.x, h.z)) + (1 - this.rank(h)) * POPUP.staggerSpan);
           }
         }
         fold.update(dt);
         // folded, a building lies flat on the page (its walls and roof stacked flat): drawn within sight
-        h.root.visible = reveal.distance(h.x, h.z) < reveal.radius + 30;
+        h.root.visible = reveal.distance(h.x, h.z) < reveal.radius + FOLDED_SIGHT;
       }
     }
   }
@@ -712,26 +747,35 @@ export class Terrain {
     const t0 = performance.now();
     while (performance.now() - t0 < FRAME_BUDGET_MS) {
       if (!this.job) {
-        const next = this.wanted(shipX, shipZ).find(([i, j]) => !this.chunks.has(cellKey(i, j)));
-        if (!next) return;
-        this.job = { key: cellKey(next[0], next[1]), it: this.build(next[0], next[1]) };
+        const next = this.nearestMissing(shipX, shipZ);
+        if (next < 0) return;
+        this.job = { key: next, it: this.build(keyI(next), keyJ(next)) };
       }
       if (this.job.it.next().done) this.job = null;
     }
   }
 
-  private wanted(x: number, z: number): Array<[number, number]> {
-    const out: Array<[number, number, number]> = [];
+  /**
+   * The key of the nearest chunk within LOAD_RADIUS that is not built yet (the first in row order of those equally
+   * near), or -1: asked every frame, so it walks the square round (x, z) without building a list.
+   */
+  private nearestMissing(x: number, z: number): number {
     const r = Math.ceil(LOAD_RADIUS / CHUNK);
     const ci = Math.floor(x / CHUNK);
     const cj = Math.floor(z / CHUNK);
+    let best = -1;
+    let bestD = LOAD_RADIUS;
     for (let j = cj - r; j <= cj + r; j++) {
       for (let i = ci - r; i <= ci + r; i++) {
         const d = Math.hypot((i + 0.5) * CHUNK - x, (j + 0.5) * CHUNK - z);
-        if (d < LOAD_RADIUS) out.push([i, j, d]);
+        const key = cellKey(i, j);
+        if (d < bestD && !this.chunks.has(key)) {
+          best = key;
+          bestD = d;
+        }
       }
     }
-    return out.sort((a, b) => a[2] - b[2]).map(([i, j]) => [i, j]);
+    return best;
   }
 
   private unload(key: number, c: Chunk): void {
@@ -949,19 +993,19 @@ export class Terrain {
       // (a pen's fences), instead of a random one; passable: too low to stop the feet)
       const stand = (sprite: string, x: number, z: number, height: number, flip: boolean, yawJitter: number, card: SetDown): boolean => {
         const { vignette, tone, awake, passable } = card;
-        const cross = CROSSED.has(sprite);
+        const cross = hasTag(sprite, 'crossed');
         const yaw = card.yaw ?? (rng() - 0.5) * 2 * yawJitter * (cross ? CROSS_JITTER : 1) * DEG;
-        if (!SEA_CARDS.has(sprite) && !onLand(sprite, x, z, height, yaw, cross)) return false;
+        if (!hasTag(sprite, 'shallows') && !onLand(sprite, x, z, height, yaw, cross)) return false;
         if (!vignette && !passable && onPath(sprite, x, z, height)) return false;
         // (the animals are not tinted with the tile)
-        const biome = Critters.is(sprite) ? undefined : land.biomeInland(x, z);
+        const biome = hasTag(sprite, 'animal') ? undefined : land.biomeInland(x, z);
         specs.push({ sprite, x, y: heightAt(x, z) + (vignette?.seat ?? 0), z, height, yaw, flip, cross, vignette, biome, tone, awake, passable });
         return true;
       };
       // (a tuft of grass or a reed bed stands with its darker rear copy behind it)
       const add = (sprite: string, x: number, z: number, height = heightOf(sprite, rng()), flip = rng() < 0.5, yawJitter = 14, card: SetDown = {}) => {
         // (only a lone one: a card of a clump has the clump's own cards behind it)
-        if (!stand(sprite, x, z, height, flip, yawJitter, card) || !DOUBLED.test(sprite) || card.tone !== undefined) return;
+        if (!stand(sprite, x, z, height, flip, yawJitter, card) || !hasTag(sprite, 'doubled') || card.tone !== undefined) return;
         const side = rng() < 0.5 ? -1 : 1;
         const rx = x + side * (REAR.side[0] + rng() * (REAR.side[1] - REAR.side[0]));
         const rz = z - (REAR.back[0] + rng() * (REAR.back[1] - REAR.back[0]));
@@ -994,17 +1038,17 @@ export class Terrain {
       }
       for (const road of roads) claimLine(road.pts, () => ROAD_WIDTH / 2 + 0.1);
       for (const l of layouts) {
-        taken.push([l.site.x, l.site.z, l.site.kind === 'ruins' ? 0.3 : 1.0]);
+        taken.push([l.site.x, l.site.z, l.site.kind === 'ruins' ? SQUARE_ROOM.ruins : SQUARE_ROOM.other]);
         for (const b of l.buildings) yards.push([b.x, b.z, footOf(modelInfo(b.name)!) + YARD]);
-        for (const p of [...l.props, ...l.piers]) taken.push([p.x, p.z, 0.4]);
+        for (const p of [...l.props, ...l.piers]) taken.push([p.x, p.z, LAYOUT_PIECE_ROOM]);
         // (and the ground the layout holds: its buildings' (sites.ts footOf), a scene's, a pen's)
         taken.push(...l.claims);
         for (const lane of l.lanes) claimLine(lane, () => LANE_WIDTH / 2 + 0.06);
         if (l.street) claimLine(l.street, () => STREET_WIDTH / 2 + 0.06);
       }
 
-      // A model stands only where every wall of its base is on the ground as drawn (the layouts chose their spots by the
-      // land's approximate shore distance), so no building or height ever stands in the sea
+      // A model stands only where every wall of its base is on the ground as drawn (the layouts chose their spots by
+      // the land's approximate shore distance), so no building or height ever stands in the sea
       const footOnLand = (name: string, x: number, z: number, yaw: number) => {
         const c = Math.cos(yaw);
         const sn = Math.sin(yaw);
@@ -1057,9 +1101,8 @@ export class Terrain {
       }
       yield;
 
-      // the villages and ruins, bridges and springs that stand in this square
-      // (each piece of a village is built by the square it stands in, not the one its centre is in: its spot is then read
-      // on this square's own ground)
+      // the villages and ruins, bridges and springs that stand in this square (each piece of a village is built by the
+      // square it stands in, not the one its centre is in: its spot is then read on this square's own ground)
       for (const l of layouts) {
         for (const b of l.buildings) if (own(b.x, b.z) && footOnLand(b.name, b.x, b.z, b.yaw)) this.addBuilding(chunk, b.name, b.x, heightAt(b.x, b.z), b.z, b.yaw);
         for (const p of l.props) if (own(p.x, p.z)) add(p.name, p.x, p.z, p.height, p.flip, p.vignette ? 0 : 10, { vignette: p.vignette, awake: p.awake, passable: p.passable, yaw: p.fixed ? p.yaw : undefined });
@@ -1075,8 +1118,8 @@ export class Terrain {
       for (const b of [...roads.flatMap((r) => r.bridges), ...footbridges]) if (own(b.x, b.z)) this.addDeck(chunk, 'bridge', b.x, heightAt(b.x, b.z), b.z, b.dx, b.dz);
       for (const st of streams) {
         const end = st.pts.length - 1;
-        for (const [i, into] of [[0, 3], [end, end - 3]]) {
-          const [sx, sz] = st.pts[i];
+        for (const [mouth, into] of [[0, 3], [end, end - 3]]) {
+          const [sx, sz] = st.pts[mouth];
           if (!own(sx, sz)) continue;
           // the river source at both ends of a river: a stone mound card with the water's mouth at the
           // river's end, three crags in a horseshoe behind it, reeds and a stone on the pool's bank
@@ -1143,13 +1186,13 @@ export class Terrain {
         }
       }
       // the signposts where the roads meet: in the wedge between two of them, off every road
-      for (const j of junctionsOf(roads)) {
-        const [[ax, az], [bx, bz]] = j.dirs;
+      for (const junction of junctionsOf(roads)) {
+        const [[ax, az], [bx, bz]] = junction.dirs;
         const wl = Math.hypot(ax + bx, az + bz);
         const [wx, wz] = wl > 0.2 ? [(ax + bx) / wl, (az + bz) / wl] : [-az, ax];
         for (const out of SIGN_OUT) {
-          const x = j.x + wx * out;
-          const z = j.z + wz * out;
+          const x = junction.x + wx * out;
+          const z = junction.z + wz * out;
           if (!own(x, z) || !free(x, z, 0.2) || sampleAt(dist, x, z) > -0.4 || roads.some((r) => onRoad(r, x, z, 0.18))) continue;
           add('signpost', x, z, heightOf('signpost', rng()), rng() < 0.5, 10);
           taken.push([x, z, 0.2]);
@@ -1158,7 +1201,7 @@ export class Terrain {
       }
 
       // a lighthouse on the shore now and then, a fort tower a little inland
-      for (const [name, salt, chance, dMin, dMax] of [['lighthouse', 47, 0.05, -1.4, -0.75], ['fort', 53, 0.07, -2.8, -1.3]] as const) {
+      for (const { name, salt, chance, dMin, dMax } of COAST_TOWERS) {
         if (hash01(salt ^ SEED, i, j) >= chance) continue;
         const info = modelInfo(name)!;
         const foot = Math.hypot(info.width, info.depth) * 0.5 + 0.15;
@@ -1210,7 +1253,7 @@ export class Terrain {
           const yaw = (rng() - 0.5) * 0.8;
           if (!footOnLand(name, x, z, yaw)) return false;
           this.addBuilding(chunk, name, x, heightAt(x, z), z, yaw);
-          yards.push([x, z, 1.2]);
+          yards.push([x, z, LANDMARK_YARD]);
           return true;
         });
       }
@@ -1261,7 +1304,7 @@ export class Terrain {
           return [b.x, b.z, info.width, info.depth, b.yaw];
         };
         const next = layouts.flatMap((l) => l.buildings.filter((b) => !own(b.x, b.z) && footOnLand(b.name, b.x, b.z, b.yaw)));
-        const feet = [...chunk.houses.filter((h) => !BARE.test(h.name)), ...next].map(foot);
+        const feet = [...chunk.houses.filter((h) => !BARE.has(modelSheet(h.name).role)), ...next].map(foot);
         addContact(chunk.data, x0, z0, chunk.cards.map((c) => [c.x, c.z, cardWidth(c.sprite, c.height)]), feet);
       }
     }
@@ -1303,15 +1346,7 @@ export class Terrain {
     /** Stands a model there, unless its base would reach the sea (false). */
     place: (name: string, x: number, z: number) => boolean,
   ): void {
-    const sig: Partial<Record<IslandSpec['kind'], Array<[string, number]>>> = {
-      skull: [['skull-rock', 1.55], ['flag-pole', 1.05]],
-      rocky: [['lighthouse', 2.1]],
-      volcano: [['ridge-volcano', 2.8]],
-      ruins: [['ruin-arch', 1.25], ['pillars', 1.1]],
-      village: [['tavern', 1.3], ['cottage', 1.1]],
-      jungle: [['waterfall', 1.4]],
-    };
-    for (const [sprite, h] of sig[s.kind] ?? []) {
+    for (const [sprite, h] of LANDMARKS[s.kind] ?? []) {
       for (let a = 0; a < 30; a++) {
         const x = s.x + (rng() - 0.5) * s.shape.extent;
         const z = s.z + (rng() - 0.5) * s.shape.extent - 0.5;

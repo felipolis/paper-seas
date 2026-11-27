@@ -9,8 +9,8 @@
  *   mirror     the world mirrored in the water as on the sea, read from the sea's image at the water's own height
  *              (sea/mirror.ts)
  *
- * The ribbon is a little wider than the water so its bank fits on it; beyond the bank the ribbon is cut away. Its colours
- * are the water of the biome it runs through (render/biome-tint.ts waterPalettes), blended along the stream: a
+ * The ribbon is a little wider than the water so its bank fits on it; beyond the bank the ribbon is cut away. Its
+ * colours are the water of the biome it runs through (render/biome-tint.ts waterPalettes), blended along the stream: a
  * pinewood stream runs darker, a blossom one carries petals instead of leaves.
  *
  * A pond (world/ponds.ts) is the same water as a disc, still: its dashes and floaters lie where they are printed (laid
@@ -20,7 +20,7 @@ import * as THREE from 'three';
 import { WATER_GLSL, waterUniforms } from '../sea/water';
 import { MIRROR_APPLY, MIRROR_GLSL, mirrorUniforms } from '../sea/mirror';
 import { mirrorSkip } from '../render/reflection';
-import { waterPalettes, waterRow } from '../render/biome-tint';
+import { WATER_ROWS, WATER_TONES, waterPalettes, waterRow } from '../render/biome-tint';
 import { LAND_TOP, type Biome } from './land';
 import { Streams, type Stream } from './streams';
 import { pondRadius, type Pond } from './ponds';
@@ -36,6 +36,16 @@ const BLEND = 4;
 /** Segments round a pond's rim. */
 const POND_SEGMENTS = 40;
 
+/**
+ * How much of each water palette (render/biome-tint.ts WATER_ROWS) a point takes travels as one vector, a component per
+ * row (aRiverMix, vRiverMix): MIX_VEC is its GLSL type, mixComponent the component of a row.
+ */
+const ROWS = WATER_ROWS.length;
+// (a GLSL vector has two to four components: more water rows would need the mix split over more than one attribute)
+if (ROWS < 2 || ROWS > 4) throw new Error(`stream-mesh: ${ROWS} water rows do not fit in one GLSL vector`);
+const MIX_VEC = `vec${ROWS}`;
+const mixComponent = (row: number): string => 'xyzw'[row];
+
 /** The water's material: running (a stream's) or still (a pond's), one of each, sharing their uniforms. */
 const materials: { running?: THREE.MeshLambertMaterial; still?: THREE.MeshLambertMaterial } = {};
 let shared: Record<string, THREE.IUniform> | null = null;
@@ -50,7 +60,7 @@ function streamMaterial(still = false): THREE.MeshLambertMaterial {
   m.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute vec3 aRiver;\nattribute vec3 aRiverMix;\nvarying vec3 vRiver;\nvarying vec3 vRiverMix;\nvarying vec3 vRiverPos;')
+      .replace('#include <common>', `#include <common>\nattribute vec3 aRiver;\nattribute ${MIX_VEC} aRiverMix;\nvarying vec3 vRiver;\nvarying ${MIX_VEC} vRiverMix;\nvarying vec3 vRiverPos;`)
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvRiver = aRiver;\nvRiverMix = aRiverMix;\nvRiverPos = (modelMatrix * vec4(position, 1.0)).xyz;');
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>\n${WATER_GLSL}\n${MIRROR_GLSL}\n${RIVER_GLSL}`)
@@ -77,7 +87,7 @@ export function pondWater(ponds: readonly Pond[], biome: (x: number, z: number) 
   for (const p of ponds) {
     const row = waterRow(biome(p.x, p.z));
     const palette = (): void => {
-      mix.push(row === 0 ? 1 : 0, row === 1 ? 1 : 0, row === 2 ? 1 : 0);
+      for (let r = 0; r < ROWS; r++) mix.push(row === r ? 1 : 0);
     };
     const centre = pos.length / 3;
     pos.push(p.x, STREAM_Y, p.z);
@@ -96,7 +106,7 @@ export function pondWater(ponds: readonly Pond[], biome: (x: number, z: number) 
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('aRiver', new THREE.Float32BufferAttribute(river, 3));
-  g.setAttribute('aRiverMix', new THREE.Float32BufferAttribute(mix, 3));
+  g.setAttribute('aRiverMix', new THREE.Float32BufferAttribute(mix, ROWS));
   g.setAttribute('normal', new THREE.Float32BufferAttribute(new Array(pos.length).fill(0).map((_, k) => (k % 3 === 1 ? 1 : 0)), 3));
   g.setIndex(index);
   g.computeBoundingSphere();
@@ -118,7 +128,9 @@ export function streamRibbons(streams: Stream[], x0: number, z0: number, x1: num
   for (const st of streams) {
     const pts = st.pts;
     const water = waterMix(st, biome);
-    const mixAt = (i: number) => mix.push(water[i * 3], water[i * 3 + 1], water[i * 3 + 2]);
+    const mixAt = (i: number) => {
+      for (let r = 0; r < ROWS; r++) mix.push(water[i * ROWS + r]);
+    };
     // the arc length along the stream at every point
     const arc = [0];
     for (let i = 1; i < pts.length; i++) arc.push(arc[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
@@ -204,7 +216,7 @@ export function streamRibbons(streams: Stream[], x0: number, z0: number, x1: num
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('aRiver', new THREE.Float32BufferAttribute(river, 3));
-  g.setAttribute('aRiverMix', new THREE.Float32BufferAttribute(mix, 3));
+  g.setAttribute('aRiverMix', new THREE.Float32BufferAttribute(mix, ROWS));
   g.setAttribute('normal', new THREE.Float32BufferAttribute(new Array(pos.length).fill(0).map((_, k) => (k % 3 === 1 ? 1 : 0)), 3));
   g.setIndex(index);
   g.computeBoundingSphere();
@@ -216,7 +228,7 @@ export function streamRibbons(streams: Stream[], x0: number, z0: number, x1: num
 const mixes = new WeakMap<Stream, Float32Array>();
 
 /**
- * How much of each water palette (heartland, blossom, pinewood) every point of a stream takes: its biome there, averaged
+ * How much of each water palette (in WATER_ROWS order) every point of a stream takes: its biome there, averaged
  * over BLEND points either side (kept per stream: every chunk it crosses reads the same).
  */
 function waterMix(st: Stream, biome: (x: number, z: number) => Biome): Float32Array {
@@ -224,22 +236,25 @@ function waterMix(st: Stream, biome: (x: number, z: number) => Biome): Float32Ar
   if (known) return known;
   const n = st.pts.length;
   const rows = st.pts.map(([x, z]) => waterRow(biome(x, z)));
-  const m = new Float32Array(n * 3);
+  const m = new Float32Array(n * ROWS);
   for (let i = 0; i < n; i++) {
     const a = Math.max(0, i - BLEND);
     const b = Math.min(n - 1, i + BLEND);
-    for (let k = a; k <= b; k++) m[i * 3 + rows[k]] += 1 / (b - a + 1);
+    for (let k = a; k <= b; k++) m[i * ROWS + rows[k]] += 1 / (b - a + 1);
   }
   mixes.set(st, m);
   return m;
 }
 
+/** RIVER_PAL(o): tone o of the water palettes (shallow, deep, rim, floater), each row's weighted by its share. */
+const RIVER_PAL = WATER_ROWS.map((_, r) => `vRiverMix.${mixComponent(r)} * uRiverPal[${r ? `${r * WATER_TONES} + ` : ''}o]`).join(' + ');
+
 const RIVER_GLSL = /* glsl */ `
 varying vec3 vRiver;     // s along the stream, c across it (-1..1 over the ribbon), the water's half width
-varying vec3 vRiverMix;  // how much of each water palette: heartland, blossom, pinewood
+varying ${MIX_VEC} vRiverMix;  // how much of each water palette: ${WATER_ROWS.join(', ')}
 varying vec3 vRiverPos;
-uniform vec3 uRiverPal[12];  // per palette: shallow, deep, rim, floater
-#define RIVER_PAL(o) (vRiverMix.x * uRiverPal[o] + vRiverMix.y * uRiverPal[4 + o] + vRiverMix.z * uRiverPal[8 + o])
+uniform vec3 uRiverPal[${ROWS * WATER_TONES}];  // per palette: shallow, deep, rim, floater
+#define RIVER_PAL(o) (${RIVER_PAL})
 float gRiverCover;
 vec3 gRiverRim;       // the palette's rim (the bank's cut line, the dashes)
 float gRiverBlossom;  // how much of the stream is the blossom's (petals ride it, smaller and more of them)
@@ -267,12 +282,11 @@ vec3 riverWater(vec2 p, float T, float s, float hw, float across, float edge, fl
   float ctr = 1.0 - smoothstep(0.0, 0.3, across);
   float dpt = smoothstep(0.0, hw, edge) * 0.45 + 0.7 * ctr * ctr;
   float dpn = dpt + (seaNoise(p * 2.5) - 0.5) * 0.16 + (seaNoise(p * 7.0) - 0.5) * 0.12;
-  float steps = 0.3 * smoothstep(0.13, 0.2, dpn) + 0.3 * smoothstep(0.38, 0.46, dpn) + 0.36 * smoothstep(0.66, 0.76, dpn);
+  float steps = printedSteps(dpn, vec3(0.13, 0.38, 0.66), vec3(0.2, 0.46, 0.76), vec3(0.3, 0.3, 0.36));
   vec3 col = mix(RIVER_PAL(0), RIVER_PAL(1), clamp(mix(dpt, steps, 0.62), 0.0, 1.0));
   col *= 0.94 + 0.12 * seaNoise(p * 2.5);
-  // ---- the sea's light net ----
-  float ca = sin(p.x * 3.1 + 1.4 * sin(p.y * 2.2 + T * 0.55)) * sin(p.y * 3.7 + 1.2 * sin(p.x * 2.6 - T * 0.4));
-  col *= 1.0 + 0.07 * (smoothstep(0.3, 0.95, ca) - 0.5 * smoothstep(0.3, 0.95, -ca));
+  // ---- the water's light net ----
+  col = waterLight(col, p, T, 0.07);
   // ---- dashes carried by the current: staggered rows across, a lens each, gathering by the banks ----
 #ifdef RIVER_STILL
   float c = p.y;
@@ -317,14 +331,14 @@ vec3 riverWater(vec2 p, float T, float s, float hw, float across, float edge, fl
   col = mix(col, mix(leaf, leaf * 0.62, floInk * 0.6), flo);
   gRiverMarks = clamp(dash + flo, 0.0, 1.0);
   // ---- the waterline: darker just inside the bank ----
-  col *= 1.0 - 0.42 * (1.0 - smoothstep(0.0, 0.05, edge));
-  col *= 1.0 + (seaFibre(p) - 0.5) * 1.1;
+  col = waterline(col, edge, 0.05, 0.42);
+  col = waterFibre(col, p);
   return col;
 }
 vec3 riverColour() {
   vec2 p = vRiverPos.xz;
   gRiverRim = RIVER_PAL(2);
-  gRiverBlossom = vRiverMix.y;
+  gRiverBlossom = vRiverMix.${mixComponent(WATER_ROWS.indexOf('blossom'))};
   float T = uTime;
   float s = vRiver.x;
   float hw = vRiver.z;

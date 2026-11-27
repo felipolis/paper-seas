@@ -125,13 +125,16 @@ export class Smoke {
       }
     }
     camera.getWorldQuaternion(_q);
-    this.meshes.forEach((mesh, k) => {
-      this.puffs[k].forEach((f, i) => {
+    for (let k = 0; k < this.meshes.length; k++) {
+      const mesh = this.meshes[k];
+      const puffs = this.puffs[k];
+      for (let i = 0; i < puffs.length; i++) {
+        const f = puffs[i];
         if (f.alive) f.age += dt;
         if (!f.alive || f.age >= LIFE) {
           f.alive = false;
           mesh.setMatrixAt(i, _m.makeScale(0, 0, 0));
-          return;
+          continue;
         }
         const u = f.age / LIFE;
         const fade = Math.min(1, u / FADE_IN) * (u < FADE_OUT ? 1 : 1 - (u - FADE_OUT) / (1 - FADE_OUT));
@@ -145,13 +148,13 @@ export class Smoke {
         // (the floor: a puff faded to a speck is not drawn; a speck can light into an invalid pixel)
         if (shown <= MIN_SIZE) {
           mesh.setMatrixAt(i, _m.makeScale(0, 0, 0));
-          return;
+          continue;
         }
         _r.copy(_q).multiply(_spin.setFromAxisAngle(Z_AXIS, f.spin + this.t * SPIN));
         mesh.setMatrixAt(i, _m.compose(_p, _r, _s.setScalar(shown)));
-      });
+      }
       mesh.instanceMatrix.needsUpdate = true;
-    });
+    }
   }
 
   private emit(at: THREE.Vector3): void {

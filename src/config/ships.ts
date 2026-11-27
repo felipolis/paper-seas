@@ -62,7 +62,9 @@ export interface HullSpec {
   forecastle?: { start: number; height: number };
   /** Where the wheel stands (t; on whatever deck is there): clear of the masts, the ladders and the cabin fronts. */
   helm: number;
-  /** Extra rise of the rail at the very stern and bow, and a long crescent rise toward both ends (a carrack's sheer). */
+  /**
+   * Extra rise of the rail at the very stern and bow, and a long crescent rise toward both ends (a carrack's sheer).
+   */
   sternSweep: number;
   bowSweep: number;
   crescent?: number;
@@ -82,7 +84,9 @@ export interface HullSpec {
   wood: { lower: string; wale: string; upper: string; deck: string };
   /** Heights of the wale strake (a painted band along the gun deck). */
   wale: [number, number];
-  /** A carved beakhead at the bow (galleons) and the printed figurehead under it; quarter galleries (bay windows) aft. */
+  /**
+   * A carved beakhead at the bow (galleons) and the printed figurehead under it; quarter galleries (bay windows) aft.
+   */
   beakhead: boolean;
   figurehead?: string;
   galleries: boolean;
@@ -112,7 +116,10 @@ export interface ShipType {
   masts: MastSpec[];
   /** The bowsprit: its length beyond the stem and its steeve (rad above the horizontal). */
   bowsprit?: { length: number; steeve: number };
-  /** Head sails on the stays from the bowsprit to the foremast, from the outer jib in (none on a junk, or without a bowsprit). */
+  /**
+   * Head sails on the stays from the bowsprit to the foremast, from the outer jib in (none on a junk, or without a
+   * bowsprit).
+   */
   jibs: string[];
   /** Flown from the head of the tallest mast. */
   flag: string;
@@ -347,7 +354,8 @@ interface OutfitBase {
 
 /**
  * The cut: a long coat open on a waistcoat or a navy officer's coat buttoned double (each in its coat's colour); a
- * shirt with short sleeves (its forearms bare), an apron over a shirt with its sleeves rolled up, a skeleton in a shirt.
+ * shirt with short sleeves (its forearms bare), an apron over a shirt with its sleeves rolled up, a skeleton in a
+ * shirt.
  */
 export type Outfit = OutfitBase & ({ cut: 'coat' | 'navy'; coat: string } | { cut: 'shirt' | 'apron' | 'bones' });
 

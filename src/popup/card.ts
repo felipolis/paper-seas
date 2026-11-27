@@ -9,11 +9,14 @@
 import * as THREE from 'three';
 import type { CardArt } from '../art/card-painter';
 import { CARD_WALL_ATTRIBUTE, createPaperMaterial } from '../render/paper-material';
-import { contoursFromGrid, outlinesWithHoles } from '../world/contours';
-import { simplify, type Pt } from '../world/polyline';
+import { contoursFromGrid, outlinesWithHoles } from '../core/contours';
+import { simplify, type Pt } from '../core/polyline';
 import { clamp } from '../core/math';
 
-/** Cardstock thickness (world units) of a standing card. */
+/**
+ * Cardstock thickness (world units) of a standing card. The Blender models are built at the same thickness
+ * (tools/blender/build_models.py THICK): a change here is made there too.
+ */
 export const CARD_THICKNESS = 0.016;
 
 const materialCache = new WeakMap<CardArt, THREE.MeshLambertMaterial>();

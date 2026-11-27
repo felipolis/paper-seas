@@ -52,6 +52,8 @@ const SLIDE_MIN = 0.6;
 const PROBE = 0.06;
 /** Ground height smoothing (1/s): up and onto decks without lag. */
 const HEIGHT_RATE = 45;
+/** Lifts off the obstacle tried in turn while sliding along it (share of the normal). */
+const SLIDE_LIFTS = [0.12, 0, 0.35];
 /** Fan of escape directions tried when sliding fails (rad), committed side first. */
 const FAN = [0.6, 1.05, 1.45];
 /** Sub-steps held before trying the other side round an obstacle (doubles at every switch). */
@@ -59,6 +61,9 @@ const FLIP_AFTER = 24;
 
 /** The lantern he carries: its colour, its intensity and reach by day and at night, its decay, its height above him. */
 const LANTERN = { colour: PALETTE.lantern, day: 1.1, night: 2.3, distance: 6.5, nightDistance: 5.6, decay: 0.62, height: 0.55 };
+
+/** Scratch: the obstacle's outward normal while a blocked sub-step slides (written by Walker.gradient). */
+const _normal = { x: 0, z: 0 };
 
 export class Walker {
   readonly group = new THREE.Group();
@@ -117,7 +122,7 @@ export class Walker {
     this.vx = this.vz = 0;
     this.yawRate = 0;
     this.puppet.settle();
-    this.blocked = false;
+    this.forgetObstacle();
     this.y = world.deck(x, z) ?? world.ground(x, z);
     this.group.visible = true;
     this.group.position.set(x, this.y, z);
@@ -134,9 +139,21 @@ export class Walker {
     this.lantern.position.set(this.x, this.y + LANTERN.height, this.z);
   }
 
+  /** Goes back aboard: no key walks him any more, and the last trip's way round an obstacle is forgotten. */
   leave(): void {
     this.active = false;
     this.group.visible = false;
+    this.keyed = false;
+    this.forgetObstacle();
+  }
+
+  /** Forgets the obstacle he was going round, so the next trip ashore starts with no side, stall or hold of its own. */
+  private forgetObstacle(): void {
+    this.side = 1;
+    this.blocked = false;
+    this.stall = 0;
+    this.freeRun = 0;
+    this.flipAt = FLIP_AFTER;
   }
 
   /**
@@ -155,7 +172,9 @@ export class Walker {
     if (input?.isDown('KeyA', 'ArrowLeft')) ix -= 1;
     if (input?.isDown('KeyD', 'ArrowRight')) ix += 1;
     // (the screen's right on the page is (cos yaw, -sin yaw), its up (-sin yaw, -cos yaw))
-    [ix, iz] = [ix * Math.cos(yaw) + iz * Math.sin(yaw), -ix * Math.sin(yaw) + iz * Math.cos(yaw)];
+    const kx = ix;
+    ix = kx * Math.cos(yaw) + iz * Math.sin(yaw);
+    iz = -kx * Math.sin(yaw) + iz * Math.cos(yaw);
     this.keyed = ix !== 0 || iz !== 0;
     // (no key: the click's way, eased in toward its mark)
     let ease = 1;
@@ -264,9 +283,11 @@ export class Walker {
     const ux = dx / d;
     const uz = dz / d;
     // the obstacle's outward normal: the gradient of the room just ahead of the feet (at the feet if flat there)
-    let [nx, nz] = this.gradient(this.x + ux * 0.04, this.z + uz * 0.04);
-    if (nx === 0 && nz === 0) [nx, nz] = this.gradient(this.x, this.z);
-    if (nx === 0 && nz === 0) [nx, nz] = [-ux, -uz];
+    this.gradient(this.x + ux * 0.04, this.z + uz * 0.04, _normal);
+    if (_normal.x === 0 && _normal.z === 0) this.gradient(this.x, this.z, _normal);
+    const flat = _normal.x === 0 && _normal.z === 0;
+    const nx = flat ? -ux : _normal.x;
+    const nz = flat ? -uz : _normal.z;
     const dn = ux * nx + uz * nz;
     let tx = ux - dn * nx;
     let tz = uz - dn * nz;
@@ -295,10 +316,12 @@ export class Walker {
     tz /= tl;
     const k = d * Math.max(SLIDE_MIN, Math.min(1, tl));
     if (tx * ux + tz * uz > -0.05) {
-      for (const lift of [0.12, 0, 0.35]) if (this.trySide((tx + nx * lift) * k, (tz + nz * lift) * k, ux, uz)) return;
+      for (const lift of SLIDE_LIFTS) if (this.trySide((tx + nx * lift) * k, (tz + nz * lift) * k, ux, uz)) return;
     }
     // the fan: the step turned away from the obstacle, the committed side first
-    for (const pass of [this.side, -this.side]) {
+    const committed = this.side;
+    for (let p = 0; p < 2; p++) {
+      const pass = p === 0 ? committed : -committed;
       for (const a of FAN) {
         const c = Math.cos(a * pass);
         const s = Math.sin(a * pass);
@@ -309,11 +332,12 @@ export class Walker {
     this.stall++;
   }
 
-  /** Unit gradient of the room at (x, z) (pointing to more room), or [0, 0] where it is flat. */
-  private gradient(x: number, z: number): [number, number] {
+  /** Writes into out the unit gradient of the room at (x, z) (pointing to more room), or (0, 0) where it is flat. */
+  private gradient(x: number, z: number, out: { x: number; z: number }): void {
     const gx = this.room(x + PROBE, z) - this.room(x - PROBE, z);
     const gz = this.room(x, z + PROBE) - this.room(x, z - PROBE);
     const l = Math.hypot(gx, gz);
-    return l < 1e-6 ? [0, 0] : [gx / l, gz / l];
+    out.x = l < 1e-6 ? 0 : gx / l;
+    out.z = l < 1e-6 ? 0 : gz / l;
   }
 }

@@ -16,7 +16,9 @@ const SEED = WORLD.seed;
 
 const STORAGE_KEY = 'paper-seas:progress:v2';
 
-/** What is kept of the voyage: lands and treasures found (ids), named places [id, name, x, z], dig spots [name, x, z]. */
+/**
+ * What is kept of the voyage: lands and treasures found (ids), named places [id, name, x, z], dig spots [name, x, z].
+ */
 interface Kept {
   lands?: number[];
   treasures?: number[];

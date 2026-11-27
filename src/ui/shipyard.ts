@@ -1,8 +1,8 @@
 /**
- * The shipyard (from the pause menu): a sheet of paper that slides up over the scene, with paper cards to pick the
- * ship and the captain at the helm. Each ship card shows its printed hull with its flag, its name, a line about her
- * and her handling; each captain card shows the figure. The chosen card stands up off the sheet with an inked pin on
- * it; the others lie flat. "Set sail" keeps the choice and reloads the voyage with it (the world and the voyage log stay).
+ * The shipyard (from the pause menu): a sheet of paper that slides up over the scene, with paper cards to pick the ship
+ * and the captain at the helm. Each ship card shows its printed hull with its flag, its name, a line about her and her
+ * handling; each captain card shows the figure. The chosen card stands up off the sheet with an inked pin on it; the
+ * others lie flat. "Set sail" keeps the choice and reloads the voyage with it (the world and the voyage log stay).
  */
 import './shipyard.css';
 import { CAPTAINS, SHIP_TYPES, activeCaptain, activeShip, chooseCrew } from '../config/ships';

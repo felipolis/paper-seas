@@ -9,7 +9,7 @@
  */
 import { clamp, hexRgb, smoothstep } from '../core/math';
 import { PALETTE } from '../config/palette';
-import { valueNoise } from '../world/noise';
+import { valueNoise } from '../core/noise';
 import { GROUND } from '../world/terrain';
 import { DEPTH_PRINT } from '../sea/sea-surface';
 import type { Biome, LandField } from '../world/land';
@@ -50,7 +50,9 @@ export interface CellInfo {
 }
 
 type Rgb = [number, number, number];
-/** The sea in the sea surface's tones (sea/sea-surface.ts); the land is the ground's print (world/terrain.ts GROUND). */
+/**
+ * The sea in the sea surface's tones (sea/sea-surface.ts); the land is the ground's print (world/terrain.ts GROUND).
+ */
 const COL = {
   deep: hexRgb(PALETTE.seaDeep),
   sea: hexRgb(PALETTE.sea),
@@ -229,7 +231,9 @@ export class Exploration {
   }
 }
 
-/** The sea dd from the shore: deep and mid tones in broad patches, lighter over the shelf, three shallow steps, foam. */
+/**
+ * The sea dd from the shore: deep and mid tones in broad patches, lighter over the shelf, three shallow steps, foam.
+ */
 function seaColour(x: number, z: number, dd: number): Rgb {
   const n = valueNoise(31, x * 0.045, z * 0.045) * 0.65 + valueNoise(32, x * 0.13, z * 0.13) * 0.35;
   let col = mix(COL.deep, COL.sea, smoothstep(DEPTH_PRINT.mid[0], DEPTH_PRINT.mid[1], n));

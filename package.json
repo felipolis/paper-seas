@@ -12,7 +12,6 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit",
     "check": "tsc --noEmit && node tools/qa/dead-code.mjs && node tools/qa/rules.mjs",
     "art:cut": "node tools/art/cut-sprites.mjs"
   },

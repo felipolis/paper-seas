@@ -120,7 +120,6 @@ export interface PaperOptions {
   vary?: boolean;
   alphaTest?: number;
   emissive?: THREE.ColorRepresentation;
-  emissiveIntensity?: number;
   side?: THREE.Side;
 }
 
@@ -141,7 +140,8 @@ export const paperLighting: PaperLighting = {
 
 /**
  * Lambert direct lighting with wrap diffuse and back-lit translucency: in the key light's shadow a warm light leaks in
- * instead of the stock grey, and thin card glows from behind only where it is lit through (a card shaded by another card does not), from the lit fractions the PCSS left (render/shadows.ts).
+ * instead of the stock grey, and thin card glows from behind only where it is lit through (a card shaded by another
+ * card does not), from the lit fractions the PCSS left (render/shadows.ts).
  */
 const PAPER_LAMBERT = THREE.ShaderChunk.lights_lambert_pars_fragment.replace(
   'float dotNL = saturate( dot( geometryNormal, directLight.direction ) );\n\tvec3 irradiance = dotNL * directLight.color;',
@@ -184,7 +184,6 @@ export function createPaperMaterial(o: PaperOptions = {}): THREE.MeshLambertMate
     side: o.side ?? THREE.DoubleSide,
     alphaTest: o.map ? (o.alphaTest ?? CARDSTOCK.cut) : 0,
     emissive: o.emissive ?? '#000000',
-    emissiveIntensity: o.emissiveIntensity ?? 1,
   });
   // the die cut is anti-aliased on the multisampled scene target
   mat.alphaToCoverage = mat.alphaTest > 0;

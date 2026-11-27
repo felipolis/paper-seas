@@ -41,7 +41,10 @@ const FOLD_STAGGER = 0.07;
 /** The view reach: at most REACH_MAX, eased at REACH_RATE a second (world units). */
 const REACH_MAX = 3;
 const REACH_RATE = 1.7;
-/** How long a still-flat cell holds its rise (s), and how near (per axis) the player counts as crossing a cell: half a cell + 0.15. */
+/**
+ * How long a still-flat cell holds its rise (s), and how near (per axis) the player counts as crossing a cell: half a
+ * cell + 0.15.
+ */
 const RISE_HOLD = 0.8;
 const HOLD_REACH = CELL / 2 + 0.15;
 /** A player moving further than this in one frame has jumped. */

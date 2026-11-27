@@ -9,7 +9,9 @@
  */
 import * as THREE from 'three';
 import { AMBIENT, type LifeKind } from '../config/life';
+import { BIOME, type LifeRow } from '../config/biomes';
 import { mulberry32 } from '../core/rng';
+import { SEA_WIND } from '../config/world';
 import type { Biome } from '../world/land';
 import { rankGate, smoothstep } from '../core/math';
 
@@ -21,8 +23,7 @@ const GRAD = 5;
  */
 const BLEND = 1.6;
 const KINDS = Object.keys(AMBIENT.biomes.heartland) as LifeKind[];
-type Row = keyof typeof AMBIENT.biomes;
-
+const ROWS = Object.keys(AMBIENT.biomes) as LifeRow[];
 
 /** n seeded random numbers in [0, 1) (a per-piece table: six per piece). */
 export function randomTable(n: number, seed: number): Float32Array {
@@ -33,18 +34,21 @@ export function randomTable(n: number, seed: number): Float32Array {
 }
 
 export class LifeFrame {
-  /** The clock (s), the focus, the wind's direction (unit). */
+  /** The clock (s), the focus, the wind's direction (unit): each set by update before anything reads it. */
   t = 0;
   fx = 0;
   fz = 0;
-  windX = 0.94;
-  windZ = 0.34;
-  /** The camera seen from the focus: its yaw and elevation, and its ground offset per unit of height. */
+  windX = SEA_WIND.x;
+  windZ = SEA_WIND.z;
+  /**
+   * The camera seen from the focus: its yaw and elevation, and its ground offset per unit of height (kept from the
+   * frame before while the camera stands too low to say; these start values are the first frame's).
+   */
   camYaw = 0;
-  camElev = 0.9;
+  camElev = 0;
   camHX = 0;
   camHZ = 0.8;
-  /** The ground offset of a shadow per unit of height (from the key light). */
+  /** The ground offset of a shadow per unit of height (from the key light; kept likewise while it is too low). */
   lightX = 0.4;
   lightZ = 0.3;
   /** 0 day .. 1 night. */
@@ -54,6 +58,8 @@ export class LifeFrame {
   private readonly gx = {} as Record<LifeKind, number>;
   private readonly gz = {} as Record<LifeKind, number>;
   private readonly cam = new THREE.Vector3();
+  /** Scratch: how many of a point's biome samples fall in each life row. */
+  private readonly rowCount = {} as Record<LifeRow, number>;
 
   constructor(private readonly biome: (x: number, z: number) => Biome) {
     for (const k of KINDS) this.c[k] = this.gx[k] = this.gz[k] = 0;
@@ -102,14 +108,14 @@ export class LifeFrame {
 
   /** Each kind's share at a point: the rows of the biomes round it, weighted by their (sharpened) shares there. */
   private mix(x: number, z: number, out: Record<LifeKind, number>): Record<LifeKind, number> {
-    const n: Partial<Record<Row, number>> = {};
-    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
-      const row = AMBIENT.rows[this.biome(x + i * BLEND, z + j * BLEND)];
-      n[row] = (n[row] ?? 0) + 1;
-    }
+    const n = this.rowCount;
+    for (const row of ROWS) n[row] = 0;
+    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) n[BIOME[this.biome(x + i * BLEND, z + j * BLEND)].life]++;
     let total = 0;
     for (const k of KINDS) out[k] = 0;
-    for (const [row, count] of Object.entries(n) as Array<[Row, number]>) {
+    for (const row of ROWS) {
+      const count = n[row];
+      if (count === 0) continue;
       const w = smoothstep(0.2, 0.8, count / 9) + 1e-3;
       total += w;
       for (const k of KINDS) out[k] += AMBIENT.biomes[row][k] * w;

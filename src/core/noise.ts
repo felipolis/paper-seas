@@ -1,5 +1,5 @@
 /** Deterministic 2D value noise and fBm (seeded), shared by the land field and its biomes. */
-import { hash01 } from '../core/rng';
+import { hash01 } from './rng';
 
 /** Smooth value noise in [0, 1]. */
 export function valueNoise(seed: number, x: number, y: number): number {

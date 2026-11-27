@@ -25,6 +25,7 @@ import * as THREE from 'three';
 import { CAMERA, ON_FOOT, VIEWS } from '../config/view';
 import { PLAYER } from '../config/player';
 import { DEG, clamp, smoothstep } from '../core/math';
+import { CELL } from '../world/reveal';
 
 /** Does the ray from (ox, oy, oz) along the unit (dx, dy, dz) meet a large piece within len? */
 export type SightTest = (ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, len: number) => boolean;
@@ -34,8 +35,24 @@ const SIGHT_HEIGHTS = [0.35, 0.65, 0.95];
 /** How long a change of view (boarding, going ashore) takes (s). */
 export const VIEW_GLIDE = 0.9;
 
-/** A tile, in world units (the unit of a view's reach). */
-const TILE = 2;
+/** Each notch of the wheel changes the zoom's distance by this share of it. */
+const WHEEL_STEP = 0.1;
+/** How fast the distance eases toward the wheel's (1/s). */
+const ZOOM_RATE = 6;
+/** The pitch the open chart tips the camera to (degrees), and how much farther back it stands (share of distance). */
+const CHART_PITCH = 70;
+const CHART_PULL = 0.7;
+/** Tipped steeper than this (degrees: the chart is opening), the camera window lets go and the camera rises. */
+const ZONE_PITCH_MAX = 60;
+/** The time constant of the window's sense of which way he walks (s). */
+const HEADING_TAU = 0.35;
+/** The steepest pitch (degrees) the sight assist may tip the lens to, and the steepest a sight ray is cast at. */
+const ASSIST_PITCH_MAX = 62;
+const SIGHT_PITCH_MAX = 80;
+/** A frustum corner's ray that meets the page no nearer than this (u) counts as seeing this far. */
+const GROUND_REACH_MAX = 80;
+/** The lens stays at least this far above the look target, past its near plane (u). */
+const LENS_CLEARANCE = 0.35;
 
 /**
  * A camera view against the plain pose: distance and screen-up as shares of it, pitch, field of view and yaw as
@@ -58,10 +75,13 @@ function viewPose(v: (typeof VIEWS)[number]): ViewPose {
     pitch: (v.pitchDeg ?? ON_FOOT.pitchDeg) - ON_FOOT.pitchDeg,
     fov: (v.fov ?? ON_FOOT.fov) - ON_FOOT.fov,
     yaw: v.yawDeg ?? 0,
-    reach: (v.reach ?? 0) * TILE,
+    reach: (v.reach ?? 0) * CELL,
   };
 }
 const POSES = VIEWS.map(viewPose);
+/** The keys of a pose, and the focus's axes, walked every frame. */
+const POSE_KEYS = Object.keys(POSES[0]) as Array<keyof ViewPose>;
+const AXES = ['x', 'y', 'z'] as const;
 
 const _v = new THREE.Vector3();
 const _goal = new THREE.Vector3();
@@ -95,10 +115,12 @@ export class FollowCamera {
   private readonly prevGoal = new THREE.Vector3();
   private initialised = false;
 
-  /** On its next update the camera jumps to its goal instead of easing there (after a jump of what it follows). */
+  /**
+   * On its next update the camera stands settled at its goal instead of easing there (after a jump of what it
+   * follows): no glide, zoom ease, change of view or sight assist is left under way.
+   */
   recenter(): void {
     this.initialised = false;
-    this.zoneLive = false;
   }
   /** 0..1: on foot (the plain pose) or at sea, as the glide has it now. */
   private foot = 0;
@@ -135,16 +157,16 @@ export class FollowCamera {
 
   /**
    * Radius around (x, z) that the camera can see on the ground: the farthest of the four frustum corner rays where
-   * they meet the page (rays that miss it count as 80).
+   * they meet the page (rays that miss it count as GROUND_REACH_MAX).
    */
   groundRadius(x: number, z: number): number {
     const cam = this.camera;
     cam.updateMatrixWorld();
     let r = 0;
-    for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
-      _v.set(sx, sy, 0.5).unproject(cam).sub(cam.position).normalize();
-      const t = _v.y < -0.02 ? -cam.position.y / _v.y : 80;
-      r = Math.max(r, Math.hypot(cam.position.x + _v.x * Math.min(t, 80) - x, cam.position.z + _v.z * Math.min(t, 80) - z));
+    for (let corner = 0; corner < 4; corner++) {
+      _v.set(corner & 1 ? 1 : -1, corner & 2 ? 1 : -1, 0.5).unproject(cam).sub(cam.position).normalize();
+      const t = Math.min(_v.y < -0.02 ? -cam.position.y / _v.y : GROUND_REACH_MAX, GROUND_REACH_MAX);
+      r = Math.max(r, Math.hypot(cam.position.x + _v.x * t - x, cam.position.z + _v.z * t - z));
     }
     return r;
   }
@@ -181,7 +203,7 @@ export class FollowCamera {
   private get basePitch(): number {
     const e = this.lift * this.lift * (3 - 2 * this.lift);
     const p = CAMERA.pitchDeg + (ON_FOOT.pitchDeg - CAMERA.pitchDeg) * this.foot + this.pose.pitch;
-    return p + (70 - p) * e;
+    return p + (CHART_PITCH - p) * e;
   }
 
   /**
@@ -189,7 +211,8 @@ export class FollowCamera {
    * ashore, standing at height y.
    */
   update(dt: number, x: number, z: number, vx: number, vz: number, wheel: number, onFoot = false, y = 0): void {
-    if (wheel !== 0) this.targetDistance = clamp(this.targetDistance * (1 + wheel * 0.1), CAMERA.minDistance, CAMERA.maxDistance);
+    if (wheel !== 0) this.targetDistance = clamp(this.targetDistance * (1 + wheel * WHEEL_STEP), CAMERA.minDistance, CAMERA.maxDistance);
+    if (!this.initialised) this.settle(onFoot);
     if (onFoot !== this.onFoot) {
       this.onFoot = onFoot;
       this.glide = { t: 0, distance: this.distance, foot: this.foot };
@@ -204,10 +227,10 @@ export class FollowCamera {
       this.distance = gl.distance + (this.targetDistance - gl.distance) * e;
       this.foot = gl.foot + ((onFoot ? 1 : 0) - gl.foot) * e;
       if (gl.t >= 1) this.glide = null;
-    } else this.distance += (this.targetDistance - this.distance) * (1 - Math.exp(-dt * 6));
+    } else this.distance += (this.targetDistance - this.distance) * (1 - Math.exp(-dt * ZOOM_RATE));
     this.easeView(dt);
     // the window for the captain and the ship alike (not tipped toward the map); the sight assist on foot only
-    const zone = this.basePitch <= 60;
+    const zone = this.basePitch <= ZONE_PITCH_MAX;
     if (!zone) this.zoneLive = false;
 
     const goal = zone ? this.zoneStep(dt, x, y, z, vx, vz) : this.liftGoal(x, z);
@@ -221,7 +244,7 @@ export class FollowCamera {
       const omega = 2 / Math.max(0.01, zone ? ON_FOOT.zone.smoothTime : CAMERA.smoothTime);
       // chase the goal at the middle of the step (second order for a moving goal: the path does not depend on the
       // frame rate)
-      for (const axis of ['x', 'y', 'z'] as const) {
+      for (const axis of AXES) {
         const s = springStep(this.focus[axis], this.targetVel[axis], (goal[axis] + this.prevGoal[axis]) * 0.5, omega, dt);
         this.focus[axis] = s.x;
         this.targetVel[axis] = s.v;
@@ -232,13 +255,30 @@ export class FollowCamera {
     this.place();
   }
 
+  /**
+   * Drops whatever is under way (a recenter): the zoom stands at its distance, the pose on foot or at sea, the view at
+   * the chosen one, the window starts again round what it follows, and the sight assist lets go with no offset.
+   */
+  private settle(onFoot: boolean): void {
+    this.onFoot = onFoot;
+    this.glide = null;
+    this.distance = this.targetDistance;
+    this.foot = onFoot ? 1 : 0;
+    Object.assign(this.pose, POSES[this.viewIndex]);
+    this.poseT = 1;
+    this.zoneLive = false;
+    this.aYaw = this.aPitch = this.aYawV = this.aPitchV = 0;
+    this.gYaw = this.gPitch = 0;
+    this.occT = this.clearT = this.checkT = this.heldT = 0;
+  }
+
   /** The view's pose toward the chosen one: every key on one smoothstep over VIEW_GLIDE seconds. */
   private easeView(dt: number): void {
     if (this.poseT >= 1) return;
     this.poseT = Math.min(1, this.poseT + dt / VIEW_GLIDE);
     const e = smoothstep(0, 1, this.poseT);
     const to = POSES[this.viewIndex];
-    for (const key of Object.keys(to) as Array<keyof ViewPose>) this.pose[key] = this.poseFrom[key] + (to[key] - this.poseFrom[key]) * e;
+    for (const key of POSE_KEYS) this.pose[key] = this.poseFrom[key] + (to[key] - this.poseFrom[key]) * e;
   }
 
   /** Tipped toward the map (the chart is open): the camera rises over what it follows, a little below the middle. */
@@ -277,7 +317,7 @@ export class FollowCamera {
     if (v > 0.25 && dt > 0) {
       const nx = vx / v;
       const nz = vz / v;
-      const a = 1 - Math.exp(-dt / 0.35);
+      const a = 1 - Math.exp(-dt / HEADING_TAU);
       if (this.zDir.lengthSq() < 0.01) this.zDir.set(nx, nz);
       else {
         this.zDir.x += (nx - this.zDir.x) * a;
@@ -382,7 +422,7 @@ export class FollowCamera {
   /** How many of the three sight rays (thigh, chest, hat) from him to the lens at these offsets a building blocks. */
   private blocked(px: number, py: number, pz: number, yawOff: number, pitchOff: number): number {
     const yaw = (this.pose.yaw + yawOff) * DEG;
-    const pitch = Math.min(80, this.basePitch + pitchOff) * DEG;
+    const pitch = Math.min(SIGHT_PITCH_MAX, this.basePitch + pitchOff) * DEG;
     const dist = this.lensDistance;
     const h = Math.cos(pitch) * dist;
     _cam.set(this.focus.x + Math.sin(yaw) * h, this.focus.y + Math.sin(pitch) * dist, this.focus.z + Math.cos(yaw) * h);
@@ -406,7 +446,7 @@ export class FollowCamera {
     const found: { offset: [number, number] | null; n: number } = { offset: null, n: baseN };
     const tryAll = (list: Array<[number, number]>) => {
       for (const c of list) {
-        if (this.basePitch + c[1] > 62) continue;
+        if (this.basePitch + c[1] > ASSIST_PITCH_MAX) continue;
         const n = this.blocked(px, py, pz, c[0], c[1]);
         if (n < found.n) {
           found.n = n;
@@ -432,7 +472,7 @@ export class FollowCamera {
     const e = this.lift * this.lift * (3 - 2 * this.lift);
     const pitch = (this.basePitch + this.aPitch) * DEG;
     const yaw = this.yaw;
-    const dist = this.lensDistance * (1 + 0.7 * e);
+    const dist = this.lensDistance * (1 + CHART_PULL * e);
     const h = Math.cos(pitch) * dist;
     const cam = this.camera;
     cam.position.set(this.focus.x + Math.sin(yaw) * h, this.focus.y + Math.sin(pitch) * dist, this.focus.z + Math.cos(yaw) * h);
@@ -444,7 +484,7 @@ export class FollowCamera {
     cam.position.y += Math.cos(pitch) * b;
     cam.position.z += -Math.sin(yaw) * a - Math.cos(yaw) * Math.sin(pitch) * b;
     // never let the lens sink into the page
-    cam.position.y = Math.max(cam.position.y, this.focus.y + cam.near + 0.35);
+    cam.position.y = Math.max(cam.position.y, this.focus.y + cam.near + LENS_CLEARANCE);
     const fov = CAMERA.fov + (ON_FOOT.fov - CAMERA.fov) * this.foot + this.pose.fov;
     if (cam.fov !== fov) {
       cam.fov = fov;

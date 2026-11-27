@@ -6,21 +6,21 @@
  * round the square or lined along a street through it, its props and scenes, its piers,
  * and the lanes branching from the square (or the street) to every door.
  */
-import { WORLD } from '../config/world';
+import { CHUNK, WORLD } from '../config/world';
 import { hash01, hash2, mulberry32 } from '../core/rng';
+import { cellKey } from '../core/grid';
 import { modelInfo, type ModelInfo } from './models';
 import { cardWidth, spriteTop } from '../art/sprites';
-import { HEIGHT, heightOf, type Awake } from '../config/flora';
-import { boundsOf, polylineDistance, type Box, type Pt } from './polyline';
+import { heightOf, sheetOf, type Awake, type Sprite } from '../config/flora';
+import { modelSheet } from '../config/models';
+import { boundsOf, polylineDistance, type Box, type Pt } from '../core/polyline';
 import { penAt } from './pen';
 import type { LandField } from './land';
 
 const SEED = WORLD.seed;
-/** Sites are laid on the same squares as the terrain chunks. */
-export const SITE_CELL = 18;
 /** A prop's footprint radius: half its card's drawn width at its tallest (what stops the feet is the card as drawn). */
 function propFoot(sprite: string): number {
-  return cardWidth(sprite, HEIGHT[sprite][1]) / 2;
+  return cardWidth(sprite, sheetOf(sprite).height[1]) / 2;
 }
 
 /** A lane's points; a new lane may branch off an earlier one only short of its door (its first BRANCH_FROM points). */
@@ -65,6 +65,11 @@ const STREET_PROPS = 0.7;
 export type SiteKind = 'port' | 'village' | 'hamlet' | 'ruins';
 
 export interface Site {
+  /**
+   * Its square's own key (core/grid.ts cellKey): what tells two sites apart (the caches, the roads). Its id below is
+   * the seed its layout is drawn from, and two squares far apart can share one.
+   */
+  key: number;
   id: number;
   kind: SiteKind;
   /** The square (or the middle of the ruins). */
@@ -82,7 +87,7 @@ const KIND_ORDER: Record<SiteKind, number> = { port: 0, village: 1, hamlet: 2, r
 
 /** True if site a is laid out before site b (b keeps clear of a's ground). */
 export function laidOutBefore(a: Site, b: Site): boolean {
-  return (KIND_ORDER[a.kind] - KIND_ORDER[b.kind] || a.id - b.id) < 0;
+  return (KIND_ORDER[a.kind] - KIND_ORDER[b.kind] || a.id - b.id || a.key - b.key) < 0;
 }
 
 export interface Placed {
@@ -132,8 +137,8 @@ export type Water = (x: number, z: number, r: number) => boolean;
 
 /** The site of the chunk square (i, j), or null. */
 export function siteIn(land: LandField, water: Water, i: number, j: number): Site | null {
-  const x0 = i * SITE_CELL;
-  const z0 = j * SITE_CELL;
+  const x0 = i * CHUNK;
+  const z0 = j * CHUNK;
   const roll = hash01(SEED ^ 41, i, j);
   const ruinsRoll = hash01(SEED ^ 43, i, j);
   const rng = mulberry32(hash2(SEED ^ 45, i, j));
@@ -141,13 +146,13 @@ export function siteIn(land: LandField, water: Water, i: number, j: number): Sit
   const kind: SiteKind | null = roll < 0.1 ? 'port' : roll < 0.3 ? 'village' : roll < 0.42 ? 'hamlet' : ruinsRoll < 0.08 ? 'ruins' : null;
   if (!kind) return null;
   for (let tries = 0; tries < 30; tries++) {
-    const x = x0 + 3 + rng() * (SITE_CELL - 6);
-    const z = z0 + 3 + rng() * (SITE_CELL - 6);
+    const x = x0 + 3 + rng() * (CHUNK - 6);
+    const z = z0 + 3 + rng() * (CHUNK - 6);
     const d = land.distance(x, z);
     const ok =
       kind === 'hamlet' ? d < -6 && d > -30 : kind === 'ruins' ? d < -2.5 : d < -1.5 && d > -5;
     if (!ok || land.terraceAt(x, z, d) > 1 || water(x, z, 2.5)) continue;
-    return { id, kind, x, z, jungle: land.biome(x, z, d) === 'jungle' };
+    return { key: cellKey(i, j), id, kind, x, z, jungle: land.biome(x, z, d) === 'jungle' };
   }
   return null;
 }
@@ -441,8 +446,7 @@ function lineStreet(site: Site, houses: string[], rng: () => number, build: (nam
 
 /** The flowers grown by a door: in the jungle and elsewhere. */
 const BEDS = { jungle: ['hibiscus', 'bush-pink', 'orchids'], plain: ['flowers-yellow', 'flowers-white', 'tuft-flowers', 'bush-pink'] };
-/** The houses that keep a bed by the door, and how many of them do. */
-const HOMES = /^(cottage|tavern|chapel|hut)$/;
+/** How many of the homes (config/models.ts) keep a bed by the door. */
 const BED_CHANCE = 0.55;
 /** How many sites keep a pen (world/pen.ts), and how far out from the square it may stand (a ring of spots tried). */
 const PEN_CHANCE = 0.7;
@@ -450,10 +454,10 @@ const PEN_RING: [number, number] = [2.4, 6.5];
 const PEN_TRIES = 40;
 
 /**
- * Little scenes (rather than props strewn about): a bed of flowers by a door,
- * a pen of goats (or a pig) between two fences, a handcart with its hay, a rowboat drawn up on the beach by a pier.
- * ok(x, z, r): on the land, clear by r and off the paths; byDoor: the same, but a house's own ground is its door's;
- * place: a prop, claimed; claim: holds ground besides (a pen's, so nothing grows in it); shore: the shore distance.
+ * Little scenes (rather than props strewn about): a bed of flowers by a door, a pen of goats (or a pig) in a diamond of
+ * low fences (world/pen.ts), a handcart with its hay, a rowboat drawn up on the beach by a pier. ok(x, z, r): on the
+ * land, clear by r and off the paths; byDoor: the same, but a house's own ground is its door's; place: a prop, claimed;
+ * claim: holds ground besides (a pen's, so nothing grows in it); shore: the shore distance.
  */
 function scenes(
   site: Site,
@@ -470,7 +474,7 @@ function scenes(
   // a bed of flowers on one or both sides of a door
   const beds = site.jungle ? BEDS.jungle : BEDS.plain;
   for (const b of buildings) {
-    if (!HOMES.test(b.name) || rng() >= BED_CHANCE) continue;
+    if (modelSheet(b.name).role !== 'home' || rng() >= BED_CHANCE) continue;
     const info = modelInfo(b.name)!;
     const nx = Math.sin(b.yaw);
     const nz = Math.cos(b.yaw);
@@ -522,20 +526,22 @@ function scenes(
   }
 }
 
+/** Vignette chances: village / house cat on a piece, at the door, a dog at the cart, hens at the yard. */
+const VIG = { on: 1, onHamlet: 0.55, door: 0.7, doorHamlet: 1, dog: 0.7, hens: 0.7, sink: 0.03 };
+
 /**
- * Village vignettes: a cat sitting
- * ON a fence, a barrel, the well, crates, hay, a woodpile or a bench (its feet at the piece's top, sunk 0.03), a cat
- * asleep or sitting BY a door, a dog sitting AT the cart, a bench, the well or a signpost, hens AT a fence or the cart
- * (by day).
+ * Village vignettes: a cat sitting ON a fence, a barrel, the well, crates or a bench (its feet at the piece's top,
+ * sunk VIG.sink), a cat asleep or sitting BY a door, a dog sitting AT the cart, a bench or the well, hens AT a fence or
+ * the cart (by day).
  */
 function vignettes(site: Site, buildings: Placed[], props: Placed[], rng: () => number, ok: (x: number, z: number) => boolean): void {
   const hamlet = site.kind === 'hamlet';
-  const pick = (re: RegExp) => {
-    const list = props.filter((p) => re.test(p.name) && !p.vignette);
+  const pick = (names: readonly Sprite[]) => {
+    const list = props.filter((p) => (names as readonly string[]).includes(p.name) && !p.vignette);
     return list.length ? list[Math.floor(rng() * list.length)] : null;
   };
   // on: across the piece's top, feet at its print's top there (a seat between 0.13 and 0.75)
-  const seat = rng() < (hamlet ? VIG.onHamlet : VIG.on) ? pick(/^(fence-|barrel$|well$|crates$|bench$)/) : null;
+  const seat = rng() < (hamlet ? VIG.onHamlet : VIG.on) ? pick(['fence-bamboo', 'fence-rail', 'barrel', 'well', 'crates', 'bench']) : null;
   if (seat && seat.height) {
     const t = (rng() - 0.5) * 0.9;
     const u = 0.5 + t * 0.5;
@@ -547,7 +553,7 @@ function vignettes(site: Site, buildings: Placed[], props: Placed[], rng: () => 
   }
   // door: by the door of a house, a little to one side
   if (rng() < (hamlet ? VIG.doorHamlet : VIG.door)) {
-    const homes = buildings.filter((b) => b.name !== 'lighthouse' && b.name !== 'fort');
+    const homes = buildings.filter((b) => modelSheet(b.name).role !== 'landmark');
     const b = homes.length ? homes[Math.floor(rng() * homes.length)] : null;
     const info = b ? modelInfo(b.name) : null;
     if (b && info) {
@@ -565,8 +571,8 @@ function vignettes(site: Site, buildings: Placed[], props: Placed[], rng: () => 
     }
   }
   // at: beside a piece, then a little in front of it
-  const beside = (who: string, re: RegExp, n: number, awake?: Awake) => {
-    const p = pick(re);
+  const beside = (who: Sprite, at: readonly Sprite[], n: number, awake?: Awake) => {
+    const p = pick(at);
     if (!p || !p.height) return;
     const half = cardWidth(p.name, p.height) / 2;
     const s0 = rng() < 0.5 ? -1 : 1;
@@ -581,12 +587,9 @@ function vignettes(site: Site, buildings: Placed[], props: Placed[], rng: () => 
       placed++;
     }
   };
-  if (rng() < VIG.dog) beside('dog', /^(handcart|bench|well)$/, 1);
-  if (rng() < VIG.hens) beside('hen', /^(fence-|handcart$)/, 3, 'day');
+  if (rng() < VIG.dog) beside('dog', ['handcart', 'bench', 'well'], 1);
+  if (rng() < VIG.hens) beside('hen', ['fence-bamboo', 'fence-rail', 'handcart'], 3, 'day');
 }
-
-/** Vignette chances: village / house cat on a piece, at the door, a dog at the cart, hens at the yard. */
-const VIG = { on: 1, onHamlet: 0.55, door: 0.7, doorHamlet: 1, dog: 0.7, hens: 0.7, sink: 0.03 };
 
 function finish(site: Site, buildings: Placed[], props: Placed[], piers: Placed[], street: Pt[] | null, lanes: Pt[][], claims: Claim[]): Layout {
   const pts: Pt[] = [[site.x, site.z], ...[...buildings, ...props, ...piers].map((p): Pt => [p.x, p.z]), ...lanes.flat(), ...(street ?? [])];

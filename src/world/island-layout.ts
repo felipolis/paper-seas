@@ -27,7 +27,7 @@ export interface IslandSpec {
 const SHALLOW_WIDTH = 1.0;
 /**
  * Largest extent of any island (bounds the neighbour search): the 'big' form's farthest satellite reaches 4.5 + 3.8 x
- * 1.3 (stretch) x 1.33 (its lumps at their largest), about 11.1; every other form stays under 9.5.
+ * 1.3 (stretch) x 1.33 (its lumps at their largest), about 11.1; the twin form about 10.1, every other form under 9.5.
  */
 const MAX_EXTENT = 11.5;
 

@@ -21,7 +21,7 @@
 import * as THREE from 'three';
 import { edgeStrip, pageFibre } from '../art/paper-maps';
 import { createPaperMaterial } from '../render/paper-material';
-import type { Pt } from './polyline';
+import type { Pt } from '../core/polyline';
 import { CELL } from './reveal';
 
 /** Data texture resolution (pixels per world unit) and the two blurs of the road mask (world units). */

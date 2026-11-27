@@ -12,15 +12,18 @@
  * where cards meet the page, a darker die-cut edge on every silhouette, and a warm haze where the table ends.
  */
 import * as THREE from 'three';
-import { POST, NIGHT } from '../config/view';
+import { CAMERA, POST, NIGHT } from '../config/view';
 import { clamp } from '../core/math';
 import { CloudShadows } from './cloud-shadows';
 import { blend, pair } from './colour-pair';
 import type { BiomeLook } from './biome-look';
-import { AO_FRAG, BLOOM_DOWN_FRAG, BLUR_FRAG, COMPOSITE_FRAG, FILL_FRAG, GATHER_FRAG, PRE_FRAG, TILE_FRAG, VERT } from './post-shaders';
+import { AO_FRAG, BLOOM_DOWN_FRAG, BLUR_FRAG, COMPOSITE_FRAG, FILL_FRAG, GATHER_FRAG, PRE_FRAG, TILE_FRAG, TONE_CURVE, VERT } from './post-shaders';
 
-/** The normal framing: the focus 17 units from the camera (the gobo and the haze scale from it). */
-const FRAMING = 17;
+/**
+ * The most the depth scale turns a depth difference into (a share of the frame height per unit of relative depth): it
+ * grows without bound as the camera looks straight down.
+ */
+const MAX_DEPTH_SCALE = 9;
 
 function vogelTaps(n: number): THREE.Vector2[] {
   const out: THREE.Vector2[] = [];
@@ -48,13 +51,14 @@ interface Tone {
   saturation: number;
   tint: THREE.Vector3;
 }
-const acesJS = (x: number) => clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0, 1);
-const toSRGBJS = (c: number) => (c < 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055);
+const { aces: ACES, srgb: SRGB, pivot: PIVOT, luma: LUMA } = TONE_CURVE;
+const acesJS = (x: number) => clamp((x * (ACES.a * x + ACES.b)) / (x * (ACES.c * x + ACES.d) + ACES.e), 0, 1);
+const toSRGBJS = (c: number) => (c < SRGB.cut ? c * SRGB.slope : SRGB.scale * Math.pow(c, 1 / SRGB.gamma) - SRGB.offset);
 /** The composite's tone curve at the centre of the frame (no vignette, grain or shadow lift), rgb into out. */
 function toneJS(rgb: Float64Array, P: Tone, out: Float64Array): void {
   for (let i = 0; i < 3; i++) out[i] = acesJS(rgb[i] * P.exposure * P.tint.getComponent(i));
-  const l = 0.2126 * out[0] + 0.7152 * out[1] + 0.0722 * out[2];
-  for (let i = 0; i < 3; i++) out[i] = (toSRGBJS(Math.max(0, l + (out[i] - l) * P.saturation)) - 0.42) * P.contrast + 0.42;
+  const l = LUMA[0] * out[0] + LUMA[1] * out[1] + LUMA[2] * out[2];
+  for (let i = 0; i < 3; i++) out[i] = (toSRGBJS(Math.max(0, l + (out[i] - l) * P.saturation)) - PIVOT) * P.contrast + PIVOT;
 }
 const _srgb = { r: 0, g: 0, b: 0 };
 const _want = new Float64Array(3);
@@ -103,7 +107,7 @@ export class PostChain {
   /** Uniforms shared by every pass that reads depth (the day / night values are set by setNight()). */
   private readonly common = {
     uProj: { value: new THREE.Vector4(1, 100, 0.23, 1.78) },
-    uDofA: { value: new THREE.Vector4(18, 0.5, 2.7, POST.depthWeight) },
+    uDofA: { value: new THREE.Vector4(CAMERA.distance, 0.5, 2.7, POST.depthWeight) },
     uDofB: { value: new THREE.Vector4(POST.focusBand / 2, POST.ramp, POST.maxBlurPx, POST.nearGain) },
     uDofC: { value: new THREE.Vector3(POST.farGain, POST.greenPull, POST.split) },
     uCamWorld: { value: new THREE.Matrix4() },
@@ -262,7 +266,9 @@ export class PostChain {
     inverseTone(blend(this._c, VIGNETTE, night), P, u.uVignetteColor.value as THREE.Color);
   }
 
-  /** Drifts the cloud shadows on with the wind round the ship or the captain (fx, fz); they are gone at night (0..1). */
+  /**
+   * Drifts the cloud shadows on with the wind round the ship or the captain (fx, fz); they are gone at night (0..1).
+   */
   driftClouds(dt: number, fx: number, fz: number, windX: number, windZ: number, night: number): void {
     this.clouds.update(dt, fx, fz, windX, windZ, night);
   }
@@ -312,36 +318,40 @@ export class PostChain {
     const u = this.compositeMat.uniforms;
 
     // per-frame uniforms: projection, focus depth + screen height, camera, key axis
-    C.uProj.value.set(cam.near, cam.far, Math.tan((cam.fov * Math.PI) / 360), cam.aspect);
+    const tanHalf = Math.tan((cam.fov * Math.PI) / 360);
+    C.uProj.value.set(cam.near, cam.far, tanHalf, cam.aspect);
     cam.updateMatrixWorld();
     C.uCamWorld.value.copy(cam.matrixWorld);
-    // the focus: the focus point's view depth and screen height; kD turns a depth difference into a share of
-    // the frame height for the camera's tilt, and a close camera keeps a taller band sharp
-    const tanHalf = Math.tan((cam.fov * Math.PI) / 360);
+    // the focus: the focus point's view depth and screen height; the depth scale turns a depth difference into a share
+    // of the frame height for the camera's tilt, and a close camera keeps a taller band sharp
     this._v.copy(this.focusWorld).applyMatrix4(cam.matrixWorldInverse);
     const fz = Math.max(0.01, -this._v.z);
     const fy = 0.5 + (0.5 * this._v.y) / (fz * tanHalf);
     const e = cam.matrixWorld.elements;
     const sinP = Math.min(0.9999, Math.max(0.05, e[9]));
     const cot = Math.max(0.1, Math.sqrt(1 - sinP * sinP) / sinP);
-    C.uDofA.value.set(fz, Math.min(0.9, Math.max(0.1, fy)), Math.min(9, 1 / (2 * Math.atan(tanHalf) * cot)), POST.depthWeight);
-    const bandScale = Math.min(POST.closeBandScale, Math.max(1, 12 / fz));
+    const dof = C.uDofA.value;
+    dof.x = fz;
+    dof.y = Math.min(0.9, Math.max(0.1, fy));
+    dof.z = Math.min(MAX_DEPTH_SCALE, 1 / (2 * Math.atan(tanHalf) * cot));
+    const bandScale = Math.min(POST.closeBandScale, Math.max(1, POST.closeBandFrom / fz));
     const blurPx = (this.look.maxBlurPx * H) / 1080;
     C.uDofB.value.x = (this.look.focusBand * bandScale) / 2;
     C.uDofB.value.z = blurPx;
     (this.fillMat.uniforms.uFill.value as THREE.Vector2).y = blurPx;
     C.uFocusW.value.copy(this.focusWorld);
     // the world falloff, scaled with the focus distance: the gobo follows the camera's right and spans the
-    // visible width; in macro framing (closer than 8) its key falloff relaxes and the exposure stops down a little
-    const closeT = clamp((8 - fz) / 4, 0, 1);
+    // visible width; in macro framing (POST.macro) its key falloff relaxes and the exposure stops down a little
+    const closeT = clamp((POST.macro[1] - fz) / (POST.macro[1] - POST.macro[0]), 0, 1);
     const rl = Math.hypot(e[0], e[2]) || 1;
-    C.uGobo.value.set(e[0] / rl, e[2] / rl, 1 / Math.max(0.5, POST.gobo.radius * Math.min(3, fz / FRAMING)), this.look.goboKey * (1 - POST.gobo.closeRelief * closeT));
-    const ks = clamp(fz / FRAMING, 0.82, 3);
+    const goboRadius = Math.max(POST.gobo.minRadius, POST.gobo.radius * Math.min(POST.framingScale[1], fz / POST.framing));
+    C.uGobo.value.set(e[0] / rl, e[2] / rl, 1 / goboRadius, this.look.goboKey * (1 - POST.gobo.closeRelief * closeT));
+    const ks = clamp(fz / POST.framing, POST.framingScale[0], POST.framingScale[1]);
     C.uGobo2.value.y = this.look.fadeStart * ks;
     C.uGobo2.value.z = this.look.fadeEnd * ks;
     u.uTone.value.x = this.look.exposure * (1 + (POST.closeExposure - 1) * closeT);
     // the die-cut edge: wider on a tall picture and in a close frame
-    u.uFx.value.z = POST.rimPx * Math.max(1, H / 900) * (fz < 9 ? 1.5 : 1);
+    u.uFx.value.z = POST.rimPx * Math.max(1, H / 900) * (fz < POST.rimClose.within ? POST.rimClose.widen : 1);
     // the grain seed: a new pattern every 60th of a second of game time, 1024 of them
     u.uFx.value.w = Math.floor(time * 60) % 1024;
 

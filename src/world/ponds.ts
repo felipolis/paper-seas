@@ -1,12 +1,11 @@
 /**
  * Little ponds (still water with reeds round it, a duck on it, lily pads), a pure function of
- * the seed: one at most per SITE_CELL square, with POND_CHANCE, at a spot well inland on level meadow, pine wood or
+ * the seed: one at most per CHUNK square, with POND_CHANCE, at a spot well inland on level meadow, pine wood or
  * jungle ground, clear of the streams, the roads and the villages (it is placed after them, and nothing routes round
  * it). Its rim is a circle wobbled by two slow waves, so no two ponds have the same shore.
  */
-import { WORLD } from '../config/world';
+import { CHUNK, WORLD } from '../config/world';
 import { hash01, hash2, mulberry32 } from '../core/rng';
-import { SITE_CELL } from './sites';
 import type { LandField } from './land';
 
 const SEED = WORLD.seed;
@@ -58,8 +57,8 @@ export function pondIn(land: LandField, avoid: PondAvoid, i: number, j: number):
   if (hash01(SEED ^ 89, i, j) >= POND_CHANCE) return null;
   const rng = mulberry32(hash2(SEED ^ 97, i, j));
   for (let t = 0; t < TRIES; t++) {
-    const x = (i + 0.15 + 0.7 * rng()) * SITE_CELL;
-    const z = (j + 0.15 + 0.7 * rng()) * SITE_CELL;
+    const x = (i + 0.15 + 0.7 * rng()) * CHUNK;
+    const z = (j + 0.15 + 0.7 * rng()) * CHUNK;
     const r = RADIUS[0] + rng() * (RADIUS[1] - RADIUS[0]);
     const wave: Pond['wave'] = [WOBBLE[0] * rng(), rng() * Math.PI * 2, WOBBLE[1] * rng(), rng() * Math.PI * 2];
     const d = land.distance(x, z);

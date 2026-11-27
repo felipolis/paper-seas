@@ -7,8 +7,8 @@
  * (a bridge). The route is then rounded off (Chaikin) and resampled.
  */
 import { WORLD } from '../config/world';
-import { valueNoise } from './noise';
-import { boundsOf, chaikin, polylineDistance, resample, segmentCross, type Box, type Pt } from './polyline';
+import { valueNoise } from '../core/noise';
+import { boundsOf, chaikin, polylineDistance, resample, segmentCross, type Box, type Pt } from '../core/polyline';
 import type { LandField } from './land';
 import type { Site } from './sites';
 import type { Stream } from './streams';
@@ -185,7 +185,7 @@ export function routeRoad(land: LandField, a: Site, b: Site, others: Site[], str
   cells[0] = [a.x, a.z];
   cells[cells.length - 1] = [b.x, b.z];
   const pts = resample(chaikin(cells, 3), 0.3);
-  return { id: a.id < b.id ? `${a.id}-${b.id}` : `${b.id}-${a.id}`, pts, bridges: bridgesOf(pts, streams), box: boundsOf(pts, ROAD_WIDTH) };
+  return { id: a.key < b.key ? `${a.key}-${b.key}` : `${b.key}-${a.key}`, pts, bridges: bridgesOf(pts, streams), box: boundsOf(pts, ROAD_WIDTH) };
 }
 
 /** Where the road crosses a stream: one bridge per crossing (crossings closer than 2 units are one). */

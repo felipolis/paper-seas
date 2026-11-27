@@ -39,8 +39,8 @@ ATLAS = json.load(open(os.path.join(ROOT, "assets-src", "models", "atlas.json"))
 DOMES = json.load(open(os.path.join(ROOT, "assets-src", "models", "domes.json")))  # tools/art/paint-domes.mjs
 OUT = os.path.join(ROOT, "public", "models", "models.glb")
 SIZE = ATLAS["size"][0]
-THICK = 0.016  # card thickness (world units)
-HALF = 0.4 * THICK  # a slotted cross's half cards
+THICK = 0.016  # card thickness (world units), as the game's cards (src/popup/card.ts CARD_THICKNESS)
+HALF = 0.4 * THICK  # a slotted cross's half cards, as the game's (src/world/card-field.ts HALF_THICKNESS)
 
 # game frame (x, y up, z front) -> Blender (x, -z, y)
 C = Matrix(((1, 0, 0, 0), (0, 0, -1, 0), (0, 1, 0, 0), (0, 0, 0, 1)))
@@ -418,7 +418,8 @@ def cross_halves(m, name, card, art, poly, foot, up, along, normal, width, heigh
 # a square tower: four walls (front, then sides hinged on it, then the back on the left side) and a top
 
 def box_walls(m, prefix, cx, cz, base_y, w_bot, w_top, height, arts, parent=None, back="print", open_top=False):
-    """Four (optionally tapered) walls around (cx, cz). arts = (front, side, back). Returns (front, left, right, back)."""
+    """Four (optionally tapered) walls around (cx, cz). arts = (front, side, back). Returns (front, left, right,
+    back)."""
     hb, ht = w_bot / 2, w_top / 2
     y0, y1 = base_y, base_y + height
 
@@ -638,9 +639,10 @@ def outcrop(name, stone, seed, scale=1.0):
 
 
 # ------------------------------------------------------------------------------------------------------------------
-# a wooden pier (walkable: the game reads its deck height from the root's extras): two side boards stand up off the page,
-# the deck folds over from the left board in square sections (so the printed planks keep their size), crossed posts
-# stand at the corners and along both sides, reaching down into the water. It runs along +z, the shore end at -L/2.
+# a wooden pier (walkable: the game reads its deck height from the root's extras): two side boards stand up off the
+# page, the deck folds over from the left board in square sections (so the printed planks keep their size), crossed
+# posts stand at the corners and along both sides, reaching down into the water. It runs along +z, the shore end at
+# -L/2.
 
 def pier(name, L=3.0, W=0.62, H=0.16):
     m = Model(name)

@@ -22,7 +22,9 @@ export interface HingeOptions extends FlapTuning {
    * rises: cards folded onto each other lie in stacked layers instead of fighting over one plane.
    */
   lift?: number;
-  /** The hinge node this card rides on (already added): it follows that card's progress (NESTED) and starts after it. */
+  /**
+   * The hinge node this card rides on (already added): it follows that card's progress (NESTED) and starts after it.
+   */
   parent?: THREE.Object3D;
   /**
    * While folded the card is also moved by this (in its parent's space), easing to nothing as it rises: what keeps it

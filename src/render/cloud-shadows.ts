@@ -45,7 +45,8 @@ export class CloudShadows {
     const W = C.span;
     const wl = Math.hypot(windX, windZ) || 1;
     const amount = C.density * (1 - night);
-    this.q.forEach((Q, j) => {
+    for (let j = 0; j < C.count; j++) {
+      const Q = this.q[j];
       let dx = Q[0] * W + (windX / wl) * C.speed * this.time - fx;
       dx -= W * Math.round(dx / W);
       let dz = Q[1] * W + (windZ / wl) * C.speed * this.time - fz;
@@ -57,7 +58,7 @@ export class CloudShadows {
       const yaw = Q[3] * Math.PI * 2;
       this.a[j].set(fx + dx, fz + dz, Math.cos(yaw), Math.sin(yaw));
       this.b[j].set(s / 2, (s * (0.62 + 0.25 * Q[4])) / 2, Q[5], C.alpha * rank * edge);
-    });
+    }
   }
 }
 

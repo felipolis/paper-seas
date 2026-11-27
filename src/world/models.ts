@@ -17,6 +17,7 @@ import { createPaperMaterial, paperCopy, pencilPlan, setPaperFlat } from '../ren
 import { addGlowMap, setGlowShare } from '../render/glow';
 import { footSegments, hullSegments, type Segment } from './blockers';
 import { POPUP } from '../config/popup';
+import { modelSheet } from '../config/models';
 import { cellKey } from '../core/grid';
 import { tintMaterial } from '../render/biome-tint';
 import type { Biome } from './land';
@@ -47,26 +48,24 @@ interface Prototype {
    * slotted cross's front half).
    */
   folds: Array<{ foldAngle: number; delay: number; size: number; layer: number; liftSign: number }>;
-  /** Per bone (index > 0): how far its piece stands off its own face while folded flat (model units; < 0: behind it). */
+  /**
+   * Per bone (index > 0): how far its piece stands off its own face while folded flat (model units; < 0: behind it).
+   */
   lifts: number[];
   /** Per bone: what lifts it clear of the pieces it would lie on folded flat (its parent's space; see separateFlat). */
   stacks: Array<THREE.Vector3 | null>;
   /** What blocks the feet once it stands (model space, scaled): see blockers.ts. */
   foot: Segment[];
-  /** Its size in the world (SCALE). */
+  /** Its size in the world (its sheet's scale, config/models.ts). */
   scale: number;
   /** The top of its chimney (model space, scaled), if it has one. */
   smoke: THREE.Vector3 | null;
-  /** What it is culled with (model space): its bounds standing, grown over its pieces folded flat (see foldedBounds). */
+  /**
+   * What it is culled with (model space): its bounds standing, grown over its pieces folded flat (see foldedBounds).
+   */
   sphere: THREE.Sphere;
   box: THREE.Box3;
 }
-
-/**
- * Size of each model in the world, in proportion to the captain (0.6 tall): a
- * house about 1.1 tall, a church steeple 1.55, a watchtower 1.5. The Blender build keeps its own units; the rest is 1.
- */
-const SCALE: Record<string, number> = { hut: 0.72, tavern: 0.85, chapel: 0.72, fort: 1, lighthouse: 0.8 };
 
 const prototypes = new Map<string, Prototype>();
 let material: THREE.MeshLambertMaterial | null = null;
@@ -95,7 +94,8 @@ export async function loadModels(paperMaps: Promise<void>, base = `${import.meta
   for (const node of gltf.scene.children) {
     const name = node.userData.model as string | undefined;
     if (!name) continue;
-    const proto = prototype(node, SCALE[name] ?? 1, SOLID.test(name));
+    const sheet = modelSheet(name);
+    const proto = prototype(node, sheet.scale ?? 1, sheet.role === 'landform');
     separateFlat(proto, paper);
     foldedBounds(proto, paper);
     prototypes.set(name, proto);
@@ -113,9 +113,6 @@ export function modelFoot(name: string): Segment[] {
 export function modelNames(): string[] {
   return [...prototypes.keys()];
 }
-
-/** The heights (mountains, outcrops) are solid masses: their whole footprint blocks, not only their walls. */
-const SOLID = /^(ridge|outcrop)-/;
 
 export function modelInfo(name: string): ModelInfo | undefined {
   return prototypes.get(name)?.info;
@@ -267,7 +264,7 @@ export function buildModel(name: string, x: number, y: number, z: number, yaw: n
   const proto = prototypes.get(name);
   if (!proto || !material) throw new Error(`model "${name}" not loaded`);
   // (a building's pieces are tinted by its biome, render/biome-tint.ts)
-  const paper = paperCopy(tintMaterial(material, biome, name));
+  const paper = paperCopy(tintMaterial(material, biome));
   const { mesh, fold } = rig(proto, paper, x, z);
   mesh.position.set(x, y, z);
   mesh.rotation.y = yaw;
@@ -308,7 +305,7 @@ function rig(proto: Prototype, paper: THREE.Material, x: number, z: number): { m
   mesh.add(rootBone);
   mesh.bind(new THREE.Skeleton(bones, proto.boneInverses), new THREE.Matrix4());
   mesh.scale.setScalar(proto.scale);
-  // all the pieces of a building start within its cell's 0.34 s stagger span
+  // all the pieces of a building start within its cell's stagger span (POPUP.staggerSpan), as its cards do
   const fold = new FoldGroup();
   bones.forEach((b, i) => {
     if (i === 0) return;
@@ -335,7 +332,9 @@ const MAX_STEPS = 24;
 /** Side of the squares the folded faces are filed under, to find the ones a face lies over. */
 const FACE_CELL = 0.1;
 
-/** A flat face of the model folded flat (world units): its bone, corners (x, z), plane, bounds and how far it has moved. */
+/**
+ * A flat face of the model folded flat (world units): its bone, corners (x, z), plane, bounds and how far it has moved.
+ */
 interface Face {
   bone: number;
   corners: Array<[number, number]>;

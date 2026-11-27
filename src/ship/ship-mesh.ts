@@ -3,9 +3,10 @@
  * public/models/ship-<id>.glb) and dressed here with printed paper.
  *
  * The glb's parts are named by material: tiling printed wood (lower, wale, upper, inner, deck: their UVs are in world
- * units, the textures repeat), printed details (gallery, windows, cabin-door, gunport, scroll, crest, grating,
- * the ship's own figurehead, painted eyes: UVs 0..1) and plain coloured paper. Parts are merged into one mesh per material; the wheel stays its own
- * group so the ship can turn it with the rudder. Every material is the paper material (fibre, relief, card edge).
+ * units, the textures repeat), printed details (gallery, windows, cabin-door, gunport, scroll, crest, grating, the
+ * ship's own figurehead, painted eyes: UVs 0..1) and plain coloured paper. Parts are merged into one mesh per material;
+ * the wheel stays its own group so the ship can turn it with the rudder. Every material is the paper material (fibre,
+ * relief, card edge).
  */
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';

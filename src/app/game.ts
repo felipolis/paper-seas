@@ -20,7 +20,7 @@ import { DistanceMap } from '../sea/distance-map';
 import { frameMirrorRipple, setMirror } from '../sea/mirror';
 import { Reflection } from '../render/reflection';
 import { World } from '../world/world';
-import { SeaLife } from '../life/sea-life';
+import { SeaLife, type ShipState } from '../life/sea-life';
 import { Flotsam } from '../life/flotsam';
 import { Ambience } from '../life/ambience';
 import { Marvels } from '../life/marvels';
@@ -35,13 +35,13 @@ import { nextVoyageSeed } from '../config/seed';
 import { Progress } from '../game/progress';
 import { Ship } from '../ship/ship';
 import { Sound } from '../audio/sound';
-import { Hud } from '../ui/hud';
+import { Hud, type HudState } from '../ui/hud';
 import { Menu } from '../ui/menu';
 import { Shipyard } from '../ui/shipyard';
 import { Chart } from '../ui/chart';
 import { Exploration } from '../game/exploration';
 import { spriteArt } from '../art/sprites';
-import { HEIGHT } from '../config/flora';
+import { SPRITE_NAMES, hasTag } from '../config/flora';
 import { createCard, prewarmSilhouettes } from '../popup/card';
 import { buildModel } from '../world/models';
 import { setPageFocus } from '../render/paper-material';
@@ -49,8 +49,13 @@ import { BIOMES } from '../world/land';
 import { pondWater } from '../world/stream-mesh';
 import { lilyPads } from '../world/lily-pads';
 
-/** The cards butterflies seek (flowers, flowering bushes and blossom trees, hives). */
-const FLOWERS = /^(flowers-|tuft-flowers|hibiscus|orchids|bird-of-paradise|bush-|tree-blossom|beehive)/;
+/**
+ * Going ashore: the landing spots tried round a ship lying still, on rings from first to reach out (world units),
+ * around points on each, a spot taken where the shore distance lies within beach (inland of the waterline); the search
+ * is skipped while the ship lies further than reach + beach[0] + slack off the shore (slack: the shore distance
+ * estimate's error away from the coast).
+ */
+const ASHORE = { first: 0.6, reach: 2.8, rings: 11, around: 24, beach: [0.3, 1.4], slack: 2 } as const;
 /** Knots shown per world unit / s (a playful scale: full sail reads about 12 kn). */
 const KNOTS_PER_UNIT = 3.6;
 /**
@@ -103,6 +108,9 @@ export class Game {
   private frameId = 0;
   private readonly focus = new THREE.Vector3();
   private readonly lensFocus = new THREE.Vector3();
+  /** What the sea life and the HUD read every frame, refilled in place. */
+  private readonly shipState: ShipState = { x: 0, z: 0, fx: 0, fz: 0 };
+  private readonly hudState: HudState = { sailSetting: 0, knots: 0, musicOff: false, onFoot: false };
   private last = 0;
   /** Centre of the circle the land rises in (eased toward a point ahead of the ship / captain). */
   private readonly reveal = new Reveal();
@@ -131,7 +139,7 @@ export class Game {
       distance: (x, z) => this.world.terrain.distanceAt(x, z),
       bank: (x, z) => this.world.places.waterDistance(x, z),
       flower: (x, z, r) => {
-        const c = this.world.cards.nearest(x, z, r, (s) => FLOWERS.test(s));
+        const c = this.world.cards.nearest(x, z, r, (s) => hasTag(s, 'flower'));
         return c ? [c.x, c.z] : null;
       },
       biome: (x, z) => this.world.land.biome(x, z, this.world.terrain.distanceAt(x, z)),
@@ -181,8 +189,9 @@ export class Game {
     );
     window.addEventListener('keydown', (e) => {
       if (e.code !== 'Escape' || e.repeat) return;
-      if (this.chart.isOpen) this.chart.close();
-      else if (this.menu.isOpen) this.menu.hide();
+      // (the menu first: it can be shown over the chart when the tab goes hidden)
+      if (this.menu.isOpen) this.menu.hide();
+      else if (this.chart.isOpen) this.chart.close();
       else this.menu.show();
     });
     // an unfocused tab pauses too
@@ -226,12 +235,15 @@ export class Game {
 
   // ---- for the dev tools (tools/qa, tools/media drive the dev build through window.game) ----
 
-  /** Moves the ship to (x, z) at once, stopped, with the land round it built and the camera placed afresh. */
+  /**
+   * Moves the ship to (x, z) at once, stopped dead (no way, turn or heel left), with the land round it built and the
+   * camera placed afresh.
+   */
   moveShip(x: number, z: number): void {
     const p = this.ship.physics;
     p.x = x;
     p.z = z;
-    p.vx = p.vz = 0;
+    p.stop();
     this.view.recenter();
     this.world.prime(x, z);
     this.distanceMap.prime(x, z);
@@ -311,7 +323,6 @@ export class Game {
     if (walking) this.focus.set(fx, 0, fz);
     else this.focus.set(p.x + (p.vx / sp) * lead, 0, p.z + (p.vz / sp) * lead);
 
-
     // the ring that stands up (centred ahead of the one we follow, world/reveal.ts) is its own, grown by the view's
     // reach as the camera pulls back (the haze beyond it scales with the focus distance in render/post.ts)
     const reach = Math.max(this.view.viewReach, (this.view.lensDistance - REACH_FROM) * REACH_PER_UNIT);
@@ -322,11 +333,16 @@ export class Game {
     this.waves.update(dt, this.focus.x, this.focus.z, ship.wakeSource, this.reveal, viewReach);
     // (the living pieces keep clear of the one we follow, and their weather and biomes are his)
     this.clearLine.update(this.view.camera, fx, fz);
-    this.life.update(dt, { x: p.x, z: p.z, fx: p.forwardX, fz: p.forwardZ });
+    const st = this.shipState;
+    st.x = p.x;
+    st.z = p.z;
+    st.fx = p.forwardX;
+    st.fz = p.forwardZ;
+    this.life.update(dt, st);
     this.flotsam.update(dt, p.x, p.z, this.reveal, viewReach);
     this.marvels.update(dt, p.x, p.z, this.dayNight.hour, this.dayNight.lanterns > 0.5, !walking);
     this.walker.updateLantern(dt, this.dayNight.lanterns);
-    updatePools(this.dayNight.lanterns, fx, fz, this.world.cards.lamps());
+    updatePools(this.dayNight.lanterns, fx, fz, this.world.cards.lamps);
     this.smoke.update(dt, this.world.terrain.chimneysNear(fx, fz, 14), fx, fz, ship.wind.x, ship.wind.z, this.dayNight.lanterns, this.view.camera);
     this.ambience.update(dt, fx, fz, ship.wind.x, ship.wind.z, this.dayNight.lanterns, this.view.camera);
     this.progress.update(dt, this.world, p.x, p.z);
@@ -344,12 +360,12 @@ export class Game {
     this.sea.update(this.time);
     frameMirrorRipple(this.view.lensDistance, this.view.focus.x, this.view.focus.z);
     this.lights.follow(this.view.camera, this.view.focus);
-    this.hud.update(dt, {
-      sailSetting: ship.sailSetting,
-      knots: Math.max(0, p.surge) * KNOTS_PER_UNIT,
-      musicOff: this.sound.isMusicOff,
-      onFoot: walking,
-    });
+    const hs = this.hudState;
+    hs.sailSetting = ship.sailSetting;
+    hs.knots = Math.max(0, p.surge) * KNOTS_PER_UNIT;
+    hs.musicOff = this.sound.isMusicOff;
+    hs.onFoot = walking;
+    this.hud.update(dt, hs);
     this.input.endFrame();
     this.post.driftClouds(dt, fx, fz, ship.wind.x, ship.wind.z, this.dayNight.lanterns);
     // (on foot the focus point is his chest)
@@ -374,7 +390,7 @@ export class Game {
    * in the middle of a voyage.
    */
   private prewarm(): void {
-    const names = Object.keys(HEIGHT);
+    const names = SPRITE_NAMES;
     prewarmSilhouettes(names.map((n) => spriteArt(n, { height: 1 })));
     this.world.cards.prewarm(names);
     // a loose (non-instanced) thick card and plain card for the creatures / flotsam variants
@@ -424,17 +440,20 @@ export class Game {
       return;
     }
     // the nearest spot a little up the beach (or on a pier alongside) within reach of the ship, with room to stand
+    // (searched only when the shore can be in reach: this runs every frame the ship lies still)
     const spots: Array<[number, number, number]> = [];
-    for (let s = 0; s <= 11; s++) {
-      const r = 0.6 + 0.2 * s;
-      for (let k = 0; k < 24; k++) {
-        const x = p.x + Math.cos((k / 24) * Math.PI * 2) * r;
-        const z = p.z + Math.sin((k / 24) * Math.PI * 2) * r;
-        const d = this.world.terrain.distanceAt(x, z);
-        if (d < -0.3 && d > -1.4) spots.push([x, z, r]);
+    if (this.world.terrain.distanceAt(p.x, p.z) < ASHORE.reach + ASHORE.beach[0] + ASHORE.slack) {
+      for (let s = 0; s <= ASHORE.rings; s++) {
+        const r = ASHORE.first + ((ASHORE.reach - ASHORE.first) * s) / ASHORE.rings;
+        for (let k = 0; k < ASHORE.around; k++) {
+          const x = p.x + Math.cos((k / ASHORE.around) * Math.PI * 2) * r;
+          const z = p.z + Math.sin((k / ASHORE.around) * Math.PI * 2) * r;
+          const d = this.world.terrain.distanceAt(x, z);
+          if (d < -ASHORE.beach[0] && d > -ASHORE.beach[1]) spots.push([x, z, r]);
+        }
       }
     }
-    for (const [x, z] of this.world.terrain.piersNear(p.x, p.z, 2.8)) {
+    for (const [x, z] of this.world.terrain.piersNear(p.x, p.z, ASHORE.reach)) {
       const r = Math.hypot(x - p.x, z - p.z);
       if (r > 0.4) spots.push([x, z, r]);
     }

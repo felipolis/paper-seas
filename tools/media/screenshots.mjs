@@ -29,8 +29,15 @@ const only = process.argv.slice(2);
 
 mkdirSync(out, { recursive: true });
 const browser = await launch({ gpu: true });
+// (a page error or a console warning while a shot is staged is a failure, as in every script that drives the game)
+const issues = [];
 for (const scene of SCENES.filter((s) => !only.length || only.includes(s.name))) {
-  const page = await openGame(browser, { viewport: { width: 1600, height: 900 }, seed: SEED });
+  const page = await openGame(browser, {
+    viewport: { width: 1600, height: 900 },
+    seed: SEED,
+    onPageError: (m) => issues.push(`${scene.name}: ${m}`),
+    onConsoleIssue: (m) => issues.push(`${scene.name}: ${m}`),
+  });
   await page.evaluate(stage, scene);
   // (the chart and the shipyard open on CSS transitions, in real time: the chart has settled and no transition runs)
   if (scene.ui === 'chart') await page.waitForFunction(() => window.game.chartSettled);
@@ -41,6 +48,11 @@ for (const scene of SCENES.filter((s) => !only.length || only.includes(s.name)))
   await page.close();
 }
 await browser.close();
+if (issues.length) {
+  console.log(`${issues.length} console issue(s):`);
+  for (const line of issues) console.log(`  ${line}`);
+  process.exitCode = 1;
+}
 
 /** Runs in the page (window.game is the dev build's handle): sets the scene up and lets it stand. */
 function stage(sc) {

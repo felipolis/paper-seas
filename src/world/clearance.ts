@@ -12,7 +12,7 @@
  *             no pocket is left for the feet to be wedged in, while a convex piece stays as it is
  */
 import type { Segment } from './blockers';
-import type { Box } from './polyline';
+import type { Box } from '../core/polyline';
 
 /** Grid spacing (world units). */
 const STEP = 0.05;
@@ -95,7 +95,7 @@ export class ClearanceField {
 
   /**
    * Every grid point within REACH of the segment takes its distance to it, if nearer than what it holds (polyline.ts
-   * segmentDistance, written out: this runs for every point round every piece of a chunk). Returns the points done.
+   * distanceToSegment, written out: this runs for every point round every piece of a chunk). Returns the points done.
    */
   private stamp([ax, az, bx, bz]: Segment): number {
     const i0 = Math.max(0, Math.floor((Math.min(ax, bx) - REACH - this.x0) / STEP));

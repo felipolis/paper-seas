@@ -1,6 +1,12 @@
 /** Procedural world: island placement, streaming radii, wave cards. */
 import { VOYAGE_SEED } from './seed';
 
+/**
+ * The land's square (world units): the terrain is built in chunks of this square, and the village sites are laid on
+ * the same squares.
+ */
+export const CHUNK = 18;
+
 export const WORLD = {
   /** The voyage's own seed (config/seed.ts): every new voyage is a new world. */
   seed: VOYAGE_SEED,
@@ -16,7 +22,9 @@ export const WORLD = {
   /** Wave cards sit on a 2 x 2 grid; this share of cells holds one. */
   waveCell: 2,
   waveChance: 0.72,
-  /** Waves exist (lying flat, printed on the sea) within the view, at least waveSpawnRadius, and stand up by the ring. */
+  /**
+   * Waves exist (lying flat, printed on the sea) within the view, at least waveSpawnRadius, and stand up by the ring.
+   */
   waveSpawnRadius: 17,
   /** Ripple delay (s per unit of distance from the ship) so a ring of waves rises outward. */
   waveRipple: 0.025,

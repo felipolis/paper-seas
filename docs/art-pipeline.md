@@ -1,17 +1,19 @@
 # The art pipeline
 
-How the printed cards, the Blender-built buildings, mountains, ships and captains are made. Back to the [README](../README.md).
+How the printed cards, the Blender-built buildings, mountains, ships and captains are made. Back to the
+[README](../README.md).
 
 ## The cards
 
 Every sprite starts as a sheet of die-cut paper cards generated in Google Flow (Nano Banana Pro), saved in
-`assets-src/flow`, and is cut out into `public/art`. The sheets share one look: printed layered paper collage
-with lit-side lips and bold ornaments on plants, cloth, wood and buildings (stone, water and animals stay plain), a thin
-dark cut line with a pale highlight on its lit side, never felt, stitching or an even cream sticker rim. A prompt is its
-sheet's subject (`assets-src/prompts/NN-*.txt`) followed by the shared style (`assets-src/prompts/style.txt`, with
-KEY set to the sheet's key colour: magenta `#FF00FF`, green `#00FF00` where a piece is pink or purple, blue `#0000FF` where it is both pink and green: the lily pads, 49, drawn seen from above as they lie on the water), generated
-with two reference images attached: `assets-src/flow/00-style-sheets.jpg` (finished sheets of this set) and
-`00-style-oasis.jpg` (a reference frame of the style).
+`assets-src/flow`, and is cut out into `public/art`. The sheets share one look: printed layered paper collage with
+lit-side lips and bold ornaments on plants, cloth, wood and buildings (stone, water and animals stay plain), a thin dark
+cut line with a pale highlight on its lit side, never felt, stitching or an even cream sticker rim. A prompt is its
+sheet's subject (`assets-src/prompts/NN-*.txt`) followed by the shared style (`assets-src/prompts/style.txt`, with KEY
+set to the sheet's key colour: magenta `#FF00FF`, green `#00FF00` where a piece is pink or purple, blue `#0000FF` where
+it is both pink and green: the lily pads, 49, drawn seen from above as they lie on the water), generated with two
+reference images attached: `assets-src/flow/00-style-sheets.jpg` (finished sheets of this set) and `00-style-oasis.jpg`
+(a reference frame of the style).
 
 The waves came out with olive and green-teal layers (the style's palette names olive and sage), so three were redone
 one per sheet, blue only: the low swell (`06-waves-swell`) with the blue waves as its first reference, the big curl and
@@ -30,6 +32,20 @@ Each sheet entry names its cards in reading order (`null` for a piece the game d
 comment describes its options (the key colour, `tears` for torn cloth, `merge` for pieces of one item cut apart by a
 narrow gap, the white sheets' `clean: open` and `keepPale`, a sheet's own `out` folder). A tall piece spanning both
 rows makes its sheet read as one row, left to right. The audit pages are generated and not kept in git.
+
+A sprite that stands on the land is used by its sheet in `src/config/flora.ts`: its height range, its stock, how it
+rocks in the wind, whether the feet go through it and its tags (an animal, a crossed tree, a flower the butterflies
+visit, a lamp, a perch, a doubled clump, one that may stand in the shallows, one the blossom leaves untinted). A name
+without a sheet throws; an animal also needs its behaviour in `src/world/critters.ts`. A Blender model has its sheet in
+`src/config/models.ts` (its role: a home, a store, a landmark, a landform or a deck, and its scale).
+
+## The paper maps
+
+`public/textures/paper` holds the paper every piece is printed on: the card stock's fibre (`card-albedo.png`) and
+relief (`card-normal.jpg`), the rougher page stock of the ground (`page-albedo.png`, `page-normal.jpg`) and the strip
+of stacked sheets on the land's cut edge (`edge-strip.png`). They are not generated here: they came with the ported
+code, and LICENSE carries their notice. They are the one paper of the game: every card, model, the ground and the
+water read them (`src/art/paper-maps.ts`), never a second set.
 
 ## Buildings (Blender)
 
@@ -94,27 +110,27 @@ reaches that share of the key's span. The balustrades are Blender-built baluster
 ## The captains
 
 The captains are small paper models built in the game from their outfits (`src/player/crew-model.ts`, each after its
-picture in the shipyard): every piece a die-cut slab in one flat colour with a pale cream cut edge, layered and
-slotted through each other. The face is a frontal card with the head's profile card slotted through its middle (the profile's front edge is
-the nose and the chin), a thicker hair card round the profile and a hair card behind the face, small eye cards on the
-face and on both sides of the profile; the body is a frontal and a profile card in a cross with what is worn layered on
-it (a waistcoat, braid, buttons, a belt in a cross of its own, a jabot, a scarf); the arms and the legs are profile cards
-only (a sleeve bent forward, a thicker cuff, a hand; trousers, a thicker cuff, a boot with its toe); a hat is level discs
-stacked from the brim up, tilted a little back. Pieces on one joint are slotted together on purpose (and merged into
-one mesh, a draw per joint); pieces on joints that move against each other never cut into each other: the arms hang
-beside the body, what hangs below the waist (a coat's tails, an apron) is cut in two and hung on the legs, and
-`node tools/qa/crew-clips.mjs` poses every captain standing, walking, turning and at the helm and lists any pair that
-does. `src/player/puppet.ts` walks them (legs and arms on the step's phase, the torso and the head
-lagging it, the lean and roll springs, the lantern a lagging pendulum) and steers.
+picture in the shipyard): every piece a die-cut slab in one flat colour with a pale cream cut edge, layered and slotted
+through each other. The face is a frontal card with the head's profile card slotted through its middle (the profile's
+front edge is the nose and the chin), a thicker hair card round the profile and a hair card behind the face, small eye
+cards on the face and on both sides of the profile; the body is a frontal and a profile card in a cross with what is
+worn layered on it (a waistcoat, braid, buttons, a belt in a cross of its own, a jabot, a scarf); the arms and the legs
+are profile cards only (a sleeve bent forward, a thicker cuff, a hand; trousers, a thicker cuff, a boot with its toe); a
+hat is level discs stacked from the brim up, tilted a little back. Pieces on one joint are slotted together on purpose
+(and merged into one mesh, a draw per joint); pieces on joints that move against each other never cut into each other:
+the arms hang beside the body, what hangs below the waist (a coat's tails, an apron) is cut in two and hung on the legs,
+and `node tools/qa/crew-clips.mjs` poses every captain standing, walking, turning and at the helm and lists any pair
+that does. `src/player/puppet.ts` walks them (legs and arms on the step's phase, the torso and the head lagging it, the
+lean and roll springs, the lantern a lagging pendulum) and steers.
 
 ## Mountains
 
-Mountains are built of cards, not solids. `tools/art/paint-domes.mjs` paints
-rounded dome faces and stone slabs (bands of colour from a darker foot to a pale cap, printed over the grain of a terrain
-swatch, the pale paper rim of the cut along the outline) and writes each outline to `assets-src/models/domes.json`;
-`build_models.py` cuts curved cards to those outlines: a tall pair in a V at the back, a smaller pair in front, a long
-low dome at the foot, outcrops of overlapping stone pairs (`ridge-*`, `outcrop-*`). Folded, they lie face up behind
-their feet, stacked front over back (glTF extra `layer`).
+Mountains are built of cards, not solids. `tools/art/paint-domes.mjs` paints rounded dome faces and stone slabs (bands
+of colour from a darker foot to a pale cap, printed over the grain of a terrain swatch, the pale paper rim of the cut
+along the outline) and writes each outline to `assets-src/models/domes.json`; `build_models.py` cuts curved cards to
+those outlines: a tall pair in a V at the back, a smaller pair in front, a long low dome at the foot, outcrops of
+overlapping stone pairs (`ridge-*`, `outcrop-*`). Folded, they lie face up behind their feet, stacked front over back
+(glTF extra `layer`).
 
 ## Piers
 

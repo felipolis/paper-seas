@@ -11,8 +11,10 @@
 import * as THREE from 'three';
 
 export const SHADOW = {
-  /** Penumbra width (world) per unit of blocker-to-receiver distance, its least width (texels) and its widest. */
-  lightSize: 0.26,
+  /**
+   * The penumbra's least width (texels) and its widest (world); its width per unit of blocker-to-receiver distance is
+   * the light size, which the look sets (LIGHTS.lightSize and NIGHT.lightSize, config/view.ts).
+   */
   minPenumbraTexels: 2.4,
   maxPenumbra: 0.55,
   /** Blocker search radius (world), depth bias (world along the light), the card's own thickness (world). */

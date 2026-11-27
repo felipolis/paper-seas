@@ -3,9 +3,11 @@
  * game is driven through window.game, a few places are visited, and every issue is returned with where it is.
  */
 import * as THREE from 'three';
-import { CHUNK } from '../../src/world/terrain';
+import { CHUNK } from '../../src/config/world';
 import { CROSS_PLANES } from '../../src/world/card-field';
-import type { Pt } from '../../src/world/polyline';
+import type { Pt } from '../../src/core/polyline';
+import { modelSheet } from '../../src/config/models';
+import { LAYOUT_REACH } from '../../src/world/places';
 
 export interface Issue {
   kind: string;
@@ -60,7 +62,10 @@ export async function checkWorld(): Promise<WorldReport> {
   // the places: settlements with roads, then a couple of wild spots well inland
   const places: Pt[] = [];
   for (const s of P.sitesNear(0, 0, 500)) {
-    if (places.length >= 4) break;
+    // (a layout whose ground reaches further than LAYOUT_REACH would hide from the searches that rely on it)
+    const reach = Math.max(...P.layout(s).claims.map(([x, z, r]) => Math.hypot(x - s.x, z - s.z) + r));
+    if (reach > LAYOUT_REACH) add('reach', s.x, s.z, `a ${s.kind} whose ground reaches ${reach.toFixed(1)}, past ${LAYOUT_REACH}`);
+    if (places.length >= 4) continue;
     if (s.kind !== 'ruins' && P.roadsOf(s).length) places.push([s.x, s.z]);
   }
   for (let k = 0; k < 4000 && places.length < 6; k++) {
@@ -152,7 +157,7 @@ export async function checkWorld(): Promise<WorldReport> {
         if (!STREAM_CARDS.has(card.sprite) && streams.some((s) => onLine(s.pts, card.x, card.z, 0.3))) add('overlap', card.x, card.z, `${card.sprite} in a stream`);
       }
       for (const h of c.houses) {
-        if (h.name !== 'pier' && h.name !== 'bridge') {
+        if (modelSheet(h.name).role !== 'deck') {
           // (every loaded building, standing or folded: the ends of its footprint's walls on the drawn land)
           const cs = Math.cos(h.yaw);
           const sn = Math.sin(h.yaw);
@@ -161,7 +166,7 @@ export async function checkWorld(): Promise<WorldReport> {
         }
         if (!near(h.x, h.z, 8) || h.fold.progress < 0.9) continue;
         buildings++;
-        if (h.name === 'pier' || h.name === 'bridge') continue;
+        if (modelSheet(h.name).role === 'deck') continue;
         // (its bounds as it stands now, every vertex as its bones pose it: the model's own box spans it standing and
         // folded flat, for culling, world/models.ts, and folded it reaches out round its foot by its height)
         h.root.updateMatrixWorld(true);
@@ -172,7 +177,7 @@ export async function checkWorld(): Promise<WorldReport> {
           if (foot - ground((cx + h.x) / 2, (cz + h.z) / 2) > 0.06) { add('floating', h.x, h.z, `${h.name} (corner over lower ground)`); break; }
         }
         for (const o of c.houses) {
-          if (o === h || o.name === 'pier' || o.name === 'bridge' || o.fold.progress < 0.9) continue;
+          if (o === h || modelSheet(o.name).role === 'deck' || o.fold.progress < 0.9) continue;
           if (Math.hypot(o.x - h.x, o.z - h.z) < 0.5) add('overlap', h.x, h.z, `${h.name} inside ${o.name}`);
         }
       }

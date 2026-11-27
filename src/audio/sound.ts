@@ -39,20 +39,32 @@ export class Sound {
   private events = 0;
 
   constructor() {
-    // A context made by a key that is not a user activation (Esc) stays suspended: every key and click resumes it until
-    // it runs.
+    // A context made by a key that is not a user activation (Esc) stays suspended, and one the browser stops later (the
+    // tab hidden, the device's audio taken) leaves 'running': every key and click resumes it until it runs again.
     const wake = () => {
+      const fresh = !this.graph;
       const { ctx } = this.start();
+      if (fresh) ctx.addEventListener('statechange', () => {
+        if (ctx.state === 'running') awake();
+        else if (ctx.state !== 'closed') arm();
+      });
       if (ctx.state === 'running') awake();
-      else void ctx.resume().then(awake);
+      else void ctx.resume().then(awake, (err: unknown) => {
+        // resume() rejects when the browser cannot start the audio output (or the context was closed): the game plays
+        // on silent and the next key or click tries again; any other failure is a bug and is thrown on
+        if (!(err instanceof DOMException)) throw err;
+      });
+    };
+    const arm = () => {
+      window.addEventListener('keydown', wake);
+      window.addEventListener('pointerdown', wake);
     };
     const awake = () => {
       window.removeEventListener('keydown', wake);
       window.removeEventListener('pointerdown', wake);
     };
-    window.addEventListener('keydown', wake);
-    window.addEventListener('pointerdown', wake);
-    window.addEventListener('keydown', (e) => { if (e.code === 'KeyM' && !e.repeat) this.toggleMusic(); });
+    arm();
+    window.addEventListener('keydown', (e) => { if (e.code === 'KeyM' && !e.repeat && !typedInField(e)) this.toggleMusic(); });
 
     bus.on('paper', (e) => this.paper(e.x, e.z, e.height, e.up, e.delay ?? 0, e.key));
     bus.on('paperCancel', (e) => this.graph?.voices.cancel(e.key));
@@ -206,6 +218,12 @@ export class Sound {
   private rumble(x: number, z: number): void {
     this.burst(x, z, 0.5, { type: 'lowpass', freq: 160, q: 0.8, attack: 0.5, decay: 2.2, sweepTo: 70 });
   }
+}
+
+/** Whether a key was typed into a text field (the voyage's seed): its keys are the field's, not the game's. */
+function typedInField(e: KeyboardEvent): boolean {
+  const t = e.target;
+  return t instanceof HTMLElement && (t.isContentEditable || t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement);
 }
 
 /** A seed for a sound's variation, from where it happens (to an eighth of a unit) and what kind it is. */

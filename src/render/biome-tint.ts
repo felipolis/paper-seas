@@ -1,7 +1,8 @@
 /**
  * Biome tints: the page has one ground colour and one set of prints, and each biome turns them its own way with a
- * colour transform (a hue turn, a saturation, a tint mixed in with a gain and a lift). heartland is the identity. Our
- * biomes take the rows: the meadow the blossom, the pine woods the pinewood, the jungle and the rocks the heartland.
+ * colour transform (a hue turn, a saturation, a tint mixed in with a gain and a lift). heartland is the identity. Each
+ * biome takes the row of its look (config/biomes.ts): the meadow the blossom, the pine woods the pinewood, the rest the
+ * heartland.
  * (The beach is the coast's fringe of the biome inland, world/land.ts biomeInland.)
  *
  *   ground  the printed land (world/terrain.ts bakes it into the ground print)
@@ -11,9 +12,8 @@
  */
 import * as THREE from 'three';
 import type { Biome } from '../world/land';
+import { BIOME, type LookRow } from '../config/biomes';
 import { paperCopy } from './paper-material';
-
-type Row = 'heartland' | 'blossom' | 'pinewood';
 
 interface Transform {
   hue?: number;
@@ -27,7 +27,7 @@ interface Transform {
 }
 
 /** The tint of each row. */
-const TINTS: Record<Exclude<Row, 'heartland'>, { ground: Transform; prop: Transform; path: { color: string; amount: number } }> = {
+const TINTS: Record<Exclude<LookRow, 'heartland'>, { ground: Transform; prop: Transform; path: { color: string; amount: number } }> = {
   blossom: {
     ground: { hue: 14, sat: 1.15, tint: '#9cc468', amount: 0.3, gain: 1.6, lift: 0.55, keepWater: 0.9 },
     prop: { hue: -5, sat: 1.04, tint: '#f7bfcd', amount: 0.07, gain: 1.0, lift: 0.35, keepWater: 0.9 },
@@ -41,21 +41,14 @@ const TINTS: Record<Exclude<Row, 'heartland'>, { ground: Transform; prop: Transf
 };
 
 /** The water per biome: shallow, deep, rim, river floater. */
-const WATER: Record<Row, [string, string, string, string]> = {
+const WATER: Record<LookRow, [string, string, string, string]> = {
   heartland: ['#6fc4b0', '#1f8f8a', '#f6e6bc', '#dc9440'],
   blossom: ['#72c2ae', '#218a82', '#f6e4cc', '#f4a3b3'],
   pinewood: ['#58988a', '#1f5f5c', '#cfc49c', '#c7933d'],
 };
-const WATER_ROWS: readonly Row[] = ['heartland', 'blossom', 'pinewood'];
-
-/** Which row each of our biomes takes. */
-const ROWS: Record<Biome, Row> = { jungle: 'heartland', rocky: 'heartland', meadow: 'blossom', pine: 'pinewood', beach: 'heartland' };
-
-/**
- * In the blossom the prop tint passes over reeds, rocks, haystacks, fences, roofs and logs (they keep their own
- * colours).
- */
-const BLOSSOM_KEEP = /^(cattails|papyrus|rock-|crag-|hay$|fence-|log$|stump$|woodpile$)/;
+/** The water rows, in the order the streams' shader reads them (world/stream-mesh.ts), and the tones of each. */
+export const WATER_ROWS = Object.keys(WATER) as LookRow[];
+export const WATER_TONES = WATER.heartland.length;
 
 /** A colour transform: three rows (r, g, b) of [x, y, z, w] (rgb = rows · c + w), in linear colour. */
 export type TintRows = [number, number, number, number][];
@@ -89,11 +82,11 @@ function rowsOf(t: Transform): TintRows {
   });
 }
 
-const groundRows = new Map<Row, TintRows | null>();
+const groundRows = new Map<LookRow, TintRows | null>();
 
 /** The ground transform of a biome (null: the identity). */
 export function groundTint(biome: Biome): TintRows | null {
-  const row = ROWS[biome];
+  const row = BIOME[biome].look;
   if (!groundRows.has(row)) groundRows.set(row, row === 'heartland' ? null : rowsOf(TINTS[row].ground));
   return groundRows.get(row)!;
 }
@@ -106,22 +99,23 @@ export function applyTint(rows: TintRows, c: [number, number, number]): void {
 
 /** The tone a road takes in a biome (linear rgb) and how much of it (min(amount, 0.9)); null: none. */
 export function pathTone(biome: Biome): [number, number, number, number] | null {
-  const row = ROWS[biome];
+  const row = BIOME[biome].look;
   if (row === 'heartland') return null;
   const t = TINTS[row].path;
   const c = new THREE.Color(t.color);
   return [c.r, c.g, c.b, Math.min(t.amount, 0.9)];
 }
 
-const variants = new WeakMap<THREE.Material, Map<Row, THREE.Material>>();
+const variants = new WeakMap<THREE.Material, Map<LookRow, THREE.Material>>();
 
 /**
  * The material of a piece standing in a biome: the paper material itself in a heartland, else a variant carrying the
- * biome's prop transform (paper-material.ts PAPER_TINT). sprite: the piece's name (the blossom keeps some as they are).
+ * biome's prop transform (paper-material.ts PAPER_TINT). keepsTint: the blossom passes over the piece and leaves its
+ * colours as drawn (reeds, rocks, haystacks, fences, logs: their sprites' 'keepsTint' tag, config/flora.ts).
  */
-export function tintMaterial<M extends THREE.Material>(mat: M, biome: Biome, sprite = ''): M {
-  const row = ROWS[biome];
-  if (row === 'heartland' || (row === 'blossom' && BLOSSOM_KEEP.test(sprite))) return mat;
+export function tintMaterial<M extends THREE.Material>(mat: M, biome: Biome, keepsTint = false): M {
+  const row = BIOME[biome].look;
+  if (row === 'heartland' || (row === 'blossom' && keepsTint)) return mat;
   let byRow = variants.get(mat);
   if (!byRow) variants.set(mat, (byRow = new Map()));
   let v = byRow.get(row);
@@ -141,7 +135,7 @@ export function waterPalettes(): THREE.Color[] {
   return WATER_ROWS.flatMap((row) => WATER[row].map((hex) => new THREE.Color(hex)));
 }
 
-/** Which water row a biome takes (0 heartland, 1 blossom, 2 pinewood). */
+/** Which water row a biome takes (its index in WATER_ROWS: 0 heartland, 1 blossom, 2 pinewood). */
 export function waterRow(biome: Biome): number {
-  return WATER_ROWS.indexOf(ROWS[biome]);
+  return WATER_ROWS.indexOf(BIOME[biome].look);
 }

@@ -23,7 +23,7 @@ import { PALETTE } from '../config/palette';
 import type { Outfit } from '../config/ships';
 import { createPaperMaterial } from '../render/paper-material';
 import { mix, tone } from '../art/paper-colour';
-import type { Pt } from '../world/polyline';
+import type { Pt } from '../core/polyline';
 
 export type PartName = 'body' | 'head' | 'leg_l' | 'leg_r' | 'arm_l' | 'arm_r' | 'lantern';
 
@@ -655,14 +655,19 @@ interface Head {
   pz: number;
   faceZ: number;
   onFace: number;
-  /** A profile outline (z from the joint, y from the neck) or a frontal one (x, y from the neck) in the figure's frame. */
+  /**
+   * A profile outline (z from the joint, y from the neck) or a frontal one (x, y from the neck) in the figure's frame.
+   */
   zy(pts: readonly Pt[]): Pt[];
   xy(pts: readonly Pt[]): Pt[];
 }
 
 /** The hat's brim, above the neck (times the height). */
 const BRIM = 0.16;
-/** A bandana's band: its foot below the brim; the hair under it stops just below that at the front, and under its cap behind. */
+/**
+ * A bandana's band: its foot below the brim; the hair under it stops just below that at the front, and under its cap
+ * behind.
+ */
 const BANDANA_DROP = 0.04;
 const TUCK_FRONT = BRIM - BANDANA_DROP - 0.004;
 const TUCK_BACK = BRIM - 0.004;
@@ -789,7 +794,9 @@ function buildHair(h: Head): void {
   }
 }
 
-/** A beard (a card over the jaw and its profile over the chin, the mouth and the moustache on it), a goatee, a mouth. */
+/**
+ * A beard (a card over the jaw and its profile over the chin, the mouth and the moustache on it), a goatee, a mouth.
+ */
 function buildWhiskers(h: Head, red: boolean): void {
   const { node, look, xy, zy, faceZ, onFace } = h;
   const { o, skin } = look;

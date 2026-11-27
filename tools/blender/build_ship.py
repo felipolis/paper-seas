@@ -22,8 +22,8 @@ HullSpec), so the game's decks, masts and rigging stand exactly on this hull. Th
   outboard     chainwales with deadeyes for the shrouds of every stayed mast
   fittings     companion ladders, capstan, hatch with its grating (both clear of the masts), guns on carriages, barrels,
                rope, binnacle
-  helm         the ship's wheel where her spec stands it, on its own node (origin on the axle: the game turns it with the
-               rudder)
+  helm         the ship's wheel where her spec stands it, on its own node (origin on the axle: the game turns it with
+               the rudder)
   wreck        (a broken ship) rails torn through at a few breaches with splintered ends, weed hanging over the
                rails and slung along the side, holes torn in the upper works
 
@@ -654,7 +654,8 @@ def bow():
 
 
 def ram():
-    """A raider's ram: an iron-shod beak jutting forward from the stem at the waterline, a gilded collar round its root."""
+    """A raider's ram: an iron-shod beak jutting forward from the stem at the waterline, a gilded collar round its
+    root."""
     z0 = z_of(0.99)
     tip = V(0, 0.015, z_of(1) - 0.34)
     y0, y1, hw = -0.04, 0.1, 0.045

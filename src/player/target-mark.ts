@@ -1,12 +1,12 @@
 /**
  * The click-to-walk target mark: a hand-inked dashed ring with a small cross, one flat mesh printed on the page where
- * he is walking to. It inks in over 0.1 s, each stamp at its own angle, and fades away once he gets there or the walk
- * is let go.
+ * he is walking to. It inks in over 0.1 s, each click printing it at an angle of its own (a drag moves it without
+ * turning it), and fades away once he gets there or the walk is let go.
  */
 import * as THREE from 'three';
 import { CLICK_WALK } from '../config/player';
 import { PALETTE } from '../config/palette';
-import { mulberry32 } from '../core/rng';
+import { hash01, mulberry32 } from '../core/rng';
 
 /** The ring's dashes, the strokes in each, and its stroke width (share of the radius). */
 const DASHES = 9;
@@ -15,6 +15,8 @@ const STROKE = 0.085;
 /** How long it takes to ink in (s), and its lift off the ground (u). */
 const INK_IN = 0.1;
 const LIFT = 0.012;
+/** The salt of the angle each click prints it at. */
+const ANGLE_SALT = 0x7a96e;
 
 export class TargetMark {
   readonly mesh: THREE.Mesh;
@@ -22,6 +24,8 @@ export class TargetMark {
   /** Seconds since it was stamped, and since it began to fade (null: still wanted). */
   private age = 0;
   private fading: number | null = null;
+  /** Clicks printed so far: each draws its own angle. */
+  private clicks = 0;
 
   constructor() {
     this.material = new THREE.MeshBasicMaterial({
@@ -40,10 +44,13 @@ export class TargetMark {
     this.mesh.renderOrder = 5;
   }
 
-  /** Printed at (x, y, z) on the ground (inks in again unless it is already showing). */
-  stamp(x: number, y: number, z: number): void {
+  /**
+   * Printed at (x, y, z) on the ground (inks in again unless it is already showing); a fresh click turns it to an angle
+   * of its own, a drag only moves it.
+   */
+  stamp(x: number, y: number, z: number, fresh: boolean): void {
     this.mesh.position.set(x, y + LIFT, z);
-    this.mesh.rotation.y = (((x * 12.9898 + z * 78.233) % 1) + 1) % 1 * Math.PI;
+    if (fresh) this.mesh.rotation.y = hash01(ANGLE_SALT, this.clicks++, 0) * Math.PI;
     if (!this.mesh.visible || this.fading !== null) this.age = 0;
     this.fading = null;
     this.mesh.visible = true;

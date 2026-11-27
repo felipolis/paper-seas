@@ -73,7 +73,7 @@ export class Reflection {
     renderer.setRenderTarget(null);
     renderer.setClearColor(oldClear, oldAlpha);
     scene.background = oldBg;
-    hidden.forEach((o, i) => { o.visible = _was[i]; });
+    for (let i = 0; i < hidden.length; i++) hidden[i].visible = _was[i];
     for (const m of mirrorSkip) m.visible = true;
   }
 }

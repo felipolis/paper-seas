@@ -4,7 +4,8 @@
  * palms loose, posts and animals stiff, rocks and walls rigid), the tall ones slower, and twists a little about its own
  * long axis as it rocks. The angle is a pure function of (time, place):
  *
- *   gust g  two slow sine fronts travelling across the land (the main one bent sideways, so they are not ruler-straight)
+ *   gust g  two slow sine fronts travelling across the land (the main one bent sideways, so they are not
+ *           ruler-straight)
  *   sway    A * (0.5 (g - 0.3) (wind . card normal) + (0.35 + 0.65 g) * flutter(t, place))
  *
  * so neighbours meet the same front one after the other, and a card the wind meets face-on leans downwind in a gust.
@@ -12,7 +13,8 @@
 import { hash01 } from '../core/rng';
 import { DEG, clamp } from '../core/math';
 import type { Biome } from './land';
-import { Critters } from './critters';
+import { sheetOf, type WindClass } from '../config/flora';
+import { BIOME } from '../config/biomes';
 
 const MIN_DEG = 0.6;
 const MAX_DEG = 2.2;
@@ -47,9 +49,8 @@ export const SWAY_RELEASE = 0.22;
 /** Only cards this close to the focus sway. */
 export const SWAY_RADIUS = 11;
 
-const LOOSE = /^(grass|fern|flower|palm|cattails|papyrus)/;
-const STIFF = /^(signpost|guidepost|lantern-post|pier-post|fence-|flag|tiki|windmill|monkey|parrot|toucan|crab|iguana|pelican|flamingo|deadwood)/;
-const RIGID = /^(rock|ruin|pillar|crate|barrel|cannon|chest|market|waterfall|skull|sea-arch)/;
+/** How much each wind class (its sprite's sheet, config/flora.ts) rocks against a plain card. */
+const CLASS: Record<WindClass, number> = { loose: 1.3, plain: 1, stiff: 0.35, rigid: 0.04 };
 
 export interface Sway {
   /** Amplitude (rad) at wind strength 1, 0 = the card never sways. */
@@ -65,7 +66,7 @@ export interface Sway {
 export function swayOf(sprite: string, height: number, width: number, x: number, z: number): Sway {
   const tall = clamp((height - 0.25) / 1.0, 0, 1);
   const thin = clamp((height / Math.max(width, 1e-3) - 0.7) / 1.2, 0, 1);
-  const cls = LOOSE.test(sprite) ? 1.3 : STIFF.test(sprite) || Critters.is(sprite) ? 0.35 : RIGID.test(sprite) ? 0.04 : 1;
+  const cls = CLASS[sheetOf(sprite).wind];
   const deg = (MIN_DEG + (MAX_DEG - MIN_DEG) * (0.55 * tall + 0.45 * thin)) * cls;
   if (deg < CUTOFF_DEG) return { amp: 0, rate: 0, phase: 0, twist: 0 };
   const ix = Math.round(x * 1000);
@@ -95,13 +96,7 @@ export function swayAngle(s: Sway, x: number, z: number, nx: number, nz: number,
   return amp * (0.5 * (g - 0.3) * (nx * D1X + nz * D1Z) + e * (0.55 * Math.sin(ph) + 0.1 * Math.sin(2.31 * ph + 1.7)));
 }
 
-/**
- * The wind strength per biome (heartland 1, blossom 0.85, pinewood 0.32,
- * the pine woods all but still), its rows taken as the biome tints take them (render/biome-tint.ts). A card with no
- * biome (an animal) takes the heartland's.
- */
-const STRENGTH: Record<Biome, number> = { jungle: 1, rocky: 1, beach: 1, meadow: 0.85, pine: 0.32 };
-
+/** The wind's strength in a card's biome (config/biomes.ts); a card with no biome (an animal) takes full strength. */
 export function windStrength(biome: Biome | undefined): number {
-  return biome ? STRENGTH[biome] : 1;
+  return biome ? BIOME[biome].wind : 1;
 }

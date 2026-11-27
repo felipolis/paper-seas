@@ -1,6 +1,6 @@
 /**
  * Sound tunables (src/audio). Times in seconds, frequencies in Hz (at pitch factor 1), gains linear unless a key
- * ends in Db. The paper-flap voicing and the voice allocation are in src/audio/paper-synth.ts.
+ * ends in Db. The paper-flap voicing is in src/audio/paper-synth.ts, the voice allocation in src/audio/paper-voices.ts.
  */
 export const AUDIO = {
   /** Final output gain after the soft limiter. */
@@ -10,8 +10,8 @@ export const AUDIO = {
   spareVoices: 4,
   stealFade: 0.008,
   /**
-   * Distance law for world sounds: gain = 1 / (1 + (d / falloff)^falloffPow), faded out from earshotFade to earshot (near
-   * events stay present, far ones fall away fast, none beyond ~2.4 x falloff).
+   * Distance law for world sounds: gain = 1 / (1 + (d / falloff)^falloffPow), faded out from earshotFade to earshot
+   * (near events stay present, far ones fall away fast, none beyond ~2.4 x falloff).
    */
   falloff: 9,
   falloffPow: 4,

@@ -20,13 +20,13 @@
 </p>
 
 The whole world is a pop-up book. Islands, villages, forests and the waves themselves fold up out of the page as your
-ship draws near and lie down flat again in its wake, every piece a die-cut card of printed, layered paper with a thin dark cut edge.
-The sea goes on forever and no two voyages are the same: each one is drawn from a seed, so a place you sail back to is
-still there, just as you left it.
+ship draws near and lie down flat again in its wake, every piece a die-cut card of printed, layered paper with a thin
+dark cut edge. The sea goes on forever and no two voyages are the same: each one is drawn from a seed, so a place you
+sail back to is still there, just as you left it.
 
-Go ashore and walk the captain through markets and pine woods, along streams with ducks and herons, past hens, goats
-and sleeping cats. Chart the coasts you find, hunt for treasure chests on the beaches, read the bottles the tide brings in, and watch the
-lanterns come on in the windows when night falls.
+Go ashore and walk the captain through markets and pine woods, along streams with ducks and herons, past hens, goats and
+sleeping cats. Chart the coasts you find, hunt for treasure chests on the beaches, read the bottles the tide brings in,
+and watch the lanterns come on in the windows when night falls.
 
 ## A look around
 
@@ -71,8 +71,8 @@ lanterns come on in the windows when night falls.
   interiors, all a pure function of the seed.
 - **Everything pops up**: cards, buildings, mountains, piers and bridges unfold on paper springs as you approach, and
   what lies folded far away fades into a pencil sketch of the book.
-- **Five biomes**: jungle, pine woods, blossom meadows, rocky heights and beaches, each with its own trees, ground cover,
-  colours, streams and animals.
+- **Five biomes**: jungle, pine woods, blossom meadows, rocky heights and beaches, each with its own trees, ground
+  cover, colours, streams and animals.
 - **A ship with weight**: inertia, sails set by steps, a heel into the turn; five ships that each handle differently.
 - **Go ashore**: walk the captain along roads and lanes, onto piers and over bridges; the animals react to you.
 - **Life everywhere**: whales, dolphins, turtles, sharks and the odd kraken at sea; gulls, flocks, butterflies,
@@ -99,13 +99,14 @@ progress is kept in your browser.
 
 ## Run it locally
 
-Vite + TypeScript + Three.js, no framework. You need Node 22.18 or later (the art tools import TypeScript straight into Node; CI builds on Node 24).
+Vite + TypeScript + Three.js, no framework. You need Node 22.18 or later (the art tools import TypeScript straight into
+Node; CI builds on Node 24).
 
 ```bash
 npm install
 npm run dev      # http://localhost:5180
 npm run build    # typecheck + production build in dist/
-npm run check    # typecheck + dead-code check
+npm run check    # typecheck + dead-code check + rules check
 ```
 
 Changing the code? [AGENTS.md](AGENTS.md) has the rules every change follows (and what "done" means).
@@ -128,9 +129,9 @@ flat sheet cut to the shore, and the light, shadows, haze and tilt-shift blur ar
 ## Deploy
 
 The game is a static site served by Cloudflare Workers (`wrangler.jsonc`: `dist/` as its static assets). The `Deploy`
-workflow (`.github/workflows/deploy.yml`) type-checks and builds every pull request, and on every push to `main` also
-deploys with `wrangler deploy`. It needs two repository secrets: `CLOUDFLARE_API_TOKEN` (a token made from the "Edit
-Cloudflare Workers" template) and `CLOUDFLARE_ACCOUNT_ID`.
+workflow (`.github/workflows/deploy.yml`) runs the checks (`npm run check`) and builds every pull request, and on every
+push to `main` also deploys with `wrangler deploy`. It needs two repository secrets: `CLOUDFLARE_API_TOKEN` (a token
+made from the "Edit Cloudflare Workers" template) and `CLOUDFLARE_ACCOUNT_ID`.
 
 ## License
 

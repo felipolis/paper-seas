@@ -10,8 +10,8 @@
 import { WORLD } from '../config/world';
 import { hash01 } from '../core/rng';
 import { clamp } from '../core/math';
-import { valueNoise } from './noise';
-import { boundsOf, overlaps, polylineDistance, type Box, type Pt } from './polyline';
+import { valueNoise } from '../core/noise';
+import { boundsOf, overlaps, polylineDistance, type Box, type Pt } from '../core/polyline';
 import type { LandField } from './land';
 import type { Bridge } from './roads';
 import { cellKey } from '../core/grid';

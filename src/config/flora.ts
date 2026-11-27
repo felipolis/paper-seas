@@ -1,7 +1,8 @@
 /**
- * What stands on the land and how tall, measured against the captain (0.58 tall): trees about 1.8 x the captain,
- * pines 2.2, bushes 0.67, flowers and tufts a third, rocks half, boulders one; animals at most half the captain (1/3
- * to 1/2 of his height); every kind varied +-15 % about the middle of its range.
+ * What stands on the land and how tall, against the captain (config/player.ts PLAYER.height, 0.6): trees about 1.9 x
+ * the captain, pines 2.2, bushes two thirds, flowers about half, grass and tufts a third, rocks from half to one;
+ * animals at most half the captain (the smallest, a chick, a frog, a gecko, far less); every kind varied +-15 % about
+ * the middle of its range.
  * Ground cover is planted by 2 x 2 tiles (world/cover.ts): each tile is one composition (a grove, a thicket, a
  * glade...) mixing several tall species near its corners with clumps of ground cover, flowers, small props and its
  * animals (9 or 10 cards a tile, nearly every one a different drawing), chosen per biome, with forest tiles massing
@@ -9,147 +10,204 @@
  */
 import type { Biome } from '../world/land';
 
-/** Height range (world units) of every sprite that stands on the land. */
-export const HEIGHT: Record<string, [number, number]> = {
+/**
+ * How heavy a land card's stock is against the base card's (popup/card.ts CARD_THICKNESS): the small pieces of the
+ * ground (ferns, flowers, tufts, grass, mushrooms) and the bushes in heavier stock, so they still read as card, the
+ * props and rocks a little heavier, the trees and the reeds lighter (the base stock on a tall card reads as board),
+ * the animals in the base stock.
+ */
+const STOCK = { tree: 0.86, reed: 0.8, bush: 1.22, cover: 1.3, prop: 1.15, base: 1 } as const;
+
+/** How a card rocks in the wind (world/wind.ts): loose (grass, ferns, palms), plain, stiff (posts, animals), rigid. */
+export type WindClass = 'loose' | 'plain' | 'stiff' | 'rigid';
+
+/**
+ * What else a sprite is:
+ *   animal     a creature: it moves (world/critters.ts has its behaviour)
+ *   crossed    two cards slotted together (a crossed pop-up), only where the print is symmetric about its trunk: a
+ *              leaning palm, a palm cluster or a twisted dead tree would not cross cleanly
+ *   flower     the butterflies visit it
+ *   lamp       it lights a pool round it at night (render/lamp-pools.ts)
+ *   perch      an owl may sit on its top (world/cover.ts)
+ *   doubled    a rear copy stands behind it, so a tuft reads as a clump (world/terrain.ts)
+ *   shallows   it may stand in the shallows on purpose
+ *   keepsTint  the blossom leaves its print as drawn (render/biome-tint.ts)
+ */
+export type Tag = 'animal' | 'crossed' | 'flower' | 'lamp' | 'perch' | 'doubled' | 'shallows' | 'keepsTint';
+
+/** A land sprite's sheet: everything the game needs to know about it. */
+export interface SpriteSheet {
+  /** Height range (world units). */
+  height: readonly [number, number];
+  stock: keyof typeof STOCK;
+  wind: WindClass;
+  /** The feet go through (or past) it: ground cover and animals. */
+  passable?: boolean;
+  tags?: readonly Tag[];
+}
+
+/** An animal's sheet: base stock, stiff in the wind, the feet go past it; more: its other tags. */
+const animal = (lo: number, hi: number, ...more: Tag[]): SpriteSheet => ({ height: [lo, hi], stock: 'base', wind: 'stiff', passable: true, tags: ['animal', ...more] });
+
+/** Every sprite that stands on the land, and its sheet. A sprite without one fails loudly (sheetOf). */
+const SPRITES = {
   // trees
-  'tree-broad': [1.0, 1.25],
-  'tree-broad-1': [0.85, 1.05],
-  'tree-broad-2': [1.0, 1.25],
-  'tree-blossom': [0.95, 1.15],
-  'tree-blossom-1': [1.0, 1.2],
-  'tree-broad-3': [1.0, 1.25],
-  'tree-broad-4': [0.85, 1.05],
-  'tree-blossom-2': [0.95, 1.15],
-  'tree-blossom-3': [1.0, 1.2],
-  acacia: [1.0, 1.2],
-  mangrove: [1.0, 1.2],
-  banana: [0.8, 1.0],
-  'palm-0': [1.15, 1.35],
-  'palm-1': [1.15, 1.35],
-  'palm-3': [1.15, 1.35],
-  'palm-4': [1.15, 1.35],
-  'palm-2': [1.0, 1.2],
-  'palm-5': [1.15, 1.35],
-  'palm-cluster': [1.0, 1.2],
-  pine: [1.15, 1.5],
-  'pine-1': [1.15, 1.5],
-  'pine-2': [1.0, 1.3],
-  'pine-3': [1.15, 1.5],
-  cypress: [1.2, 1.45],
-  deadwood: [0.85, 1.0],
+  'tree-broad': { height: [1.0, 1.25], stock: 'tree', wind: 'plain', tags: ['crossed'] },
+  'tree-broad-1': { height: [0.85, 1.05], stock: 'tree', wind: 'plain', tags: ['crossed'] },
+  'tree-broad-2': { height: [1.0, 1.25], stock: 'tree', wind: 'plain', tags: ['crossed'] },
+  'tree-blossom': { height: [0.95, 1.15], stock: 'tree', wind: 'plain', tags: ['crossed', 'flower'] },
+  'tree-blossom-1': { height: [1.0, 1.2], stock: 'tree', wind: 'plain', tags: ['crossed', 'flower'] },
+  'tree-broad-3': { height: [1.0, 1.25], stock: 'tree', wind: 'plain', tags: ['crossed'] },
+  'tree-broad-4': { height: [0.85, 1.05], stock: 'tree', wind: 'plain', tags: ['crossed'] },
+  'tree-blossom-2': { height: [0.95, 1.15], stock: 'tree', wind: 'plain', tags: ['crossed', 'flower'] },
+  'tree-blossom-3': { height: [1.0, 1.2], stock: 'tree', wind: 'plain', tags: ['crossed', 'flower'] },
+  acacia: { height: [1.0, 1.2], stock: 'tree', wind: 'plain', tags: ['crossed'] },
+  mangrove: { height: [1.0, 1.2], stock: 'tree', wind: 'plain', tags: ['crossed'] },
+  banana: { height: [0.8, 1.0], stock: 'tree', wind: 'plain', tags: ['crossed'] },
+  'palm-0': { height: [1.15, 1.35], stock: 'tree', wind: 'loose' },
+  'palm-1': { height: [1.15, 1.35], stock: 'tree', wind: 'loose', tags: ['crossed'] },
+  'palm-3': { height: [1.15, 1.35], stock: 'tree', wind: 'loose' },
+  'palm-4': { height: [1.15, 1.35], stock: 'tree', wind: 'loose' },
+  'palm-2': { height: [1.0, 1.2], stock: 'tree', wind: 'loose' },
+  'palm-5': { height: [1.15, 1.35], stock: 'tree', wind: 'loose' },
+  'palm-cluster': { height: [1.0, 1.2], stock: 'tree', wind: 'loose' },
+  pine: { height: [1.15, 1.5], stock: 'tree', wind: 'plain', tags: ['crossed'] },
+  'pine-1': { height: [1.15, 1.5], stock: 'tree', wind: 'plain', tags: ['crossed'] },
+  'pine-2': { height: [1.0, 1.3], stock: 'tree', wind: 'plain', tags: ['crossed'] },
+  'pine-3': { height: [1.15, 1.5], stock: 'tree', wind: 'plain' },
+  cypress: { height: [1.2, 1.45], stock: 'tree', wind: 'plain', tags: ['crossed'] },
+  deadwood: { height: [0.85, 1.0], stock: 'tree', wind: 'stiff' },
   // ground cover
-  'bush-red': [0.36, 0.44],
-  'bush-pink': [0.36, 0.44],
-  'bush-yellow': [0.36, 0.44],
-  'bush-coral': [0.36, 0.44],
-  'bush-plum': [0.36, 0.44],
+  'bush-red': { height: [0.36, 0.44], stock: 'bush', wind: 'plain', passable: true, tags: ['flower', 'doubled'] },
+  'bush-pink': { height: [0.36, 0.44], stock: 'bush', wind: 'plain', passable: true, tags: ['flower', 'doubled'] },
+  'bush-yellow': { height: [0.36, 0.44], stock: 'bush', wind: 'plain', passable: true, tags: ['flower', 'doubled'] },
+  'bush-coral': { height: [0.36, 0.44], stock: 'bush', wind: 'plain', passable: true, tags: ['flower', 'doubled'] },
+  'bush-plum': { height: [0.36, 0.44], stock: 'bush', wind: 'plain', passable: true, tags: ['flower', 'doubled'] },
   // ferns
-  'fern-0': [0.33, 0.46],
-  'fern-1': [0.33, 0.46],
-  'fern-2': [0.33, 0.46],
-  'fern-3': [0.33, 0.46],
-  'fern-4': [0.33, 0.46],
-  // flowers and reeds (flowers and tufts half the captain's height, reeds a little more)
-  hibiscus: [0.34, 0.42],
-  orchids: [0.28, 0.34],
-  'flowers-yellow': [0.22, 0.28],
-  'flowers-white': [0.22, 0.28],
-  'tuft-flowers': [0.2, 0.26],
-  'bird-of-paradise': [0.36, 0.44],
-  cattails: [0.42, 0.52],
-  papyrus: [0.45, 0.55],
+  'fern-0': { height: [0.33, 0.46], stock: 'cover', wind: 'loose', passable: true },
+  'fern-1': { height: [0.33, 0.46], stock: 'cover', wind: 'loose', passable: true },
+  'fern-2': { height: [0.33, 0.46], stock: 'cover', wind: 'loose', passable: true },
+  'fern-3': { height: [0.33, 0.46], stock: 'cover', wind: 'loose', passable: true },
+  'fern-4': { height: [0.33, 0.46], stock: 'cover', wind: 'loose', passable: true },
+  // flowers and reeds (flowers about half the captain's height, tufts a third, reeds a little more than half)
+  hibiscus: { height: [0.34, 0.42], stock: 'cover', wind: 'plain', passable: true, tags: ['flower'] },
+  orchids: { height: [0.28, 0.34], stock: 'cover', wind: 'plain', passable: true, tags: ['flower'] },
+  'flowers-yellow': { height: [0.22, 0.28], stock: 'cover', wind: 'loose', passable: true, tags: ['flower'] },
+  'flowers-white': { height: [0.22, 0.28], stock: 'cover', wind: 'loose', passable: true, tags: ['flower'] },
+  'tuft-flowers': { height: [0.2, 0.26], stock: 'cover', wind: 'plain', passable: true, tags: ['flower', 'doubled'] },
+  'bird-of-paradise': { height: [0.36, 0.44], stock: 'cover', wind: 'plain', passable: true, tags: ['flower'] },
+  cattails: { height: [0.42, 0.52], stock: 'reed', wind: 'loose', passable: true, tags: ['doubled', 'keepsTint'] },
+  papyrus: { height: [0.45, 0.55], stock: 'reed', wind: 'loose', passable: true, tags: ['doubled', 'keepsTint'] },
   // small props of the wild
-  stump: [0.27, 0.3],
-  log: [0.18, 0.22],
-  mushrooms: [0.36, 0.4],
-  coconuts: [0.14, 0.18],
-  shells: [0.1, 0.12],
-  pebbles: [0.1, 0.13],
-  woodpile: [0.3, 0.36],
-  hay: [0.3, 0.36],
-  'grass-0': [0.19, 0.22],
-  'grass-1': [0.19, 0.22],
-  'grass-2': [0.19, 0.22],
-  'grass-3': [0.19, 0.22],
-  'grass-4': [0.19, 0.22],
+  stump: { height: [0.27, 0.3], stock: 'prop', wind: 'plain', tags: ['perch', 'keepsTint'] },
+  log: { height: [0.18, 0.22], stock: 'prop', wind: 'plain', tags: ['perch', 'keepsTint'] },
+  mushrooms: { height: [0.36, 0.4], stock: 'cover', wind: 'plain', passable: true },
+  coconuts: { height: [0.14, 0.18], stock: 'prop', wind: 'plain' },
+  shells: { height: [0.1, 0.12], stock: 'prop', wind: 'plain', passable: true },
+  pebbles: { height: [0.1, 0.13], stock: 'prop', wind: 'plain', passable: true },
+  woodpile: { height: [0.3, 0.36], stock: 'prop', wind: 'plain', tags: ['perch', 'keepsTint'] },
+  hay: { height: [0.3, 0.36], stock: 'prop', wind: 'plain', tags: ['keepsTint'] },
+  'grass-0': { height: [0.19, 0.22], stock: 'cover', wind: 'loose', passable: true, tags: ['doubled'] },
+  'grass-1': { height: [0.19, 0.22], stock: 'cover', wind: 'loose', passable: true, tags: ['doubled'] },
+  'grass-2': { height: [0.19, 0.22], stock: 'cover', wind: 'loose', passable: true, tags: ['doubled'] },
+  'grass-3': { height: [0.19, 0.22], stock: 'cover', wind: 'loose', passable: true, tags: ['doubled'] },
+  'grass-4': { height: [0.19, 0.22], stock: 'cover', wind: 'loose', passable: true, tags: ['doubled'] },
   // rocks
-  'rock-boulder': [0.26, 0.34],
-  'rock-slab': [0.3, 0.4],
-  'rock-pile': [0.32, 0.42],
-  'rock-stack': [0.4, 0.5],
-  'rock-cairn': [0.36, 0.44],
-  'rock-big': [0.52, 0.66],
-  'rock-spire': [0.7, 0.85],
+  'rock-boulder': { height: [0.26, 0.34], stock: 'prop', wind: 'rigid', tags: ['perch', 'doubled', 'keepsTint'] },
+  'rock-slab': { height: [0.3, 0.4], stock: 'prop', wind: 'rigid', tags: ['perch', 'doubled', 'keepsTint'] },
+  'rock-pile': { height: [0.32, 0.42], stock: 'prop', wind: 'rigid', tags: ['perch', 'keepsTint'] },
+  'rock-stack': { height: [0.4, 0.5], stock: 'prop', wind: 'rigid', tags: ['perch', 'keepsTint'] },
+  'rock-cairn': { height: [0.36, 0.44], stock: 'prop', wind: 'rigid', tags: ['perch', 'keepsTint'] },
+  'rock-big': { height: [0.52, 0.66], stock: 'prop', wind: 'rigid', tags: ['perch', 'doubled', 'keepsTint'] },
+  'rock-spire': { height: [0.7, 0.85], stock: 'prop', wind: 'rigid', tags: ['perch', 'shallows', 'keepsTint'] },
   // animals: at most half the captain (a kind taller than that scaled down to it, its range kept)
-  monkey: [0.254, 0.29],
-  parrot: [0.2, 0.24],
-  toucan: [0.2, 0.24],
-  crab: [0.16, 0.2],
-  iguana: [0.22, 0.27],
-  pelican: [0.249, 0.29],
-  flamingo: [0.257, 0.29],
-  'duck-float': [0.24, 0.27],
-  duck: [0.262, 0.29],
-  hen: [0.27, 0.29],
-  chick: [0.115, 0.125],
-  goat: [0.262, 0.29],
-  pig: [0.261, 0.29],
-  cat: [0.265, 0.29],
-  dog: [0.264, 0.29],
-  frog: [0.11, 0.125],
-  rabbit: [0.2, 0.215],
-  owl: [0.215, 0.235],
-  hummingbird: [0.12, 0.14],
-  tortoise: [0.14, 0.16],
-  boar: [0.251, 0.29],
-  gecko: [0.08, 0.1],
-  heron: [0.252, 0.29],
+  monkey: animal(0.254, 0.29),
+  parrot: animal(0.2, 0.24),
+  toucan: animal(0.2, 0.24),
+  crab: animal(0.16, 0.2),
+  iguana: animal(0.22, 0.27),
+  pelican: animal(0.249, 0.29),
+  flamingo: animal(0.257, 0.29, 'shallows'),
+  'duck-float': animal(0.24, 0.27, 'shallows'),
+  duck: animal(0.262, 0.29),
+  hen: animal(0.27, 0.29),
+  chick: animal(0.115, 0.125),
+  goat: animal(0.262, 0.29),
+  pig: animal(0.261, 0.29),
+  cat: animal(0.265, 0.29),
+  dog: animal(0.264, 0.29),
+  frog: animal(0.11, 0.125),
+  rabbit: animal(0.2, 0.215),
+  owl: animal(0.215, 0.235),
+  hummingbird: animal(0.12, 0.14),
+  tortoise: animal(0.14, 0.16),
+  boar: animal(0.251, 0.29),
+  gecko: animal(0.08, 0.1),
+  heron: animal(0.252, 0.29),
   // props and landmarks
-  barrel: [0.3, 0.35],
-  crates: [0.3, 0.33],
-  cannon: [0.34, 0.38],
-  market: [0.58, 0.64],
-  windmill: [1.6, 1.66],
-  'flag-pole': [1.0, 1.1],
-  chest: [0.34, 0.38],
-  rowboat: [0.36, 0.42],
-  'hut-stilts': [0.95, 1.05],
-  'hut-round': [0.75, 0.85],
-  'pier-post': [0.3, 0.36],
-  shipwreck: [0.8, 0.95],
+  barrel: { height: [0.3, 0.35], stock: 'prop', wind: 'rigid' },
+  crates: { height: [0.3, 0.33], stock: 'prop', wind: 'rigid' },
+  cannon: { height: [0.34, 0.38], stock: 'prop', wind: 'rigid' },
+  market: { height: [0.58, 0.64], stock: 'prop', wind: 'rigid' },
+  windmill: { height: [1.6, 1.66], stock: 'prop', wind: 'stiff' },
+  'flag-pole': { height: [1.0, 1.1], stock: 'prop', wind: 'stiff' },
+  chest: { height: [0.34, 0.38], stock: 'prop', wind: 'rigid' },
+  rowboat: { height: [0.36, 0.42], stock: 'prop', wind: 'plain' },
+  'hut-stilts': { height: [0.95, 1.05], stock: 'prop', wind: 'plain' },
+  'hut-round': { height: [0.75, 0.85], stock: 'prop', wind: 'plain' },
+  'pier-post': { height: [0.3, 0.36], stock: 'prop', wind: 'stiff' },
+  shipwreck: { height: [0.8, 0.95], stock: 'prop', wind: 'plain' },
   // structures and camp
-  watchtower: [1.4, 1.5],
-  well: [0.62, 0.68],
-  bench: [0.3, 0.34],
-  'lantern-post': [0.7, 0.76],
-  signpost: [0.62, 0.7],
-  guidepost: [0.5, 0.56],
-  'fence-bamboo': [0.34, 0.38],
-  'fence-rail': [0.32, 0.36],
-  tent: [0.58, 0.64],
-  'tent-striped': [0.58, 0.64],
-  laundry: [0.37, 0.41],
-  bunting: [0.94, 1.02],
-  handcart: [0.4, 0.46],
-  beehive: [0.55, 0.6],
-  stall: [0.58, 0.64],
-  campfire: [0.3, 0.36],
+  watchtower: { height: [1.4, 1.5], stock: 'prop', wind: 'plain' },
+  well: { height: [0.62, 0.68], stock: 'prop', wind: 'plain' },
+  bench: { height: [0.3, 0.34], stock: 'prop', wind: 'plain' },
+  'lantern-post': { height: [0.7, 0.76], stock: 'prop', wind: 'stiff', tags: ['lamp'] },
+  signpost: { height: [0.62, 0.7], stock: 'prop', wind: 'stiff' },
+  guidepost: { height: [0.5, 0.56], stock: 'prop', wind: 'stiff' },
+  'fence-bamboo': { height: [0.34, 0.38], stock: 'prop', wind: 'stiff', tags: ['keepsTint'] },
+  'fence-rail': { height: [0.32, 0.36], stock: 'prop', wind: 'stiff', tags: ['keepsTint'] },
+  tent: { height: [0.58, 0.64], stock: 'prop', wind: 'plain' },
+  'tent-striped': { height: [0.58, 0.64], stock: 'prop', wind: 'plain' },
+  laundry: { height: [0.37, 0.41], stock: 'prop', wind: 'plain' },
+  bunting: { height: [0.94, 1.02], stock: 'prop', wind: 'plain' },
+  handcart: { height: [0.4, 0.46], stock: 'prop', wind: 'plain' },
+  beehive: { height: [0.55, 0.6], stock: 'prop', wind: 'plain', tags: ['flower'] },
+  stall: { height: [0.58, 0.64], stock: 'prop', wind: 'plain' },
+  campfire: { height: [0.3, 0.36], stock: 'prop', wind: 'plain', tags: ['lamp'] },
   // the spring of a stream and the crags round it
-  spring: [0.32, 0.36],
-  'crag-0': [0.7, 0.75],
-  'crag-1': [0.5, 0.55],
-  'crag-2': [0.46, 0.5],
-  tiki: [0.75, 0.9],
-  'ruin-arch': [1.2, 1.3],
-  pillars: [1.0, 1.15],
-  waterfall: [1.3, 1.5],
-  'sea-arch': [1.2, 1.6],
-  'skull-rock': [1.5, 1.6],
-};
+  spring: { height: [0.32, 0.36], stock: 'prop', wind: 'plain' },
+  'crag-0': { height: [0.7, 0.75], stock: 'prop', wind: 'plain', tags: ['doubled', 'keepsTint'] },
+  'crag-1': { height: [0.5, 0.55], stock: 'prop', wind: 'plain', tags: ['doubled', 'keepsTint'] },
+  'crag-2': { height: [0.46, 0.5], stock: 'prop', wind: 'plain', tags: ['doubled', 'keepsTint'] },
+  tiki: { height: [0.75, 0.9], stock: 'prop', wind: 'stiff' },
+  'ruin-arch': { height: [1.2, 1.3], stock: 'prop', wind: 'rigid' },
+  pillars: { height: [1.0, 1.15], stock: 'prop', wind: 'rigid' },
+  waterfall: { height: [1.3, 1.5], stock: 'prop', wind: 'rigid' },
+  'sea-arch': { height: [1.2, 1.6], stock: 'prop', wind: 'rigid', tags: ['shallows'] },
+  'skull-rock': { height: [1.5, 1.6], stock: 'prop', wind: 'rigid' },
+} satisfies Record<string, SpriteSheet>;
+
+/** A land sprite's name. */
+export type Sprite = keyof typeof SPRITES;
+
+/** Every land sprite's name. */
+export const SPRITE_NAMES = Object.keys(SPRITES) as Sprite[];
+
+/** The sheet of a land sprite (a name without one is a bug: it throws). */
+export function sheetOf(sprite: string): SpriteSheet {
+  const sheet: SpriteSheet | undefined = (SPRITES as Record<string, SpriteSheet>)[sprite];
+  if (!sheet) throw new Error(`no sheet for "${sprite}"`);
+  return sheet;
+}
+
+/** Whether the land sprite carries the tag. */
+export function hasTag(sprite: string, tag: Tag): boolean {
+  return sheetOf(sprite).tags?.includes(tag) ?? false;
+}
 
 /**
  * A rock spire standing off the shore as a sea stack (world/cover.ts plantShallows) is far taller than one on the land
- * (its HEIGHT): as tall as a sea arch, its height drawn evenly over this range.
+ * (its sheet): as tall as a sea arch, its height drawn evenly over this range.
  */
 export const SEA_STACK: [number, number] = [1.2, 1.6];
 
@@ -158,34 +216,20 @@ export const SEA_STACK: [number, number] = [1.2, 1.6];
  * scale, so no two of a kind stand alike).
  */
 export function heightOf(sprite: string, r: number): number {
-  const h = HEIGHT[sprite];
-  if (!h) throw new Error(`no height for "${sprite}"`);
+  const h = sheetOf(sprite).height;
   return ((h[0] + h[1]) / 2) * (1 + SIZE_VARY * (2 * r - 1));
 }
 
-/**
- * How heavy a land card's stock is against the base card's (popup/card.ts CARD_THICKNESS): the small pieces of the
- * ground (ferns, flowers, tufts, grass, mushrooms) and the bushes in heavier stock, so they still read as card, the
- * props and rocks a little heavier, the trees and the reeds lighter (the base stock on a tall card reads as board).
- */
-const STOCK: Array<[RegExp, number]> = [
-  [/^(tree-|palm-|pine|cypress$|acacia$|mangrove$|banana$|deadwood$)/, 0.86],
-  [/^(cattails|papyrus)$/, 0.8],
-  [/^bush-/, 1.22],
-  [/^(fern-|flowers-|tuft-|grass-|hibiscus$|orchids$|bird-of-paradise$|mushrooms$)/, 1.3],
-];
-const PROP_STOCK = 1.15;
-
-/** A land card's stock for its sprite: STOCK's, or the props' (animals stay in the base stock: world/card-field.ts). */
+/** A land card's stock for its sprite, against the base card's. */
 export function stockOf(sprite: string): number {
-  return STOCK.find(([kinds]) => kinds.test(sprite))?.[1] ?? PROP_STOCK;
+  return STOCK[sheetOf(sprite).stock];
 }
 
 /**
- * The kinds printed in several variants (4-6 seeded variants per kind, no stamped repeats). A tile's lists name a
+ * The kinds printed in several variants (4-5 seeded variants per kind, no stamped repeats). A tile's lists name a
  * kind by any of its members; each card it plants is drawn among all of them (variantOf).
  */
-const VARIANTS: readonly (readonly string[])[] = [
+const VARIANTS: readonly (readonly Sprite[])[] = [
   ['tree-broad', 'tree-broad-1', 'tree-broad-2', 'tree-broad-3', 'tree-broad-4'],
   ['tree-blossom', 'tree-blossom-1', 'tree-blossom-2', 'tree-blossom-3'],
   ['fern-0', 'fern-1', 'fern-2', 'fern-3', 'fern-4'],
@@ -195,16 +239,10 @@ const VARIANTS: readonly (readonly string[])[] = [
 const FAMILY = new Map(VARIANTS.flatMap((family) => family.map((name) => [name, family] as const)));
 
 /** One of the variants of the sprite's kind for a random r in [0, 1) (the sprite itself if it has none). */
-export function variantOf(sprite: string, r: number): string {
+export function variantOf(sprite: Sprite, r: number): Sprite {
   const family = FAMILY.get(sprite);
   return family ? family[Math.floor(r * family.length) % family.length] : sprite;
 }
-
-/**
- * Symmetric trees are two cards slotted together (a crossed pop-up). Only where the print is symmetric about its
- * trunk: a leaning palm, a palm cluster or a twisted dead tree would not cross cleanly, so they stay single cards.
- */
-export const CROSSED = new Set<string>(['palm-1', 'pine', 'pine-1', 'pine-2', 'cypress', 'tree-broad', 'tree-broad-1', 'tree-broad-2', 'tree-broad-3', 'tree-broad-4', 'tree-blossom', 'tree-blossom-1', 'tree-blossom-2', 'tree-blossom-3', 'mangrove', 'acacia', 'banana']);
 
 /** How far a kind's height varies about the middle of its range (+-). */
 const SIZE_VARY = 0.15;
@@ -218,14 +256,17 @@ export interface TileKind {
    * Tall pieces near the corners: the species a slow field picks leads (so neighbouring tiles share it), the others
    * of the list mixed in.
    */
-  tall?: { species: string[]; count: [number, number] };
+  tall?: { species: Sprite[]; count: [number, number] };
   /** Clumps of ground cover and flowers (world/cover.ts: one to four cards of different species from the list). */
-  clumps?: { species: string[]; count: [number, number] };
+  clumps?: { species: Sprite[]; count: [number, number] };
   /** Rocks and small props (a stump, a log, mushrooms...), alone. */
-  props?: { species: string[]; count: [number, number] };
+  props?: { species: Sprite[]; count: [number, number] };
   /** Animals from the biome's list: how many on the tile on average. */
   animals?: number;
-  /** A meadow pen (a diamond of low fences with a herd inside, world/pen.ts): this share of the tiles keep one (one a square at most). */
+  /**
+   * A meadow pen (a diamond of low fences with a herd inside, world/pen.ts): this share of the tiles keep one (one a
+   * square at most).
+   */
   pen?: number;
 }
 
@@ -274,7 +315,7 @@ export type Awake = 'day' | 'night';
  * perched on a stump, a log or a stone of it (no perch, no animal).
  */
 export interface AnimalRow {
-  species: string;
+  species: Sprite;
   weight: number;
   count: [number, number];
   herd?: boolean;
@@ -282,7 +323,7 @@ export interface AnimalRow {
   at?: 'tree' | 'perch';
 }
 
-const row = (species: string, weight: number, count: [number, number], more: Omit<AnimalRow, 'species' | 'weight' | 'count'> = {}): AnimalRow => ({ species, weight, count, ...more });
+const row = (species: Sprite, weight: number, count: [number, number], more: Omit<AnimalRow, 'species' | 'weight' | 'count'> = {}): AnimalRow => ({ species, weight, count, ...more });
 
 /**
  * The animals of each biome, as world/critters.ts plays them: goats and pigs come in herds, hens, parrots, toucans and

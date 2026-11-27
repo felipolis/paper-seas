@@ -33,7 +33,10 @@ export const ON_FOOT = {
    * steady walking before the lead (s), the lead's time constant (s) and top speed (times his), the spring (s).
    */
   zone: { stillR: 1.0, stillUp: 0.4, stillDown: 0.6, hardR: 2.2, hardUp: 1.1, hardDown: 1.4, leadAfter: [0.35, 1.1], leadTau: 0.7, leadRate: 1.2, smoothTime: 0.28 },
-  /** Sight assist: delay / release (s), largest lift and turn (degrees), ease (s), test interval (s), rethink (s), wider tier. */
+  /**
+   * Sight assist: delay / release (s), largest lift and turn (degrees), ease (s), test interval (s), rethink (s), wider
+   * tier.
+   */
   assist: { delay: 0.4, release: 0.6, pitchMax: 10, yawMax: 14, ease: 0.8, interval: 0.1, rethink: 1.2, far: 1.3 },
 } as const;
 
@@ -60,6 +63,8 @@ export const LIGHTS = {
   key: { color: '#ffdcb2', intensity: 3.0, azimuthDeg: -56, elevationDeg: 45 },
   fill: { color: '#f2dcc2', intensity: 0.8, azimuthDeg: 24, elevationDeg: 24 },
   hemi: { sky: '#fff0da', ground: '#b39a78', intensity: 0.42 },
+  /** PCSS light size (penumbra per unit of blocker distance). */
+  lightSize: 0.26,
   /**
    * The key's shadow map; the filter is PCSS (render/shadows.ts). Its frustum is fitted to the camera's
    * footprint every frame: half size = visible ground radius x fit + pad, clamped; the light stands `distance` back.
@@ -82,8 +87,20 @@ export const PAPER = {
 
 export const POST = {
   /**
+   * The framing the haze and the gobo were tuned at: the focus this far from the camera (world units: a calibration,
+   * not the distance of either camera). Their distances scale with the focus distance against it, by framingScale at
+   * most and, for the haze, at least (closer in, the haze would close in round the focus).
+   */
+  framing: 17,
+  framingScale: [0.82, 3] as const,
+  /**
+   * Macro framing: the focus closer than the first distance (world units), blending out by the second. In it the
+   * gobo's key falloff relaxes (gobo.closeRelief) and the exposure stops down a little (closeExposure).
+   */
+  macro: [4, 8] as const,
+  /**
    * A subtle haze, only far away, in one mid-tone colour by ground distance from the focus (never a colour fog over the
-   * frame, never a screen gradient): start, end (world units from the focus at the 17-unit framing, scaled with the
+   * frame, never a screen gradient): start, end (world units from the focus at the framing above, scaled with the
    * focus distance: on foot ~9 to ~26 captain heights), amount, colour.
    */
   fade: { start: 6.7, end: 18.7, amount: 0.3, color: '#d8bf8e' },
@@ -91,10 +108,10 @@ export const POST = {
   background: '#96744a',
   /**
    * The gobo: the key's left-to-right falloff round the focus (screen-left brighter: a lamp over the table).
-   * radius (world at the 17-unit framing), key falloff, warm-left / cool-right tint, share of the falloff removed in
-   * macro framing.
+   * radius (world at the framing above, never under minRadius), key falloff, warm-left / cool-right tint, share of the
+   * falloff removed in macro framing.
    */
-  gobo: { radius: 9, key: 0.12, tint: 0.07, closeRelief: 0.7 },
+  gobo: { radius: 9, minRadius: 0.5, key: 0.12, tint: 0.07, closeRelief: 0.7 },
 
   // ---- depth of field: tilt-shift (the night blurs more, see NIGHT) ----
   /** Fraction of the frame height around the focus that stays fully sharp. */
@@ -105,8 +122,9 @@ export const POST = {
   maxBlurPx: 12.5,
   /** 0 = pure screen-space tilt-shift, 1 = pure depth-based blur (the layers: each piece blurred by its depth). */
   depthWeight: 0.8,
-  /** The sharp band grows up to this factor when the camera is closer than 12 units. */
+  /** The sharp band grows up to closeBandScale as the focus comes closer than closeBandFrom (world units). */
   closeBandScale: 1.8,
+  closeBandFrom: 12,
   /** Extra blur toward the camera / the bottom of the frame, and away from it. */
   nearGain: 1.6,
   farGain: 1.0,
@@ -129,7 +147,7 @@ export const POST = {
 
   // ---- grade ----
   exposure: 0.82,
-  /** Exposure multiplier in macro framing (focus closer than 4 units, blending out by 8): lit cream does not clip. */
+  /** Exposure multiplier in macro framing (macro): lit cream does not clip. */
   closeExposure: 0.82,
   contrast: 1.18,
   saturation: 0.96,
@@ -153,11 +171,13 @@ export const POST = {
   sharpen: 0.35,
   /**
    * Darker die-cut edge on depth silhouettes: strength, inner ring radius (px at 900 px frame height; the outer ring is
-   * 1.55 x), colour multiplier.
+   * 1.55 x), colour multiplier. In a close frame (the focus nearer than rimClose.within, world units) the rings are
+   * rimClose.widen x wider.
    */
   rim: 0.8,
   rimPx: 0.9,
   rimColor: '#c2aa94',
+  rimClose: { within: 9, widen: 1.5 },
 } as const;
 
 /**

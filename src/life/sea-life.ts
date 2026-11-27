@@ -243,7 +243,7 @@ class Kraken implements Encounter {
 
   update(dt: number): boolean {
     this.t += dt;
-    this.sways.forEach((s, i) => { s.rotation.z = 0.13 * Math.sin(this.t * 1.7 + i * 1.3); });
+    for (let i = 0; i < this.sways.length; i++) this.sways[i].rotation.z = 0.13 * Math.sin(this.t * 1.7 + i * 1.3);
     if (this.t > 7) this.fold.setTarget(0);
     this.fold.update(dt);
     showWhileUp(this.fold, this.group);
@@ -278,8 +278,9 @@ const FLYING_FISH: LeaperStyle = { sprites: ['flying-fish'], count: 3, height: 0
 const LEAP_PIN = 0.55;
 
 /**
- * A pod of creatures leaping beside the ship's track (along its own line, from where it came up), as a paper mover: each rides an arm turning about an axle under the
- * sea page, so it swings up out of the water, over and back in, only ever turning (the axle steps on between leaps).
+ * A pod of creatures leaping beside the ship's track (along its own line, from where it came up), as a paper mover:
+ * each rides an arm turning about an axle under the sea page, so it swings up out of the water, over and back in, only
+ * ever turning (the axle steps on between leaps).
  */
 class Leapers implements Encounter {
   readonly group = new THREE.Group();
@@ -375,10 +376,11 @@ class Jellies implements Encounter {
   update(dt: number): boolean {
     this.t += dt;
     if (!blocked(this.group, 1.6, 0, 0.4)) this.group.position.x += 0.12 * dt;
-    this.bobs.forEach((b, i) => {
+    for (let i = 0; i < this.bobs.length; i++) {
+      const b = this.bobs[i];
       b.position.y = 0.05 * Math.max(0, Math.sin(this.t * 1.6 + i));
       b.rotation.z = 0.08 * Math.sin(this.t * 1.2 + i * 2);
-    });
+    }
     if (this.t > 9) this.fold.setTarget(0);
     this.fold.update(dt);
     showWhileUp(this.fold, this.group);
@@ -474,7 +476,9 @@ class Gull {
   private readonly radius: number;
   private readonly height: number;
   private readonly speed: number;
-  /** The spot it circles, and how far it is out (0 gone .. 1 out): it shrinks away when the ship leaves the spot behind. */
+  /**
+   * The spot it circles, and how far it is out (0 gone .. 1 out): it shrinks away when the ship leaves the spot behind.
+   */
   private readonly cx: number[] = [0, 0];
   private placed = false;
   private out = 0;
@@ -514,7 +518,7 @@ class Gull {
     // flap for a while, then glide
     const cyc = this.t % 4.5;
     const frame = cyc < 2.2 ? (Math.floor(this.t / 0.17) % 2) : 2;
-    this.frames.forEach((m, fi) => { m.visible = fi === frame; });
+    for (let fi = 0; fi < this.frames.length; fi++) this.frames[fi].visible = fi === frame;
     this.face += ((vx >= 0 ? 1 : -1) - this.face) * (1 - Math.exp(-dt * FLIP_RATE));
     // (the flip cut at its middle: never seen edge-on, it jumps across)
     if (Math.abs(this.face) < FLIP_CUT) this.face = FLIP_CUT * (vx >= 0 ? 1 : -1);
@@ -554,7 +558,7 @@ export class SeaLife {
     // at night most of them roost (0.35 of them stay out): they go by rank, the last first
     const zone = this.zone();
     this.flock += ((zone.gulls ? (this.isNight() ? NIGHT_GULLS : 1) : 0) - this.flock) * (1 - Math.exp(-dt * 0.5));
-    this.gulls.forEach((g, i) => g.update(dt, this.ship, clamp((this.flock * this.gulls.length - i) / 0.6, 0, 1), this.clearLine));
+    for (let i = 0; i < this.gulls.length; i++) this.gulls[i].update(dt, this.ship, clamp((this.flock * this.gulls.length - i) / 0.6, 0, 1), this.clearLine);
     for (let i = this.encounters.length - 1; i >= 0; i--) {
       const e = this.encounters[i];
       if (!e.update(dt, this.ship)) {

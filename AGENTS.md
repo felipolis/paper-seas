@@ -47,14 +47,15 @@ node tools/qa/crew-clips.mjs                # cards of the captains that cut int
   at the root, no `utils2`, no `misc`. A new folder needs a reason, and docs/how-it-works.md is updated with it.
 - **Readable.** Names say what a thing is. Functions do one thing. Comments are full sentences in the project's voice
   and say what the code does and why; a doc comment that no longer matches the code is a bug. No commented-out code.
-- **The house style.** Files in kebab-case (`card-field.ts`), classes and types in PascalCase, constants in
-  UPPER_SNAKE_CASE, everything else in camelCase; 2-space indents, single quotes, semicolons; `import type` for
-  types; comments wrapped at 120 columns. Match the file you are in.
+- **The house style.** Files in kebab-case (`card-field.ts`; Python scripts in snake_case, as Python's modules are),
+  classes and types in PascalCase, constants in UPPER_SNAKE_CASE, everything else in camelCase; 2-space indents,
+  single quotes, semicolons; `import type` for types; comments wrapped at 120 columns. Match the file you are in.
 - **Few dependencies.** Three.js is the one runtime dependency. A new package needs a reason the platform or a few
   lines of our own can't meet, and the owner's yes.
 - **Our own voice.** The game was inspired by other projects, but its code, comments, docs, art prompts and commit
   messages never name or link them: every rule and number is written as the game's own design. Only LICENSE keeps the
-  notices their licences require.
+  notices their licences require. (An art prompt may use the plain word for the style that one of them is named
+  after; `tools/qa/rules.mjs` checks the rest.)
 
 ## Bug prevention
 

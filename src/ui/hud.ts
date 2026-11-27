@@ -1,9 +1,9 @@
 /**
- * The HUD, with no chrome (feedback is paper, ink and light in the scene): the
- * sails show how much canvas is set, the flag the wind, the wake the speed, the chart (E) the voyage's counts. What
- * is left is two lines of controls that fade away once you get under way (and the walking keys, the first time ashore), a small paper prompt over the scene
- * ("F go ashore"), a paper card for discoveries that slides down like a sheet and back up, and a slip naming the
- * camera view for a moment after V. Plain DOM.
+ * The HUD, with no chrome (feedback is paper, ink and light in the scene): the sails show how much canvas is set, the
+ * flag the wind, the wake the speed, the chart (E) the voyage's counts. What is left is two lines of controls that fade
+ * away once you get under way (and the walking keys, the first time ashore), a small paper prompt over the scene ("F go
+ * ashore"), a paper card for discoveries that slides down like a sheet and back up, and a slip naming the camera view
+ * for a moment after V. Plain DOM.
  */
 import './hud.css';
 import { bus } from '../core/events';
@@ -72,7 +72,9 @@ export class Hud {
     }
   }
 
-  /** V: names the camera view now (its name, and which of how many) for VIEW_SHOWN seconds; another press renames it. */
+  /**
+   * V: names the camera view now (its name, and which of how many) for VIEW_SHOWN seconds; another press renames it.
+   */
   showView(name: string, index: number, count: number): void {
     this.viewSlip.innerHTML = `<b>${name}</b> view <span>${index + 1} / ${count}</span>`;
     this.viewSlip.classList.add('on');

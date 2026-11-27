@@ -10,8 +10,8 @@ export const PALETTE = {
   cutEdge: '#fbf3e1',
   ink: '#5a3a28',
 
-  // sea: the world's floor, printed pale (sea-foam for water, the floor paler and less saturated than the
-  // pieces on it), and authored a step bluer than it lands: the warm grade turns teal ~25 degrees toward green on screen
+  // sea: the world's floor, printed pale (sea-foam for water, the floor paler and less saturated than the pieces on
+  // it), and authored a step bluer than it lands: the warm grade turns teal ~25 degrees toward green on screen
   sea: '#7ac0d9',
   seaDeep: '#58a0c2',
   seaLight: '#91d4e6',

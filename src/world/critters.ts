@@ -20,11 +20,15 @@
  */
 import type { Card } from './card-field';
 import { mulberry32 } from '../core/rng';
+import { SPRITE_NAMES, hasTag, type Sprite } from '../config/flora';
 
 /** An idle pose as one print shows it: standing (or sitting), head down (graze, peck), asleep. */
 type Idle = 'stand' | 'down' | 'sleep';
 
-/** A species' numbers: speeds in u/s, step: ground per walk frame, hop / rock: lift and roll per step, roam: wander radius. */
+/**
+ * A species' numbers: speeds in u/s, step: ground per walk frame, hop / rock: lift and roll per step, roam: wander
+ * radius.
+ */
 interface Gait {
   idle: Idle[];
   speed: number;
@@ -89,12 +93,16 @@ const OWL: Percher = { b: 'perch', idle: ['stand'], speed: 0, step: 1, hop: 0, r
 
 interface Kind {
   sp: Species;
-  /** Which way the print looks (checked by eye on the cut sprites; again whenever they are regenerated): 1 right, -1 left, 0 straight out (it never needs to turn). */
+  /**
+   * Which way the print looks (checked by eye on the cut sprites; again whenever they are regenerated): 1 right, -1
+   * left, 0 straight out (it never needs to turn).
+   */
   art: 1 | -1 | 0;
   /** Placed on the water: it floats. */
   float?: boolean;
 }
 
+/** Every animal's behaviour, by its sprite: exactly the sprites whose sheet is an 'animal' (config/flora.ts). */
 const CRITTERS: Record<string, Kind> = {
   monkey: { sp: SQUIRREL, art: 0 },
   crab: { sp: LIZARD, art: 0 },
@@ -119,7 +127,10 @@ const CRITTERS: Record<string, Kind> = {
   boar: { sp: FOX, art: 1 },
   gecko: { sp: LIZARD, art: 0 },
   hummingbird: { sp: SONGBIRD, art: -1 },
-};
+} satisfies Partial<Record<Sprite, Kind>>;
+for (const sprite of SPRITE_NAMES) {
+  if (hasTag(sprite, 'animal') !== sprite in CRITTERS) throw new Error(`"${sprite}": its sheet and the animals' behaviours disagree on whether it is an animal`);
+}
 
 /** Reaction radii: heads up, scatter (peck), wag (dog), slide (bank duck), shuffle (graze). */
 const HEADS_UP = 1.35;
@@ -141,7 +152,10 @@ const STEP_RATE = 9;
 /** How far the print tips forward for the head-down pose (rad). */
 const HEAD_DOWN = 0.22;
 
-/** What the animals ask of the world: where they may stand (land, out of the streams), where a stream's water is, whether it is night. */
+/**
+ * What the animals ask of the world: where they may stand (land, out of the streams), where a stream's water is,
+ * whether it is night.
+ */
 export interface Habitat {
   canStand(x: number, z: number): boolean;
   water(x: number, z: number): boolean;
@@ -152,7 +166,10 @@ export interface Habitat {
 type Step = 'on' | 'there' | 'blocked';
 
 interface State {
-  /** Where it is, its home, where it is heading and where a flight or a slide began (or a float's centre): offsets from the card's spot. */
+  /**
+   * Where it is, its home, where it is heading and where a flight or a slide began (or a float's centre): offsets from
+   * the card's spot.
+   */
   x: number;
   z: number;
   hx: number;
@@ -164,7 +181,10 @@ interface State {
   st: 'idle' | 'walk' | 'freeze' | 'flee' | 'fly' | 'float' | 'perch' | 'slide' | 'leap';
   /** How far it has come down from its vignette's seat (0 up on it .. seat on the ground). */
   down: number;
-  /** Time in the state and how long it lasts (s), walking speed, bounding, walk-frame phase, time blocked, reaction cool-down (s). */
+  /**
+   * Time in the state and how long it lasts (s), walking speed, bounding, walk-frame phase, time blocked, reaction
+   * cool-down (s).
+   */
   t: number;
   dur: number;
   v: number;
@@ -177,7 +197,10 @@ interface State {
   /** Facing: +1 the print as drawn, -1 turned round; `faceK` eases toward it, jumping across the edge-on middle. */
   face: number;
   faceK: number;
-  /** Which way it swerves when it flees, a floater's arc (angle, radius, direction, turn rate in rad/s), standing by the water. */
+  /**
+   * Which way it swerves when it flees, a floater's arc (angle, radius, direction, turn rate in rad/s), standing by the
+   * water.
+   */
   side: number;
   ang: number;
   rad: number;
@@ -207,11 +230,6 @@ export class Critters {
   private readonly states = new WeakMap<Card, State>();
 
   constructor(private readonly habitat: Habitat) {}
-
-  /** True if the sprite is an animal (its card moves every frame while it is near). */
-  static is(sprite: string): boolean {
-    return sprite in CRITTERS;
-  }
 
   /** The animal's pose now; (fx, fz): the captain (or the ship), t: the field's clock. */
   pose(c: Card, dt: number, t: number, fx: number, fz: number): Pose {

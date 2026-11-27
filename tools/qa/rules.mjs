@@ -7,8 +7,8 @@
 //     or x *= Math.max(0, 1 - k * dt) (Math.exp(-k * dt) is the one);
 //   - a material copied with .clone() (paperCopy keeps the paper shader);
 //   - a TODO, FIXME, HACK or XXX left in the code or the tools;
-//   - a name of the projects the game was inspired by (those LICENSE gives notice for) anywhere but LICENSE and the
-//     art prompts.
+//   - a name of the projects the game was inspired by, or of their authors (those LICENSE gives notice for), anywhere
+//     but LICENSE (the art prompts may use a project's name where it is a plain word for the style).
 // It reads files only: node tools/qa/rules.mjs (or npm run check).
 import fs from 'node:fs';
 import path from 'node:path';
@@ -47,11 +47,14 @@ rule('an easing whose pace follows the frame rate (use Math.exp(-k * dt))', game
 rule('a material copied with .clone() (use paperCopy)', gameCode, /[Mm]aterial\b[^;\n]*\.clone\(\)/);
 // (this check names the markers to find them)
 rule('a TODO / FIXME / HACK / XXX left in', [...gameCode, ...tools], /\b(TODO|FIXME|HACK|XXX)\b/, { inCode: false, allowed: (f) => f === 'tools/qa/rules.mjs' });
-// (the projects LICENSE gives notice for, read from their links there so that no name is written here; the art
-// prompts are left out: they are text for the image model, where one of the names is also a plain word for the style)
-const credited = new Set([...read('LICENSE').matchAll(/github\.com\/([\w.-]+)\/([\w.-]+)/g)].flatMap((m) => [m[1], m[2]]));
-const notice = (f) => f === 'LICENSE' || f.startsWith('assets-src/prompts/');
-for (const name of credited) rule('a project the game was inspired by, named', files, new RegExp(`\\b${name}\\b`, 'i'), { inCode: false, allowed: notice });
+// (the projects LICENSE gives notice for and their authors, read from its links so that no name is written here. The
+// art prompts may use a project's name, where it is also a plain word for the style in the text for the image model;
+// an author's name is checked there too)
+const links = [...read('LICENSE').matchAll(/github\.com\/([\w.-]+)\/([\w.-]+)/g)];
+const named = (name) => new RegExp(`\\b${name}\\b`, 'i');
+const isLicense = (f) => f === 'LICENSE';
+for (const name of new Set(links.map((m) => m[1]))) rule('an author of a project the game was inspired by, named', files, named(name), { inCode: false, allowed: isLicense });
+for (const name of new Set(links.map((m) => m[2]))) rule('a project the game was inspired by, named', files, named(name), { inCode: false, allowed: (f) => isLicense(f) || f.startsWith('assets-src/prompts/') });
 
 if (findings.length) {
   console.log(`${findings.length} rule breach(es):`);

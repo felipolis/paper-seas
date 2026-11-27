@@ -6,14 +6,14 @@
  * The biome tables are written against a base look of their own, not our plain look (config/view.ts), so a biome is
  * applied as the change it makes to that base look, applied to ours: colours scaled channel by channel (linear),
  * intensities, exposure, sizes and distances scaled, contrast and saturation shifted. The haze's amount stays ours.
- * Our meadow takes the blossom and the pine woods the pinewood (as the biome tints, render/biome-tint.ts); the
- * jungle, the rocks and the open sea keep the plain look. render/day-night.ts and render/post.ts read the two looks.
+ * Each biome takes the look config/biomes.ts gives it (the meadow the blossom, the pine woods the pinewood); the
+ * heartland and the open sea keep the plain look. render/day-night.ts and render/post.ts read the two looks.
  */
 import * as THREE from 'three';
 import { LIGHTS, NIGHT, PAPER, POST } from '../config/view';
-import { SHADOW } from './shadows';
 import { clamp } from '../core/math';
-import type { Biome, LandField } from '../world/land';
+import type { LandField } from '../world/land';
+import { BIOME } from '../config/biomes';
 
 /** The terms of the look a biome changes. */
 export interface Look {
@@ -163,8 +163,6 @@ const BASE_GRADE: Record<'blossom' | 'pinewood', { day: Partial2<LookSpec>; nigh
   },
 };
 
-/** Which biome look each of our biomes takes (the rest: the plain look). */
-const GRADE_OF: Partial<Record<Biome, keyof typeof BASE_GRADE>> = { meadow: 'blossom', pine: 'pinewood' };
 /** The looks blended: the plain one first, then the biomes'. */
 const GRADES = [null, 'blossom', 'pinewood'] as const;
 /** Where the biomes are read: the ship's or the captain's point (counted twice) and eight round it this far away. */
@@ -180,7 +178,7 @@ const OUR_DAY: LookSpec = {
   key: { color: LIGHTS.key.color, intensity: LIGHTS.key.intensity },
   fill: { color: LIGHTS.fill.color, intensity: LIGHTS.fill.intensity },
   hemi: { sky: LIGHTS.hemi.sky, ground: LIGHTS.hemi.ground, intensity: LIGHTS.hemi.intensity },
-  lightSize: SHADOW.lightSize,
+  lightSize: LIGHTS.lightSize,
   leak: PAPER.shadowLeak,
   gobo: { key: POST.gobo.key, tint: POST.gobo.tint },
   fade: { color: POST.fade.color, start: POST.fade.start, end: POST.fade.end },
@@ -344,15 +342,11 @@ export class BiomeLook {
   update(dt: number, land: LandField, x: number, z: number): void {
     const t = this.target;
     t.fill(0);
-    const count = (px: number, pz: number, weight: number) => {
-      if (land.distance(px, pz) >= 0) return;
-      const g = GRADE_OF[land.biomeInland(px, pz)];
-      t[g ? GRADES.indexOf(g) : 0] += weight;
-    };
-    count(x, z, 2);
-    for (let i = 0; i < 8; i++) count(x + Math.cos((i * Math.PI) / 4) * SAMPLE_RADIUS, z + Math.sin((i * Math.PI) / 4) * SAMPLE_RADIUS, 1);
+    this.count(land, x, z, 2);
+    for (let i = 0; i < 8; i++) this.count(land, x + Math.cos((i * Math.PI) / 4) * SAMPLE_RADIUS, z + Math.sin((i * Math.PI) / 4) * SAMPLE_RADIUS, 1);
     // (out at sea, or with no land round it: the plain look)
-    let sum = t.reduce((s, v) => s + v, 0);
+    let sum = 0;
+    for (let b = 0; b < GRADES.length; b++) sum += t[b];
     if (sum === 0) {
       t[0] = 1;
       sum = 1;
@@ -376,5 +370,13 @@ export class BiomeLook {
     blendLooks(this.day, DAY_LOOKS, w);
     blendLooks(this.night, NIGHT_LOOKS, w);
     this.version++;
+  }
+
+  /** Adds weight to the target of the look of the biome at (px, pz), when that point is on the land. */
+  private count(land: LandField, px: number, pz: number, weight: number): void {
+    if (land.distance(px, pz) >= 0) return;
+    // (the heartland look is the plain one)
+    const look = BIOME[land.biomeInland(px, pz)].look;
+    this.target[look === 'heartland' ? 0 : GRADES.indexOf(look)] += weight;
   }
 }

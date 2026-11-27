@@ -3,8 +3,8 @@
  * ground, each a grey detail map (linear data, mean 0.5) and its tangent-space normal map (OpenGL +Y), and the edge
  * strip of stacked sheets for the land's cut edge. Loaded once at startup.
  *
- * The card maps are repacked into the one texture the paper material samples: RG = the normal's xy, B = the detail around its mean, A = a procedural cloud (the
- * 0.15-0.3 unit mottling).
+ * The card maps are repacked into the one texture the paper material samples: RG = the normal's xy, B = the detail
+ * around its mean, A = a procedural cloud (the 0.15-0.3 unit mottling).
  */
 import * as THREE from 'three';
 import { mulberry32 } from '../core/rng';
@@ -107,7 +107,7 @@ function imageMean(image: HTMLImageElement): number {
 export async function loadPaperMaps(base = `${import.meta.env.BASE_URL}textures/paper/`): Promise<void> {
   const loader = new THREE.ImageLoader();
   const [card, cardNormal, pageAlbedo, pageNormal, edge] = await Promise.all(
-    ['card_albedo.png', 'card_normal.jpg', 'page_albedo.png', 'page_normal.jpg', 'edge_strip.png'].map((f) => loader.loadAsync(base + f)),
+    ['card-albedo.png', 'card-normal.jpg', 'page-albedo.png', 'page-normal.jpg', 'edge-strip.png'].map((f) => loader.loadAsync(base + f)),
   );
   cardDetail = repeatTexture(card);
   cardPacked = packCardFibre(card, cardNormal);

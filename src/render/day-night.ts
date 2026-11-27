@@ -1,14 +1,14 @@
 /**
- * The clock and the look it picks. There is a day look and a night look, and every value is blended between them by
- * one eased night amount, which the clock sets (config/time.ts). It drives the key / fill / ambient light, the paper's response, the post chain's grade,
- * the glowing windows and lanterns, and the warm light the ship carries at night. The two looks are the biome's here
- * (render/biome-look.ts).
+ * The clock and the look it picks. There is a day look and a night look, and every value is blended between them by one
+ * eased night amount, which the clock sets (config/time.ts). It drives the key / fill / ambient light, the paper's
+ * response, the post chain's grade, the glowing windows and lanterns, and the warm light the ship carries at night. The
+ * two looks are the biome's here (render/biome-look.ts).
  */
 import * as THREE from 'three';
 import { TIME } from '../config/time';
 import { LIGHTS, NIGHT, PAPER } from '../config/view';
 import type { BiomeLook } from './biome-look';
-import { clamp } from '../core/math';
+import { clamp, lerp } from '../core/math';
 import type { Lights } from './lights';
 import type { PostChain } from './post';
 import { paperLighting } from './paper-material';
@@ -16,6 +16,8 @@ import { setGlowLevel } from './glow';
 import { blend, pair } from './colour-pair';
 
 const TRANSLUCENCY = pair(PAPER.translucencyTint, NIGHT.paper.translucencyTint);
+/** The intensity of the ship's lantern light at full night. */
+const SHIP_LIGHT = 2.2;
 
 /** The paper's shared lighting uniforms (render/paper-material.ts), as the look writes them. */
 const paper: Record<'uPaperWrap' | 'uPaperTrans' | 'uPaperCloud', THREE.IUniform<number>> & Record<'uPaperTransTint' | 'uPaperShadowLeak', THREE.IUniform<THREE.Color>> = paperLighting;
@@ -78,33 +80,32 @@ export class DayNight {
   update(dt: number): void {
     this.hour = this.skip ? this.skipStep(this.skip, dt) : (this.hour + (dt * 24) / TIME.cycleSeconds) % 24;
     const n = (this.night = nightAt(this.hour));
-    const mix = (day: number, night: number) => day + (night - day) * n;
 
     const D = this.look.day;
     const N = this.look.night;
     const L = this.lights;
     L.key.color.copy(D.key.color).lerp(N.key.color, n);
-    L.key.intensity = mix(D.key.intensity, N.key.intensity);
-    L.keyAzimuth = mix(LIGHTS.key.azimuthDeg, NIGHT.key.azimuthDeg);
-    L.keyElevation = mix(LIGHTS.key.elevationDeg, NIGHT.key.elevationDeg);
+    L.key.intensity = lerp(D.key.intensity, N.key.intensity, n);
+    L.keyAzimuth = lerp(LIGHTS.key.azimuthDeg, NIGHT.key.azimuthDeg, n);
+    L.keyElevation = lerp(LIGHTS.key.elevationDeg, NIGHT.key.elevationDeg, n);
     L.fill.color.copy(D.fill.color).lerp(N.fill.color, n);
-    L.fill.intensity = mix(D.fill.intensity, N.fill.intensity);
-    L.fillElevation = mix(LIGHTS.fill.elevationDeg, NIGHT.fill.elevationDeg);
+    L.fill.intensity = lerp(D.fill.intensity, N.fill.intensity, n);
+    L.fillElevation = lerp(LIGHTS.fill.elevationDeg, NIGHT.fill.elevationDeg, n);
     L.hemi.color.copy(D.hemi.sky).lerp(N.hemi.sky, n);
     L.hemi.groundColor.copy(D.hemi.ground).lerp(N.hemi.ground, n);
-    L.hemi.intensity = mix(D.hemi.intensity, N.hemi.intensity);
-    L.lightSize = mix(D.lightSize, N.lightSize);
+    L.hemi.intensity = lerp(D.hemi.intensity, N.hemi.intensity, n);
+    L.lightSize = lerp(D.lightSize, N.lightSize, n);
 
-    paper.uPaperWrap.value = mix(PAPER.wrap, NIGHT.paper.wrap);
-    paper.uPaperTrans.value = mix(PAPER.translucency, NIGHT.paper.translucency);
-    paper.uPaperCloud.value = mix(PAPER.cloud, NIGHT.paper.cloud);
+    paper.uPaperWrap.value = lerp(PAPER.wrap, NIGHT.paper.wrap, n);
+    paper.uPaperTrans.value = lerp(PAPER.translucency, NIGHT.paper.translucency, n);
+    paper.uPaperCloud.value = lerp(PAPER.cloud, NIGHT.paper.cloud, n);
     blend(paper.uPaperTransTint.value, TRANSLUCENCY, n);
     paper.uPaperShadowLeak.value.copy(D.leak).lerp(N.leak, n);
 
     this.post.setLook(this.look, n);
     setGlowLevel(n);
     // (only its intensity: switching it off would change the light count the shaders are built for)
-    this.shipLight.intensity = n * 2.2;
+    this.shipLight.intensity = n * SHIP_LIGHT;
   }
 
   /** The clock hour after one step of a press of T; on its last, the start of the whole night (or day) it brought. */

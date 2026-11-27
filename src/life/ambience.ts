@@ -46,8 +46,8 @@ interface Roamer {
   hx: number;
   hz: number;
   /**
-   * Its home was drawn to what its kind seeks (water for a firefly, a flower for a butterfly: it then flies whatever its
-   * rank), and whether its home was searched yet.
+   * Its home was drawn to what its kind seeks (water for a firefly, a flower for a butterfly: it then flies whatever
+   * its rank), and whether its home was searched yet.
    */
   drawn: boolean;
   sought: boolean;
@@ -250,7 +250,8 @@ export class Ambience {
       const fall = mixRange(cfg.fall, R[r]);
       const { u, tFall, dx, dz } = fallerCycle(_piece, f, i, fall, cfg.land, R[r + 1], k.salt);
       const g = f.gate(k.kind, dx, dz, (i + 0.5) / cfg.count, W, D);
-      // (a piece gated out is not drawn, nor one that would land on the sea: so every piece drawn lands on the land's top)
+      // (a piece gated out is not drawn, nor one that would land on the sea: so every piece drawn lands on the land's
+      // top)
       const lt = g > 0 ? k.land.at(i, fx + dx, fz + dz) : SEA;
       if (lt === SEA) {
         k.bits.hide(i);
@@ -331,12 +332,19 @@ export class Ambience {
     const B = AMBIENT.butterflies;
     const { t } = this.frame;
     const amount = this.frame.share('butterflies');
-    this.butterflies.forEach((o, j) => {
-      if (amount <= 0 || !this.rehome(o, dt, 1.2)) return this.hideWings(j);
+    for (let j = 0; j < this.butterflies.length; j++) {
+      const o = this.butterflies[j];
+      if (amount <= 0 || !this.rehome(o, dt, 1.2)) {
+        this.hideWings(j);
+        continue;
+      }
       if (!o.sought) this.seekFlower(o);
       let g = rankGate(amount, (j + 0.5) / B.count);
       if (o.drawn) g = Math.max(g, B.flowers * smoothstep(0.02, 0.2, amount));
-      if (g <= 0) return this.hideWings(j);
+      if (g <= 0) {
+        this.hideWings(j);
+        continue;
+      }
       const [, , r2, r3, r4, r5] = o.r;
       const a = t * 0.45 + r2 * TAU;
       const b = t * 0.31 + r3 * TAU;
@@ -347,17 +355,20 @@ export class Ambience {
       const vz = -0.372 * Math.sin(1.2 * b) + 0.306 * Math.cos(1.7 * a);
       const y = mixRange(B.height, 0.5 + 0.5 * Math.sin(t * 0.8 + r4 * TAU)) + 0.04 * Math.sin(t * B.flap);
       const k = g * this.clearLine.k(x, y, z);
-      if (k <= 0.01) return this.hideWings(j);
+      if (k <= 0.01) {
+        this.hideWings(j);
+        continue;
+      }
       const flap = 0.1 + 1.05 * Math.abs(Math.sin(t * B.flap + r5 * TAU));
       _yaw.setFromAxisAngle(Y_AXIS, Math.atan2(vx, vz));
       _p.set(x, y, z);
-      for (const side of [1, -1]) {
+      for (let side = 1; side >= -1; side -= 2) {
         // the right wing lifts by rolling about the body; the left is its mirror (x scaled by -1)
         _q.copy(_yaw).multiply(_roll.setFromAxisAngle(Z_AXIS, side * flap));
         _s.set(side * B.size * k, 1, B.size * 1.25 * k);
         this.wings.setMatrixAt(j * 2 + (side > 0 ? 0 : 1), _m.compose(_p, _q, _s));
       }
-    });
+    }
     this.wings.instanceMatrix.needsUpdate = true;
   }
 
@@ -369,12 +380,19 @@ export class Ambience {
     const F = AMBIENT.fireflies;
     const { t, night } = this.frame;
     const amount = this.frame.share('fireflies');
-    this.fireflies.forEach((o, j) => {
-      if (night <= 0.01 || !this.rehome(o, dt, 0.3)) return this.hideSpark(j);
+    for (let j = 0; j < this.fireflies.length; j++) {
+      const o = this.fireflies[j];
+      if (night <= 0.01 || !this.rehome(o, dt, 0.3)) {
+        this.hideSpark(j);
+        continue;
+      }
       if (!o.sought) this.seekWater(o);
       let g = rankGate(amount, (j + 0.5) / F.count);
       if (o.drawn) g = Math.max(g, F.water * smoothstep(0.02, 0.2, amount));
-      if (g <= 0) return this.hideSpark(j);
+      if (g <= 0) {
+        this.hideSpark(j);
+        continue;
+      }
       const [, , r2, r3, r4, r5] = o.r;
       const a = t * 0.33 + r2 * TAU;
       const b = t * 0.21 + r3 * TAU;
@@ -387,7 +405,7 @@ export class Ambience {
       _s.setScalar(F.size * (0.75 + 0.5 * r4));
       this.sparks.setMatrixAt(j, _m.compose(_p.set(x, y, z), this.camQ, _s));
       this.sparks.setColorAt(j, _c.copy(this.fireColor).multiplyScalar(glow));
-    });
+    }
     this.sparks.instanceMatrix.needsUpdate = true;
     this.sparks.instanceColor!.needsUpdate = true;
   }

@@ -12,7 +12,7 @@
  */
 import { WORLD } from '../config/world';
 import { clamp, smoothstep } from '../core/math';
-import { fbm, valueNoise } from './noise';
+import { fbm, valueNoise } from '../core/noise';
 import { IslandLayout, shoreDistance, type IslandSpec } from './island-layout';
 import { BoundedCache } from '../core/bounded-cache';
 

@@ -1,3 +1,5 @@
+import type { LifeRow } from './biomes';
+
 /** Sea life: how often creatures show up around the ship and how they move. */
 export const LIFE = {
   /** Seconds between two creature appearances (random in this range): now and then, never filling the sea. */
@@ -53,9 +55,7 @@ export const AMBIENT = {
     desert: { leaves: 0, petals: 0, dust: 1, rain: 0, mist: 0, butterflies: 0, fireflies: 0, birds: 0.5 },
     blossom: { leaves: 0, petals: 1, dust: 0, rain: 0, mist: 0, butterflies: 1, fireflies: 0.75, birds: 1 },
     pinewood: { leaves: 0.12, petals: 0, dust: 0, rain: 1, mist: 1, butterflies: 0, fireflies: 1, birds: 0.6 },
-  } satisfies Record<string, Record<LifeKind, number>>,
-  /** Which row each of our biomes takes: the blossom meadow, the pine woods, sand as the desert. */
-  rows: { jungle: 'heartland', rocky: 'heartland', meadow: 'blossom', pine: 'pinewood', beach: 'desert' } as const,
+  } satisfies Record<LifeRow, Record<LifeKind, number>>,
   /** Multipliers at full night (day = 1); fireflies come out with the night itself. Our motes hang in the sunlight. */
   night: { butterflies: 0, birds: 0.35, fireflies: 1, mist: 1.25, dust: 0 } satisfies Partial<Record<LifeKind, number>>,
   leaves: { count: 40, size: [0.13, 0.2], fall: [0.42, 0.7], sway: 0.35, tumble: 1.5, land: 9.0, wind: 0.55, colors: ['#d9822b', '#c8552a', '#e0a83a', '#a8452a', '#b98a2e'] },
@@ -74,8 +74,8 @@ export const AMBIENT = {
   /** water: over a bank they come out whatever their rank, up to this share; rainCut: the share the rain removes. */
   fireflies: { count: 64, size: 0.12, roam: 0.55, height: [0.22, 1.0], glow: 3.6, color: '#ffd45a', water: 0.9, rainCut: 0.4 },
   /**
-   * Flocks of 3 to flockSize in a V crossing the view: one every `period` s (each later flock 23 % slower) for `cross` s,
-   * over `span` units, just above the treetops; wing = half span; shadow = the strength of their ground shadows.
+   * Flocks of 3 to flockSize in a V crossing the view: one every `period` s (each later flock 23 % slower) for `cross`
+   * s, over `span` units, just above the treetops; wing = half span; shadow = the strength of their ground shadows.
    */
   birds: { flocks: 5, flockSize: 5, period: 30, cross: 15, span: 34, height: 2.1, wing: 0.2, flap: 6.5, shadow: 0.2, shadowColor: GROUND_SHADOW, colors: ['#f6f1e6', '#e9e2d4'] },
 } as const;

@@ -36,4 +36,17 @@ async function boot(): Promise<void> {
   if (import.meta.env.DEV) window.game = game;
 }
 
-void boot();
+/**
+ * The voyage could not start (an asset that would not download or decode, a graphics context the browser refused):
+ * the loading card says so instead of folding the sea forever, and the console keeps the cause.
+ */
+function showBootFailure(err: unknown): void {
+  console.error('Paper Seas could not set sail:', err);
+  const loading = document.getElementById('loading');
+  const line = loading?.querySelector('.line');
+  if (!loading || !line) return;
+  loading.setAttribute('aria-label', 'Paper Seas could not set sail');
+  line.textContent = 'The sea would not fold. Reload the page to try again.';
+}
+
+boot().catch(showBootFailure);

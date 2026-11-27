@@ -155,7 +155,7 @@ export class ShipModel {
 
     // stern lanterns (glow at night later), on the posts Blender stands over the taffrail
     const lantern = lanternArt();
-    const lanternMat = createPaperMaterial({ map: lantern.texture, emissive: TYPE.lantern, emissiveIntensity: 0.2 });
+    const lanternMat = createPaperMaterial({ map: lantern.texture, emissive: TYPE.lantern });
     registerGlow(lanternMat);
     // the warm light the ship carries at night (driven by the day / night cycle)
     this.light.position.set(0, sheer(0.01) + 0.6, zOf(0.05));
@@ -307,7 +307,9 @@ export class ShipModel {
     return new THREE.Vector3(0, y, z).applyMatrix4(m.rest);
   }
 
-  /** Head sails on the stays: the jib from the bowsprit's end, the fore staysail from the stem, both to the foremast. */
+  /**
+   * Head sails on the stays: the jib from the bowsprit's end, the fore staysail from the stem, both to the foremast.
+   */
   private buildHeadSails(): void {
     const tip = this.bowspritTip;
     if (!tip) return;

@@ -17,7 +17,7 @@ const SHALLOWS = 0.9;
  * Animals stand only where the walk field leaves this much room (clearance
  * past the blockers' padding), so they go round trees, rocks, fences and houses instead of through them.
  */
-const ANIMAL_ROOM = 0.07;
+const ANIMAL_WALK_ROOM = 0.07;
 
 export interface ShorePush {
   dx: number;
@@ -31,7 +31,7 @@ export class World {
   readonly land = new LandField();
   /** (the animals keep to the land, out of the streams, but for the ducks afloat on them) */
   readonly cards = new CardField({
-    canStand: (x, z) => this.terrain.distanceAt(x, z) < -0.08 && !this.places.waterAt(x, z, 0.1) && this.room(x, z) > ANIMAL_ROOM,
+    canStand: (x, z) => this.terrain.distanceAt(x, z) < -0.08 && !this.places.waterAt(x, z, 0.1) && this.room(x, z) > ANIMAL_WALK_ROOM,
     water: (x, z) => this.places.waterAt(x, z),
     night: () => this.night,
   });

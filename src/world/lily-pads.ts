@@ -1,8 +1,8 @@
 /**
- * Lily pads on the ponds (world/ponds.ts): the giant water lily's round die-cut paper pads (public/art lily-*, generated
- * seen from above, notch, ribs and the card's cut line printed on them), lying on the water, turned every way, now and
- * then one with its pink lily open. Packed once into a little strip (one square cell per print), laid as flat quads a
- * hair over the water; not mirrored (they lie on the water, render/reflection.ts).
+ * Lily pads on the ponds (world/ponds.ts): the giant water lily's round die-cut paper pads (public/art lily-*,
+ * generated seen from above, notch, ribs and the card's cut line printed on them), lying on the water, turned every
+ * way, now and then one with its pink lily open. Packed once into a little strip (one square cell per print), laid as
+ * flat quads a hair over the water; not mirrored (they lie on the water, render/reflection.ts).
  */
 import * as THREE from 'three';
 import { mulberry32 } from '../core/rng';

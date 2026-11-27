@@ -11,6 +11,13 @@ const lit = new WeakMap<THREE.Material, number>();
 let level = 0;
 /** Emissive strength of lit windows at full night (bright enough for the bloom to halo them). */
 const WINDOW_GLOW = 9;
+/** Emissive strength of a lantern card by day, and what full night adds to it. */
+const LANTERN_GLOW = { day: 0.15, night: 1.6 };
+
+/** A lantern card's emissive strength at the current night level. */
+function lanternGlow(): number {
+  return LANTERN_GLOW.day + level * LANTERN_GLOW.night;
+}
 
 /** Makes a material glow at night through a prepared emissive mask (the Blender models' atlas-glow.png). */
 export function addGlowMap(mat: THREE.MeshLambertMaterial, mask: THREE.Texture): void {
@@ -41,11 +48,11 @@ export function setGlowShare(mat: THREE.Material, share: number): void {
 /** Registers a plain emissive material (lantern cards) to follow the night level. */
 export function registerGlow(mat: THREE.MeshLambertMaterial): void {
   glowing.add(mat);
-  mat.emissiveIntensity = 0.15 + level * 1.6;
+  mat.emissiveIntensity = lanternGlow();
 }
 
 export function setGlowLevel(v: number): void {
   if (Math.abs(v - level) < 1e-3) return;
   level = v;
-  for (const m of glowing) m.emissiveIntensity = m.emissiveMap ? level * WINDOW_GLOW * (lit.get(m) ?? 1) : 0.15 + level * 1.6;
+  for (const m of glowing) m.emissiveIntensity = m.emissiveMap ? level * WINDOW_GLOW * (lit.get(m) ?? 1) : lanternGlow();
 }

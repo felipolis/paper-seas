@@ -13,10 +13,10 @@
  */
 import { WORLD } from '../config/world';
 import { pickWeighted } from '../core/rng';
-import { ANIMALS, SEA_STACK, TILES, heightOf, variantOf, type AnimalRow, type TileKind } from '../config/flora';
+import { ANIMALS, SEA_STACK, TILES, hasTag, heightOf, variantOf, type AnimalRow, type Sprite, type TileKind } from '../config/flora';
 import { spriteTop } from '../art/sprites';
 import { penAt } from './pen';
-import { fbm, valueNoise } from './noise';
+import { fbm, valueNoise } from '../core/noise';
 import { CELL } from './reveal';
 import type { Biome } from './land';
 import type { SetDown } from './card-field';
@@ -57,10 +57,9 @@ const ANIMAL_ROOM = 0.15;
 const HERD_SPREAD = [0.2, 0.09] as const;
 const HERD_GAP = 0.16;
 /**
- * Perches: the props an owl may sit on, and the window of their tops it
- * takes (world units); a sitter sinks this far below the top.
+ * Perches: the window of the tops an owl takes on a prop that is a perch (config/flora.ts), in world units; a sitter
+ * sinks this far below the top.
  */
-const PERCH = /^(stump|log|rock-|woodpile)/;
 const PERCH_TOP: [number, number] = [0.06, 0.62];
 const PERCH_SINK = 0.03;
 /** How many spots a small piece tries on its tile before it gives up (the tall pieces have their corners). */
@@ -105,8 +104,8 @@ function sample<T>(env: CoverEnv, items: readonly T[], n: number): T[] {
 }
 
 /** Hands out the species of a list in a shuffled order, every one of them before any comes again. */
-function deck(env: CoverEnv, items: readonly string[]): () => string {
-  let left: string[] = [];
+function deck<T>(env: CoverEnv, items: readonly T[]): () => T {
+  let left: T[] = [];
   return () => {
     if (!left.length) left = sample(env, items, items.length);
     return left.pop()!;
@@ -142,7 +141,7 @@ export function plantCover(env: CoverEnv, x0: number, z0: number, size: number):
     for (let cx = x0 + CELL / 2; cx < x0 + size; cx += CELL) {
       const d = env.distance(cx, cz);
       if (d > -0.15) continue;
-      const biome: Biome = d > -1.1 ? 'beach' : env.biome(cx, cz, d);
+      const biome = env.biome(cx, cz, d);
       const forest = fbm(SEED + 301, cx / FOREST_PERIOD, cz / FOREST_PERIOD, 2);
       const kinds = TILES[biome];
       const kind = pickWeighted(kinds, (k) => k.weight * (k.forest ? 0.06 + 5.2 * forest * forest : 1), env.rng());
@@ -194,7 +193,7 @@ function plantTile(env: CoverEnv, kind: TileKind, kindIndex: number, biome: Biom
       env.place(sprite, x, z, h);
       env.claim(x, z, PROP_ROOM);
       const top = h * spriteTop(sprite, 0.5);
-      if (PERCH.test(sprite) && top >= PERCH_TOP[0] && top <= PERCH_TOP[1]) perches.push([x, z, top]);
+      if (hasTag(sprite, 'perch') && top >= PERCH_TOP[0] && top <= PERCH_TOP[1]) perches.push([x, z, top]);
     }
   }
   if (kind.clumps) {
@@ -205,7 +204,7 @@ function plantTile(env: CoverEnv, kind: TileKind, kindIndex: number, biome: Biom
       let [x, z] = at;
       // its cards: different species, the tallest first (at the back)
       const size = Math.min(pickWeighted(CLUMP_SIZES, (e) => e[1], env.rng())[0], kind.clumps.species.length);
-      const species = new Set<string>();
+      const species = new Set<Sprite>();
       while (species.size < size) species.add(next());
       const cards = [...species].map((kind) => variantOf(kind, env.rng())).map((sprite) => ({ sprite, height: heightOf(sprite, env.rng()) })).sort((a, b) => b.height - a.height);
       const side = env.rng() < 0.5 ? -1 : 1;
