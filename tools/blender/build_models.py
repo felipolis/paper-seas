@@ -20,7 +20,9 @@ public/models/atlas.png); their gable measurements size the walls and roofs, so 
 Every piece is real card (THICK): printed face, back and a cut edge coloured like the print around it. A piece
 printed with a cut-out shape (the chimney, the sign) is cut to the print's own outline, traced from its alpha
 (atlas.json outline), so its edge follows the drawing; the rest are cut to rectangles or to the print's measured
-spans.
+spans (the fort's walls with battlements cut into them), and those are printed with the part of their face inside the
+print's ragged die-cut rim (print_inside, read from the atlas's alpha) stretched over them, so no cut edge stands in
+the air beside the print.
 
 Geometry is written in the game's frame (Y up, the model's front facing +Z) and converted to Blender's Z-up on
 creation; the glTF exporter converts it back.
@@ -31,6 +33,7 @@ import os
 import sys
 
 import bpy
+import numpy as np
 from mathutils import Matrix, Vector
 from mathutils.geometry import tessellate_polygon
 
@@ -71,6 +74,108 @@ def patch_uv(name):
     return uv_of(name, 0.5, 0.5)
 
 
+def atlas_opaque():
+    """Where the atlas is printed (its alpha over a half), rows from the bottom."""
+    image = bpy.data.images.load(os.path.join(ROOT, "public", "models", "atlas.png"))
+    pixels = np.empty(SIZE * SIZE * 4, dtype=np.float32)
+    image.pixels.foreach_get(pixels)
+    bpy.data.images.remove(image)
+    return pixels[3::4].reshape(SIZE, SIZE) > 0.5
+
+
+ATLAS_OPAQUE = atlas_opaque()
+
+# print_inside's fit. An edge is moved in until this share of it lies on the print.
+PRINT_COVER = 0.98
+# It moves in at most this share of the face's smaller side.
+PRINT_INSET_MAX = 0.25
+# The first fit takes only this middle part of each edge (its ends lie in the neighbouring edges' rims); each fit after
+# it takes the edge between the corners the last one found, until they stop moving (at most this many fits).
+PRINT_FIRST_SPAN = (0.2, 0.8)
+PRINT_FITS = 12
+# Two neighbouring edges turning less than this (the sine of the turn) meet in line: their corner is not intersected.
+PRINT_IN_LINE = 0.05
+_print_inside = {}
+
+
+def print_inside(art, poly):
+    """
+    A convex card outline (poly, in face coordinates) moved in to lie on the face's print: every edge is moved in, each
+    end as far as it needs, until the print covers it (a die-cut print's rim is ragged: torn stone, shingle tips, a
+    post's knob), and the corners are where the moved edges meet. The card keeps its own outline and is
+    printed with this one stretched over it, so its cut edge never stands in the air beside the print.
+    """
+    key = (art, tuple(poly))
+    if key in _print_inside:
+        return _print_inside[key]
+    x0, y0, w, h = face(art)["rect"]
+    limit = round(min(w, h) * PRINT_INSET_MAX)
+    depths = np.arange(limit) + 0.5
+    n = len(poly)
+    # face pixels, y down; the outline runs counter-clockwise in (a, b), so the inside lies left of each edge as drawn
+    pts = [np.array((a * w, (1 - b) * h)) for a, b in poly]
+    edges = []
+    for i in range(n):
+        p, q = pts[i], pts[(i + 1) % n]
+        length = np.linalg.norm(q - p)
+        t = (q - p) / length
+        edges.append({"p": p, "q": q, "len": length, "t": t, "in": np.array((t[1], -t[0])), "span": PRINT_FIRST_SPAN, "d": (0, 0)})
+
+    def needed(e):
+        # for points along the edge: their place on it (0..1) and how far in the print starts there (limit: nowhere)
+        s = np.arange(e["len"] * e["span"][0], e["len"] * e["span"][1], 1.0)
+        xy = e["p"] + s[:, None, None] * e["t"] + depths[None, :, None] * e["in"]
+        px = np.floor(xy[..., 0]).astype(int)
+        py = np.floor(xy[..., 1]).astype(int)
+        inside = (px >= 0) & (py >= 0) & (px < w) & (py < h)
+        opaque = np.zeros(px.shape, dtype=bool)
+        opaque[inside] = ATLAS_OPAQUE[SIZE - 1 - (y0 + py[inside]), x0 + px[inside]]
+        first = np.where(opaque.any(axis=1), opaque.argmax(axis=1), limit)
+        return s / e["len"], first
+
+    def fit(e):
+        # the least move of the two ends (d0 at the start, d1 at the end) that covers PRINT_COVER of the edge
+        ts, need = needed(e)
+        if len(ts) == 0:
+            return e["d"]
+        d = np.arange(limit + 1)
+        covered = (d[:, None, None] + (d[None, :, None] - d[:, None, None]) * ts >= need).sum(axis=2) >= PRINT_COVER * len(ts)
+        # (moving both ends the whole limit always covers it: the print starts within the limit, or nowhere)
+        total = np.where(covered, d[:, None] + d[None, :], 2 * limit + 1)
+        d0, d1 = np.unravel_index(np.argmin(total), total.shape)
+        # (an edge only ever moves in, so the fits settle)
+        return max(int(d0), e["d"][0]), max(int(d1), e["d"][1])
+
+    def along(e, c):
+        return float(np.dot(c - e["p"], e["t"])) / e["len"]
+
+    corners = pts
+    for fit_no in range(PRINT_FITS):
+        lines = []
+        for i, e in enumerate(edges):
+            e["d"] = fit(e)
+            lines.append((e["p"] + e["in"] * e["d"][0], e["q"] + e["in"] * e["d"][1]))
+        moved = []
+        for i in range(n):
+            (a1, b1), (a2, b2) = lines[i - 1], lines[i]
+            t1, t2 = b1 - a1, b2 - a2
+            den = t1[0] * t2[1] - t1[1] * t2[0]
+            if abs(den) < PRINT_IN_LINE * np.linalg.norm(t1) * np.linalg.norm(t2):
+                # (two edges almost in line: the corner between their moved ends)
+                moved.append((b1 + a2) / 2)
+            else:
+                moved.append(a1 + t1 * (((a2[0] - a1[0]) * t2[1] - (a2[1] - a1[1]) * t2[0]) / den))
+        settled = fit_no > 0 and all(np.linalg.norm(m - c) < 0.5 for m, c in zip(moved, corners))
+        corners = moved
+        for i, e in enumerate(edges):
+            e["span"] = (max(0.0, along(e, corners[i])) + 0.01, min(1.0, along(e, corners[(i + 1) % n])) - 0.01)
+        if settled:
+            break
+    out = [(float(c[0]) / w, 1 - float(c[1]) / h) for c in corners]
+    _print_inside[key] = out
+    return out
+
+
 # ------------------------------------------------------------------------------------------------------------------
 # pieces
 
@@ -96,20 +201,21 @@ class Model:
         self.name = name
         self.pieces = []
 
-    def card(self, name, parent, art, corners, poly, hinge, flat, delay=0.0, depth=THICK, open_edges=(), back="print"):
+    def card(self, name, parent, art, corners, poly, hinge, flat, delay=0.0, depth=THICK, back="print", prints=None):
         """
         A planar card, depth thick behind its printed face.
           art       atlas face printed on it
           corners   world positions of the face's corners (a, b) = (0,0), (1,0), (1,1), (0,1) (bilinear)
           poly      the card's outline in face coordinates (a across, b up), counter-clockwise seen from the front: a
-                    convex loop, or a traced outline (atlas.json: [{outer, holes}], outer loops counter-clockwise,
-                    holes clockwise)
+                    convex loop, or an outline as [{outer, holes}] (outer loops counter-clockwise, holes clockwise):
+                    traced from the print (atlas.json) or built (the battlements)
           hinge     (point, axis): its fold line, in world space
           flat      world direction the card lies along when folded flat (perpendicular to the hinge)
           delay     its start (0..1), for a card standing on the page (one hinged on another starts with it)
-        The card gets a back and a cut edge (a convex loop's except along open_edges, given as outline indices: edge i
-        runs from poly[i] to poly[i + 1]). The back carries the same print (whichever way a piece folds flat, no
-        blank kraft ever lies face up); back="kraft" gives a plain back instead.
+          prints    for an outline given as [{outer, holes}]: the face coordinates each of its points is printed with,
+                    in order (the battlements, cut into a wall printed inside its print's rim); by default its own
+        The card gets a back and a cut edge all round. The back carries the same print (whichever way a piece folds
+        flat, no blank kraft ever lies face up); back="kraft" gives a plain back instead.
         """
         c00, c10, c11, c01 = corners
 
@@ -120,6 +226,15 @@ class Model:
         loops = [loop for o in poly for loop in (o["outer"], *o["holes"])] if traced else [poly]
         flat_pts = [(a, b) for loop in loops for a, b in loop]
         pts = [P(a, b) for a, b in flat_pts]
+        # where each point takes its print: a convex card is printed with the part of the face inside the print's
+        # ragged die-cut rim (print_inside), stretched over the whole card, and a built outline with the prints it is
+        # given; a traced outline already runs inside its print, and the bridge's arched sides are cut from plain planks
+        if prints:
+            printed = prints
+        elif not traced and art in ATLAS["faces"] and convex(poly):
+            printed = print_inside(art, poly)
+        else:
+            printed = flat_pts
         normal = (c10 - c00).cross(c01 - c00).normalized()
         centroid = sum(pts, Vector()) / len(pts)
         h0, axis = hinge
@@ -147,23 +262,21 @@ class Model:
         verts += pts
         for f in fronts:
             faces.append(f)
-            uvs.append([uv_of(art, *flat_pts[i]) for i in f])
+            uvs.append([uv_of(art, *printed[i]) for i in f])
         base = len(verts)
         verts += [p - normal * depth for p in pts]
         for f in fronts:
             faces.append([base + i for i in reversed(f)])
-            uvs.append([uv_of(art, *flat_pts[i]) for i in reversed(f)] if back == "print" else [patch_uv(back)] * len(f))
+            uvs.append([uv_of(art, *printed[i]) for i in reversed(f)] if back == "print" else [patch_uv(back)] * len(f))
         # the cut edge is the card itself, coloured through: it takes the print's colour just inside the edge (never a
-        # pale rim around a dark roof); a traced outline already runs just inside the print
-        ca = sum(a for a, _ in flat_pts) / n
-        cb = sum(b for _, b in flat_pts) / n
-        inner = [uv_of(art, a, b) if traced else uv_of(art, a + (ca - a) * 0.04, b + (cb - b) * 0.04) for a, b in flat_pts]
+        # pale rim around a dark roof); an outline traced from the print already runs just inside it
+        ca = sum(a for a, _ in printed) / n
+        cb = sum(b for _, b in printed) / n
+        inner = [uv_of(art, a, b) if traced and not prints else uv_of(art, a + (ca - a) * 0.04, b + (cb - b) * 0.04) for a, b in printed]
         start = 0
         for loop in loops:
             m = len(loop)
             for i in range(m):
-                if i in open_edges and not traced:
-                    continue
                 p, q = start + i, start + (i + 1) % m
                 faces.append([q, p, base + p, base + q])
                 uvs.append([inner[q], inner[p], inner[p], inner[q]])
@@ -276,6 +389,12 @@ class Model:
 def ccw(p, q, r):
     """Whether the triangle p, q, r (2D points) runs counter-clockwise."""
     return (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]) > 0
+
+
+def convex(loop):
+    """Whether a counter-clockwise loop (2D points) is convex: no corner turns clockwise (one in line is fine)."""
+    n = len(loop)
+    return all(not ccw(loop[(i + 1) % n], loop[i], loop[(i + 2) % n]) for i in range(n))
 
 
 def half_of(poly, k, at):
@@ -417,9 +536,9 @@ def cross_halves(m, name, card, art, poly, foot, up, along, normal, width, heigh
 # ------------------------------------------------------------------------------------------------------------------
 # a square tower: four walls (front, then sides hinged on it, then the back on the left side) and a top
 
-def box_walls(m, prefix, cx, cz, base_y, w_bot, w_top, height, arts, parent=None, back="print", open_top=False):
-    """Four (optionally tapered) walls around (cx, cz). arts = (front, side, back). Returns (front, left, right,
-    back)."""
+def box_walls(m, prefix, cx, cz, base_y, w_bot, w_top, height, arts, parent=None, back="print", crenellated=False):
+    """Four (optionally tapered) walls around (cx, cz), with battlements if crenellated. arts = (front, side, back).
+    Returns (front, left, right, back) and the corners of the top (front-left, front-right, back-right, back-left)."""
     hb, ht = w_bot / 2, w_top / 2
     y0, y1 = base_y, base_y + height
 
@@ -449,7 +568,10 @@ def box_walls(m, prefix, cx, cz, base_y, w_bot, w_top, height, arts, parent=None
         # the card follows the print's outline (a tapered print leaves no kraft beside it)
         sp = face(art)["spans"]
         poly = [(sp["bottom"][0], 0), (sp["bottom"][1], 0), (sp["top"][1], 1), (sp["top"][0], 1)]
-        return m.card(name, par, art, cs, poly, hinge, flat, back=back, open_edges=(2,) if open_top else ())
+        if crenellated:
+            outline, prints = battlements(art, poly)
+            return m.card(name, par, art, cs, outline, hinge, flat, back=back, prints=prints)
+        return m.card(name, par, art, cs, poly, hinge, flat, back=back)
 
     def pt(x, y, z):
         return V(cx + x, y, cz + z)
@@ -463,6 +585,35 @@ def box_walls(m, prefix, cx, cz, base_y, w_bot, w_top, height, arts, parent=None
     rt = wall(prefix + "right", art_side, (FRb, BRb), (FRt, BRt), fr, (FRb, FRt - FRb), (FLb - FRb), inset=THICK + 0.003)
     bk = wall(prefix + "back", art_back, (BRb, BLb), (BRt, BLt), lf, (BLb, BLt - BLb), FLb - BLb)
     return fr, lf, rt, bk, (FLt, FRt, BRt, BLt)
+
+
+# The battlements cut into the top of a crenellated wall: three merlons (one at each corner, one in the middle), each
+# this share of the wall's width, the gaps between them this share of its height deep.
+MERLON = 0.22
+CRENEL_DEPTH = 0.1
+
+
+def battlements(art, poly):
+    """
+    A wall's outline (poly: a convex quad in face coordinates, its bottom then its top) with the battlements cut into
+    its top, and the face coordinates each of its points is printed with: the wall is printed with the part of its
+    face inside the print's rim (print_inside), so the print's own torn crenellations are left off and the merlons are
+    cut clean through its top stones. Returns (outline, prints) for Model.card.
+    """
+    inside = print_inside(art, poly)
+
+    def at(quad, u, v):
+        # the point (u across, v up, 0..1) of a quad, bilinear
+        (a0, b0), (a1, b1), (a2, b2), (a3, b3) = quad
+        k0, k1, k2, k3 = (1 - u) * (1 - v), u * (1 - v), u * v, (1 - u) * v
+        return (k0 * a0 + k1 * a1 + k2 * a2 + k3 * a3, k0 * b0 + k1 * b1 + k2 * b2 + k3 * b3)
+
+    low = 1 - CRENEL_DEPTH
+    gap = (1 - 3 * MERLON) / 2
+    # counter-clockwise from the bottom left: along the bottom, up the right side, then over the merlons right to left
+    points = [(0, 0), (1, 0), (1, 1), (1 - MERLON, 1), (1 - MERLON, low), (1 - MERLON - gap, low), (1 - MERLON - gap, 1),
+              (MERLON + gap, 1), (MERLON + gap, low), (MERLON, low), (MERLON, 1), (0, 1)]
+    return [{"outer": [at(poly, u, v) for u, v in points], "holes": []}], [at(inside, u, v) for u, v in points]
 
 
 def pyramid(m, prefix, top_corners, apex_h, art, walls):
@@ -491,8 +642,8 @@ def fort_tower(name):
     fw, fh = face("fort-wall")["rect"][2:]
     sp = face("fort-wall")["spans"]["bottom"]
     height = w / (sp[1] - sp[0]) * fh / fw
-    # (printed inside too, so the crenellations are cut on both faces; open along their top)
-    fr, lf, rt, bk, top = box_walls(m, "", 0, 0, 0, w, w, height, ("fort-door", "fort-wall", "fort-wall"), back="print", open_top=True)
+    # (printed inside too: the battlements are seen from both sides)
+    fr, lf, rt, bk, top = box_walls(m, "", 0, 0, 0, w, w, height, ("fort-door", "fort-wall", "fort-wall"), back="print", crenellated=True)
     # the stone floor of the battlement, hinged on the back wall just under the crenellations
     yb = height * 0.86
     hb = w / 2 - 0.01
