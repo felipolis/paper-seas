@@ -212,7 +212,10 @@ export interface Chest {
 export const GROUND = {
   sand: hexRgb('#e6cf9a'),
   wetSand: hexRgb('#cdb07a'),
-  /** The wet sand's band (shore distances, negative on land) and how far toward the wet tone it goes. */
+  /**
+   * The shore distances (negative on land) over which the sand turns from dry to wet at the water, and how far toward
+   * the wet tone it goes there.
+   */
   wetBand: [-0.35, 0],
   wetShare: 0.9,
   /** The page: one ground tone for every biome, its printed patches flattened. */
@@ -843,7 +846,7 @@ export class Terrain {
           const grain = valueNoise(7, x * 9, z * 9) * 0.5 + valueNoise(8, x * 31, z * 31) * 0.5;
           if (t1 >= 0) {
             // sand, darker and wetter at the water
-            const wet = 1 - smoothstep(GROUND.wetBand[0], GROUND.wetBand[1], d);
+            const wet = smoothstep(GROUND.wetBand[0], GROUND.wetBand[1], d);
             const s = 1 - wet * GROUND.wetShare;
             r = GROUND.sand[0] * s + GROUND.wetSand[0] * (1 - s);
             g = GROUND.sand[1] * s + GROUND.wetSand[1] * (1 - s);

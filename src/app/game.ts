@@ -325,7 +325,7 @@ export class Game {
     this.life.update(dt, { x: p.x, z: p.z, fx: p.forwardX, fz: p.forwardZ });
     this.flotsam.update(dt, p.x, p.z, this.reveal, viewReach);
     this.marvels.update(dt, p.x, p.z, this.dayNight.hour, this.dayNight.lanterns > 0.5, !walking);
-    this.walker.updateLantern(this.dayNight.lanterns);
+    this.walker.updateLantern(dt, this.dayNight.lanterns);
     updatePools(this.dayNight.lanterns, fx, fz, this.world.cards.lamps());
     this.smoke.update(dt, this.world.terrain.chimneysNear(fx, fz, 14), fx, fz, ship.wind.x, ship.wind.z, this.dayNight.lanterns, this.view.camera);
     this.ambience.update(dt, fx, fz, ship.wind.x, ship.wind.z, this.dayNight.lanterns, this.view.camera);

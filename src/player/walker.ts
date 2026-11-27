@@ -17,6 +17,8 @@ import { PLAYER } from '../config/player';
 import { bus } from '../core/events';
 import type { Input } from '../core/input';
 import { PADDING, WALKER_RADIUS } from '../world/blockers';
+import { VIEW_GLIDE } from '../camera/follow-camera';
+import { smoothstep } from '../core/math';
 
 export interface WalkWorld {
   /** Signed distance to the shore (negative on land). */
@@ -66,6 +68,8 @@ export class Walker {
    */
   readonly lantern = new THREE.PointLight(LANTERN.colour, 0, LANTERN.distance, LANTERN.decay);
   active = false;
+  /** How far his lantern has come up (0 out, 1 lit). */
+  private lit = 0;
   /** Keys walked him this frame (they win over a click's walk). */
   keyed = false;
   x = 0;
@@ -119,9 +123,13 @@ export class Walker {
     this.group.position.set(x, this.y, z);
   }
 
-  /** night: 0..1 (the day-night cycle's lantern level). */
-  updateLantern(night: number): void {
-    this.lantern.intensity = this.active ? LANTERN.day + (LANTERN.night - LANTERN.day) * night : 0;
+  /**
+   * night: 0..1 (the day-night cycle's lantern level). The lantern is lit day and night ashore; it comes up as he steps
+   * ashore and goes out as he boards, over the camera's glide, so the light round him never jumps.
+   */
+  updateLantern(dt: number, night: number): void {
+    this.lit = this.active ? Math.min(1, this.lit + dt / VIEW_GLIDE) : Math.max(0, this.lit - dt / VIEW_GLIDE);
+    this.lantern.intensity = smoothstep(0, 1, this.lit) * (LANTERN.day + (LANTERN.night - LANTERN.day) * night);
     this.lantern.distance = LANTERN.distance + (LANTERN.nightDistance - LANTERN.distance) * night;
     this.lantern.position.set(this.x, this.y + LANTERN.height, this.z);
   }

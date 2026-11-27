@@ -243,7 +243,7 @@ function seaColour(x: number, z: number, dd: number): Rgb {
 
 /** The ground of a terrace dd from the shore (dd <= 0): wet sand to dry, the page tone, tinted on the heights. */
 function landColour(terrace: number, dd: number): Rgb {
-  if (terrace <= 0) return mix(GROUND.sand, GROUND.wetSand, GROUND.wetShare * (1 - smoothstep(GROUND.wetBand[0], GROUND.wetBand[1], dd)));
+  if (terrace <= 0) return mix(GROUND.sand, GROUND.wetSand, GROUND.wetShare * smoothstep(GROUND.wetBand[0], GROUND.wetBand[1], dd));
   if (terrace === 1) return GROUND.page;
   return mix(GROUND.page, terrace === 2 ? GROUND.hill : GROUND.rock, terrace === 2 ? GROUND.hillTint : GROUND.rockTint);
 }

@@ -32,7 +32,7 @@ export type SightTest = (ox: number, oy: number, oz: number, dx: number, dy: num
 const SIGHT_HEIGHTS = [0.35, 0.65, 0.95];
 
 /** How long a change of view (boarding, going ashore) takes (s). */
-const VIEW_GLIDE = 0.9;
+export const VIEW_GLIDE = 0.9;
 
 /** A tile, in world units (the unit of a view's reach). */
 const TILE = 2;
