@@ -6,7 +6,12 @@ How the printed cards, the Blender-built buildings, mountains, ships and captain
 ## The cards
 
 Every sprite starts as a sheet of die-cut paper cards generated in Google Flow (Nano Banana Pro), saved in
-`assets-src/flow`, and is cut out into `public/art`. The sheets share one look: printed layered paper collage with
+`assets-src/flow`, and is cut out into `public/art`. Every sheet is kept at Flow's 2K download (2752 x 1536). Flow
+makes the 2K by re-rendering the image with the references it was generated with, and on some sheets that painted
+the style's reference scene into the key background (asking again returns the same file); those (05, 07-jibs, 08,
+14-mangrove, 15, 22, 37, 40, 41, 42, 43, 44 and 49) were remade from their own 1K: the 1K uploaded to Flow as the only
+reference of a Nano Banana Pro prompt to reproduce it unchanged, and that copy's 2K downloaded, checked against the 1K
+(a mean difference of a few levels, the cards in place) and retried until clean. The sheets share one look: printed layered paper collage with
 lit-side lips and bold ornaments on plants, cloth, wood and buildings (stone, water and animals stay plain), a thin dark
 cut line with a pale highlight on its lit side, never felt, stitching or an even cream sticker rim. A prompt is its
 sheet's subject (`assets-src/prompts/NN-*.txt`) followed by the shared style (`assets-src/prompts/style.txt`, with KEY
@@ -57,7 +62,7 @@ over the terrain swatches (`assets-src/models/swatches`) and `pack-atlas.mjs` pr
 ```bash
 node tools/art/cut-sprites.mjs tools/art/model-sheets.json   # cut the printed faces (assets-src/flow/19-21)
 node tools/art/paint-domes.mjs                               # paint the mountains' dome and stone faces (+ domes.json)
-node tools/art/pack-atlas.mjs                                # pack them into public/models/atlas.png, measure, trace
+node tools/art/pack-atlas.mjs                                # pack them into public/models/atlas.png (4096), measure, trace
 "C:/Program Files/Blender Foundation/Blender 5.3/blender.exe" -b --factory-startup -P tools/blender/build_models.py
 ```
 

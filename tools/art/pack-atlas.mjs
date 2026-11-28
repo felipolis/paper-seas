@@ -21,7 +21,7 @@ import { OUTLINE_GRID, alphaGrid, traceOutline } from './outline.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const facesDir = join(root, 'assets-src/models/faces');
-const SIZE = 2048;
+const SIZE = 4096;
 const PAD = 8;
 const PATCHES = {
   kraft: '#d8bf94', core: '#a8957c', wood: '#6a4428', stone: '#8f877a',
