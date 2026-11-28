@@ -96,8 +96,8 @@ What the world does and how, every size measured against the captain:
   cut edge stands on the print's outline (traced from its alpha at the print's resolution, up to 384 px), so it shows
   round the print at an angle; its face is shaded from 0.88 at the hinge to full colour 0.065 above it (contact shading,
   baked per vertex), the cards of a clump darker toward its back (0.69 to 1, its instance colour); its cut edge is the
-  print's mean tone taken 0.45 of the way to a dark umber and 0.1 toward the cream core (0.5 and 0.06 on a dark print,
-  so a pine never shows a pale edge); crossed trees turn 0.6 of the others' jitter, ferns stand single. A crossed card
+  print's mean colour scaled to a luma of 0.39 (and at most 0.8 of the print's own), the card's shadowed side in the
+  print's own tone; crossed trees turn 0.6 of the others' jitter, ferns stand single. A crossed card
   (a tree whose sheet is tagged `crossed`, `config/flora.ts`) is a slotted cross: the card, and two half cards 40 % as
   thick hinged on its two faces down its middle, half a millimetre of air off them, folded flat against it while it lies
   and pulled open by it as it rises (the spring's nested linkage), so a lying cross reads as one card; the chimneys and

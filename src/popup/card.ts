@@ -39,15 +39,15 @@ export function materialFor(art: CardArt): THREE.MeshLambertMaterial {
 const FOOT_SHADE = 0.88;
 const FOOT_RAMP = 0.065;
 /**
- * The card's side (its stock's thickness): the print's own tone darkened toward a dark umber, with a hint of the
- * cream core (more darkening and less core on dark prints, so a pine never shows a pale edge).
+ * The card's side (its stock's thickness), the card's shadowed side: the print's own tone (its mean colour) scaled to
+ * this brightness (sRGB luma, 0..1), and never brighter than `most` of the print's own, so a dark print's side is
+ * still darker than its face.
  */
-const EDGE_UMBER = [0x2b, 0x1a, 0x0e].map((v) => v / 255);
-const EDGE_CORE = [0xf4, 0xe6, 0xc8].map((v) => v / 255);
+const EDGE_SHADE = { luma: 0.39, most: 0.8 };
 
 const edgeTones = new WeakMap<object, THREE.Color>();
 
-/** The colour of a print's side: the mean of its art, as EDGE_UMBER says. Cached per image. */
+/** The colour of a print's side: the mean of its art, shaded as EDGE_SHADE says. Cached per image. */
 function edgeColour(texture: THREE.Texture): THREE.Color {
   const image = texture.image as (CanvasImageSource & { width: number; height: number }) | undefined;
   const fallback = new THREE.Color('#4a4a3a');
@@ -69,12 +69,9 @@ function edgeColour(texture: THREE.Texture): THREE.Color {
   if (!n) return fallback;
   // (mixed in sRGB, as hex colours are)
   const mean = [r / n / 255, g / n / 255, b / n / 255];
-  const dark = 0.2126 * mean[0] + 0.7152 * mean[1] + 0.0722 * mean[2] < 0.42;
-  const [toUmber, toCore] = dark ? [0.5, 0.06] : [0.45, 0.1];
-  const side = mean.map((v, k) => {
-    const shaded = v + (EDGE_UMBER[k] - v) * toUmber;
-    return shaded + (EDGE_CORE[k] - shaded) * toCore;
-  });
+  const luma = 0.2126 * mean[0] + 0.7152 * mean[1] + 0.0722 * mean[2];
+  const shade = Math.min(EDGE_SHADE.most, EDGE_SHADE.luma / luma);
+  const side = mean.map((v) => v * shade);
   const tone = new THREE.Color().setRGB(side[0], side[1], side[2], THREE.SRGBColorSpace);
   edgeTones.set(image, tone);
   return tone;
